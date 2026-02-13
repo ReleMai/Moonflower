@@ -1,0 +1,45 @@
+{
+  "haven": {
+    "clientPath": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Haven",
+    "dataPath": "%APPDATA%\\Haven and Hearth",
+    "mapPath": "../HavenData/map",
+    "servers": [
+      "game.havenandhearth.com"
+    ],
+    "defaultServer": "game.havenandhearth.com",
+    "tileSize": 100
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3300,
+    "apiKey": ""
+  },
+  "collector": {
+    "watchInterval": 2000,
+    "autoStitch": true,
+    "stitchThreshold": 10,
+    "archiveProcessed": true
+  },
+  "stitcher": {
+    "tileSize": 100,
+    "outputFormat": "png",
+    "outputQuality": 90,
+    "maxCanvasSize": 16384,
+    "chunkSize": 50
+  },
+  "storage": {
+    "dbPath": "data/cartographer.db",
+    "tilesDir": "data/tiles",
+    "mapsDir": "data/maps",
+    "exportsDir": "data/exports",
+    "liveTilesDir": "data/live",
+    "screenshotsDir": "data/screenshots"
+  },
+  "map": {
+    "defaultZoom": 1,
+    "minZoom": 0.1,
+    "maxZoom": 10,
+    "gridEnabled": true,
+    "gridColor": "rgba(255,255,255,0.1)"
+  }
+}

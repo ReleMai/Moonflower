@@ -1,0 +1,38 @@
+{
+  "name": "moonflower-client",
+  "version": "1.0.0",
+  "description": "Moonflower — A modded launcher for Haven & Hearth with integrated cartography",
+  "main": "src/main/main.js",
+  "author": "Rele",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "koffi": "^2.15.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.moonflower.havenclient",
+    "productName": "Moonflower Client",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ]
+  }
+}

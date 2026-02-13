@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moonflower — Haven & Hearth</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Custom Title Bar -->
+    <header class="titlebar">
+        <div class="titlebar-drag">
+            <svg class="titlebar-logo" viewBox="0 0 24 24" width="16" height="16">
+                <circle cx="12" cy="8" r="3" fill="#c9a84c" opacity="0.9"/>
+                <ellipse cx="7" cy="10" rx="2.5" ry="4" fill="#b8a0d8" opacity="0.7" transform="rotate(-30 7 10)"/>
+                <ellipse cx="17" cy="10" rx="2.5" ry="4" fill="#b8a0d8" opacity="0.7" transform="rotate(30 17 10)"/>
+                <ellipse cx="5" cy="13" rx="2" ry="3.5" fill="#9b7ec9" opacity="0.5" transform="rotate(-50 5 13)"/>
+                <ellipse cx="19" cy="13" rx="2" ry="3.5" fill="#9b7ec9" opacity="0.5" transform="rotate(50 19 13)"/>
+                <path d="M12 12 Q12 18 12 22" stroke="#3a8a5c" stroke-width="1.5" fill="none"/>
+                <path d="M12 16 Q9 14 7 15" stroke="#6b9e6e" stroke-width="1" fill="none"/>
+                <path d="M12 18 Q15 16 17 17" stroke="#6b9e6e" stroke-width="1" fill="none"/>
+            </svg>
+            <span class="titlebar-text">Moonflower</span>
+            <span class="titlebar-version">v1.0</span>
+        </div>
+        <div class="titlebar-controls">
+            <button class="titlebar-btn" id="btnMinimize" title="Minimize">
+                <svg width="10" height="1"><rect width="10" height="1" fill="currentColor"/></svg>
+            </button>
+            <button class="titlebar-btn" id="btnMaximize" title="Maximize">
+                <svg width="10" height="10"><rect width="10" height="10" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+            </button>
+            <button class="titlebar-btn titlebar-close" id="btnClose" title="Close">
+                <svg width="10" height="10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- ===== INTRO VIEW ===== -->
+    <section class="view active" id="introView">
+        <div class="intro-bg">
+            <div class="intro-vignette"></div>
+            <div class="fireflies" id="fireflies"></div>
+            <div class="moon-glow"></div>
+        </div>
+
+        <div class="intro-content">
+            <!-- Moonflower Logo -->
+            <div class="intro-flower">
+                <svg viewBox="0 0 120 140" width="120" height="140" class="moonflower-svg">
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.85" transform="rotate(0 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.75" transform="rotate(45 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.85" transform="rotate(90 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.75" transform="rotate(135 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.85" transform="rotate(180 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.75" transform="rotate(225 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.85" transform="rotate(270 60 55)"/>
+                    <ellipse cx="60" cy="40" rx="14" ry="28" fill="url(#petalGrad)" opacity="0.75" transform="rotate(315 60 55)"/>
+                    <circle cx="60" cy="55" r="10" fill="url(#centerGrad)"/>
+                    <circle cx="60" cy="55" r="6" fill="#ffe680" opacity="0.6"/>
+                    <path d="M60 65 Q58 90 60 130" stroke="url(#stemGrad)" stroke-width="3" fill="none" stroke-linecap="round"/>
+                    <path d="M60 85 Q48 78 40 82" stroke="#6b9e6e" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <path d="M60 100 Q72 93 78 97" stroke="#6b9e6e" stroke-width="2" fill="none" stroke-linecap="round"/>
+                    <ellipse cx="43" cy="80" rx="8" ry="4" fill="#3a8a5c" opacity="0.6" transform="rotate(-20 43 80)"/>
+                    <ellipse cx="75" cy="95" rx="8" ry="4" fill="#3a8a5c" opacity="0.6" transform="rotate(20 75 95)"/>
+                    <defs>
+                        <radialGradient id="petalGrad" cx="50%" cy="30%">
+                            <stop offset="0%" stop-color="#e0d0f8"/>
+                            <stop offset="40%" stop-color="#b8a0d8"/>
+                            <stop offset="100%" stop-color="#7b5ea7"/>
+                        </radialGradient>
+                        <radialGradient id="centerGrad">
+                            <stop offset="0%" stop-color="#ffe680"/>
+                            <stop offset="100%" stop-color="#c9a84c"/>
+                        </radialGradient>
+                        <linearGradient id="stemGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#5a9e6e"/>
+                            <stop offset="100%" stop-color="#2d5e3a"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+
+            <h1 class="intro-title">Moonflower</h1>
+            <p class="intro-subtitle">Haven & Hearth Companion Client</p>
+            <p class="intro-author">by ReleMai</p>
+
+            <!-- Status Badges -->
+            <div class="intro-badges">
+                <div class="badge" id="badgeHaven">
+                    <span class="badge-icon">⚔️</span>
+                    <span class="badge-label">Haven</span>
+                    <span class="badge-status" id="badgeHavenStatus">...</span>
+                </div>
+                <div class="badge" id="badgeJava">
+                    <span class="badge-icon">☕</span>
+                    <span class="badge-label">Java</span>
+                    <span class="badge-status" id="badgeJavaStatus">...</span>
+                </div>
+                <div class="badge" id="badgeCarto">
+                    <span class="badge-icon">🗺️</span>
+                    <span class="badge-label">Cartographer</span>
+                    <span class="badge-status" id="badgeCartoStatus">...</span>
+                </div>
+            </div>
+
+            <!-- Server & Config -->
+            <div class="intro-config">
+                <div class="config-row">
+                    <label>Server</label>
+                    <select class="field" id="serverSelect">
+                        <option value="game.havenandhearth.com">game.havenandhearth.com</option>
+                    </select>
+                </div>
+                <div class="config-row">
+                    <label>Memory</label>
+                    <div class="memory-control">
+                        <input type="range" id="memorySlider" min="512" max="8192" step="256" value="2048" class="slider">
+                        <span class="memory-value" id="memoryLabel">2048 MB</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Launch Button -->
+            <button class="btn-launch" id="btnLaunch">
+                <span class="btn-launch-icon">⚔️</span>
+                <span class="btn-launch-text">Enter the Wilds</span>
+            </button>
+
+            <!-- Quick Links -->
+            <div class="intro-links">
+                <a href="#" id="linkDashboard" class="intro-link"><span>📊</span> Dashboard</a>
+                <a href="#" id="linkSettings" class="intro-link"><span>⚙️</span> Settings</a>
+                <a href="#" id="linkFullMap" class="intro-link"><span>🗺️</span> Web Map</a>
+            </div>
+            <p class="intro-tip" id="introTip"></p>
+        </div>
+    </section>
+
+    <!-- ===== LOADING VIEW ===== -->
+    <section class="view" id="loadingView">
+        <div class="loading-content">
+            <div class="loading-ring">
+                <svg viewBox="0 0 100 100" width="80" height="80">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="#1e2a26" stroke-width="4"/>
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="url(#loadGrad)" stroke-width="4"
+                            stroke-dasharray="66 198" stroke-linecap="round" class="loading-arc"/>
+                    <defs><linearGradient id="loadGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="#c9a84c"/><stop offset="100%" stop-color="#b8a0d8"/>
+                    </linearGradient></defs>
+                </svg>
+            </div>
+            <p class="loading-text" id="loadingText">Summoning the Hearthfire...</p>
+            <div class="loading-bar"><div class="loading-fill" id="loadingFill"></div></div>
+            <p class="loading-detail" id="loadingDetail">Launching Haven & Hearth client</p>
+            <button class="btn-cancel" id="btnCancel">Cancel Launch</button>
+        </div>
+    </section>
+
+    <!-- ===== DASHBOARD VIEW ===== -->
+    <section class="view" id="dashboardView">
+        <div class="dash-toolbar">
+            <div class="dash-toolbar-left">
+                <span class="status-indicator" id="gameStatusBar">
+                    <span class="status-dot idle" id="gameStatusDot"></span>
+                    <span id="gameStatusText">Game Idle</span>
+                </span>
+                <span class="toolbar-sep">|</span>
+                <span class="status-indicator" id="cartoStatusBar">
+                    <span class="status-dot disconnected" id="cartoStatusDot"></span>
+                    <span id="cartoStatusText">Cartographer</span>
+                </span>
+            </div>
+            <div class="dash-toolbar-center">
+                <button class="toolbar-btn" id="btnNavIntro" title="Home">🏠</button>
+                <button class="toolbar-btn active" data-panel="panelDash" title="Dashboard">📊</button>
+                <button class="toolbar-btn" data-panel="panelMap" title="Map">🗺️</button>
+                <button class="toolbar-btn" data-panel="panelAuto" title="Automation">🤖</button>
+                <button class="toolbar-btn" data-panel="panelLog" title="Log">📋</button>
+                <button class="toolbar-btn" id="btnOpenSettings" title="Settings">⚙️</button>
+            </div>
+            <div class="dash-toolbar-right">
+                <label class="tile-toggle">
+                    <input type="checkbox" id="chkTileCollection">
+                    <span class="tile-toggle-slider"></span>
+                    <span class="tile-toggle-label">Tile Sync</span>
+                </label>
+                <button class="toolbar-btn btn-stop" id="btnStopGame" title="Stop Game">⏹ Stop</button>
+            </div>
+        </div>
+
+        <div class="dash-body">
+            <!-- Dashboard Home -->
+            <div class="dash-panel active" id="panelDash">
+                <div class="panel-grid">
+                    <div class="card card-double">
+                        <div class="card-head"><span class="card-icon">📊</span><span>Cartographer Stats</span></div>
+                        <div class="card-content">
+                            <div class="stats-grid">
+                                <div class="stat-block"><div class="stat-number" id="dStatTiles">0</div><div class="stat-label">Tiles</div></div>
+                                <div class="stat-block"><div class="stat-number" id="dStatMarkers">0</div><div class="stat-label">Markers</div></div>
+                                <div class="stat-block"><div class="stat-number" id="dStatRegions">0</div><div class="stat-label">Regions</div></div>
+                                <div class="stat-block"><div class="stat-number" id="dStatSessions">0</div><div class="stat-label">Sessions</div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card card-map">
+                        <div class="card-head"><span class="card-icon">🗺️</span><span>Map Preview</span>
+                            <a href="#" class="card-action" id="btnFullMap">Full Map ↗</a></div>
+                        <div class="card-content card-content-fill"><canvas id="dashboardMapCanvas" class="map-canvas"></canvas></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-head"><span class="card-icon">⚡</span><span>Quick Actions</span></div>
+                        <div class="card-content">
+                            <button class="action-btn" id="btnStitch"><span>🧵</span> Stitch Map</button>
+                            <button class="action-btn" id="btnRefreshStats"><span>🔄</span> Refresh Stats</button>
+                            <button class="action-btn" id="btnOpenWebMap"><span>🌐</span> Open Web Map</button>
+                            <button class="action-btn btn-danger-action" id="btnClearTiles"><span>🗑️</span> Clear All Tiles</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-head"><span class="card-icon">📋</span><span>Activity</span></div>
+                        <div class="card-content card-content-scroll">
+                            <div class="activity-list" id="activityList"><div class="activity-empty">Waiting for map data...</div></div>
+                        </div>
+                    </div>
+                    <div class="card card-wide">
+                        <div class="card-head"><span class="card-icon">📜</span><span>Hearthling's Wisdom</span>
+                            <button class="card-action" id="btnNewTip">New Tip</button></div>
+                        <div class="card-content"><p class="tip-text" id="gameTip"></p></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map View -->
+            <div class="dash-panel" id="panelMap">
+                <div class="map-fullview">
+                    <canvas id="fullMapCanvas" class="map-canvas-full"></canvas>
+                    <div class="map-overlay-tools">
+                        <button class="map-btn" id="btnMapZoomIn" title="Zoom In">+</button>
+                        <button class="map-btn" id="btnMapZoomOut" title="Zoom Out">−</button>
+                        <button class="map-btn" id="btnMapFit" title="Fit View">⊞</button>
+                    </div>
+                    <div class="map-overlay-info">
+                        <span id="mapCoords">0, 0</span>
+                        <span class="map-sep">|</span>
+                        <span id="mapZoom">1.0x</span>
+                        <span class="map-sep">|</span>
+                        <span id="mapTileCount">0 tiles</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automation -->
+            <div class="dash-panel" id="panelAuto">
+                <div class="auto-layout">
+                    <div class="auto-sidebar">
+                        <h3 class="auto-section-title">🤖 Automation Hub</h3>
+                        <p class="auto-desc">Control MoonflowerPlugin features from the companion dashboard.</p>
+                        <div class="auto-card">
+                            <div class="auto-card-head"><span>🌿 Forager Bot</span><span class="auto-badge idle">Idle</span></div>
+                            <div class="auto-card-body">
+                                <p>Automated foraging for herbs, mushrooms, berries, and curiosities.</p>
+                                <div class="auto-setting"><label>Forage Radius</label>
+                                    <input type="range" min="5" max="60" value="15" class="slider slider-sm" id="forageRadius">
+                                    <span id="forageRadiusVal">15 tiles</span></div>
+                                <div class="auto-setting"><label>Danger Avoidance</label>
+                                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                            </div>
+                        </div>
+                        <div class="auto-card">
+                            <div class="auto-card-head"><span>🗺️ Tile Sync</span><span class="auto-badge active">Active</span></div>
+                            <div class="auto-card-body">
+                                <p>Auto-uploads discovered map tiles to HavenCartographer for live map building.</p>
+                                <div class="auto-setting"><label>Auto Upload</label>
+                                    <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                            </div>
+                        </div>
+                        <div class="auto-card">
+                            <div class="auto-card-head"><span>📍 Marker Sync</span><span class="auto-badge planned">Planned</span></div>
+                            <div class="auto-card-body"><p>Auto-detect and mark resources, villages, and points of interest.</p></div>
+                        </div>
+                    </div>
+                    <div class="auto-main">
+                        <div class="card card-full">
+                            <div class="card-head"><span class="card-icon">📡</span><span>Plugin Status</span></div>
+                            <div class="card-content">
+                                <div class="connection-grid">
+                                    <div class="conn-item"><span class="conn-label">Game Client</span><span class="conn-value" id="connGameClient">Not running</span></div>
+                                    <div class="conn-item"><span class="conn-label">Forager Plugin</span><span class="conn-value" id="connForager">Not loaded</span></div>
+                                    <div class="conn-item"><span class="conn-label">TileSync Plugin</span><span class="conn-value" id="connTileSync">Not loaded</span></div>
+                                    <div class="conn-item"><span class="conn-label">Cartographer</span><span class="conn-value" id="connCarto">Checking...</span></div>
+                                </div>
+                                <p class="conn-note">Plugins are loaded in-game via the paginae menu. This panel mirrors their status.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log -->
+            <div class="dash-panel" id="panelLog">
+                <div class="log-view">
+                    <div class="log-toolbar">
+                        <span class="log-title">📋 Debug Log</span>
+                        <button class="toolbar-btn-sm" id="btnRefreshLog">Refresh</button>
+                        <button class="toolbar-btn-sm" id="btnClearLog">Clear</button>
+                    </div>
+                    <pre class="log-content" id="logContent">Moonflower Client initialized...</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== SETTINGS MODAL ===== -->
+    <div class="modal-backdrop" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>⚙️ Settings</h2>
+                <button class="modal-close" id="btnCloseSettings">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label class="setting-label">Haven & Hearth Install Path</label>
+                    <div class="setting-row">
+                        <input type="text" class="field" id="settingHavenPath" placeholder="C:\Program Files (x86)\Steam\steamapps\common\Haven">
+                        <button class="btn-browse" id="btnBrowseHaven">Browse</button>
+                    </div>
+                    <p class="setting-hint">Steam install folder containing launcher.jar</p>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Java Path (auto-detected)</label>
+                    <div class="setting-row">
+                        <input type="text" class="field" id="settingJavaPath" placeholder="Auto-detected from Haven JRE">
+                        <button class="btn-browse" id="btnBrowseJava">Browse</button>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">HavenCartographer URL</label>
+                    <input type="text" class="field" id="settingCartoUrl" placeholder="http://127.0.0.1:3300">
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Memory Allocation (MB)</label>
+                    <input type="number" class="field" id="settingMemory" min="512" max="8192" step="256" value="2048">
+                </div>
+                <div class="setting-actions">
+                    <button class="btn-save" id="btnSaveSettings">Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="map.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

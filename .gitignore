@@ -1,0 +1,34 @@
+# ─── Dependencies ────────────────────────────────────────────
+node_modules/
+package-lock.json
+
+# ─── Runtime data (generated / persistent) ───────────────────
+HavenCartographer/data/
+HavenData/
+*.db
+*.hmap
+
+# ─── Build artifacts ─────────────────────────────────────────
+dist/
+MoonflowerClient/dist/
+MoonflowerPlugin/build/
+MoonflowerPlugin/*.jar
+
+# ─── External repos (submodule / cloned game client) ─────────
+hafen-client/
+
+# ─── Logs & env ──────────────────────────────────────────────
+*.log
+.env
+.env.*
+
+# ─── OS files ────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# ─── IDE / editor ───────────────────────────────────────────
+.idea/
+*.swp
+*.swo
+*~

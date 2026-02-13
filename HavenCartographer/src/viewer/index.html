@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moonflower — Haven & Hearth Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/map-ui.css">
+</head>
+<body>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Navigation Bar
+         ═══════════════════════════════════════════════════════════════════ -->
+    <nav class="nav-bar">
+        <div class="nav-brand">
+            <svg class="nav-logo" viewBox="0 0 24 24" width="20" height="20">
+                <path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 2c1.4 0 2.7.4 3.8 1L12 8.8 8.2 5C9.3 4.4 10.6 4 12 4zm-6 6l3.8-3.8L12 8.8V16l-6-6zm12 0l-6 6V8.8l2.2-2.6L18 10z"/>
+            </svg>
+            <span class="nav-title">Moonflower</span>
+        </div>
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="dashboard">
+                <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M0 1.5A1.5 1.5 0 011.5 0h13A1.5 1.5 0 0116 1.5v13a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 14.5v-13zM1.5 1a.5.5 0 00-.5.5V5h6V1H1.5zM7 6H1v4h6V6zm0 5H1v3.5a.5.5 0 00.5.5H7v-4zM8 15h6.5a.5.5 0 00.5-.5V1.5a.5.5 0 00-.5-.5H8v14z"/></svg>
+                Dashboard
+            </button>
+            <button class="nav-tab" data-tab="map">
+                <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M0 1l5.5 2L11 1l5 2v12l-5-2-5.5 2L0 13V1zm1 .5v10l4.5 1.5L11 12V2l-5.5 2L1 2.5V1.5zm10 .5v10l4 1.5V3.5L11 2z"/></svg>
+                Map
+            </button>
+            <button class="nav-tab" data-tab="tools">
+                <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M1 0L0 1l2.2 3.1a1 1 0 001.3.2l1.3-.9L8 6.6 9.3 5.3l-3.2-3.2.9-1.3a1 1 0 00-.2-1.3L3.7 0H3L1 0zm11.8 9.1l-1.2 1.2c-.3.3-.3.8 0 1.1l3.3 3.3c.3.3.8.3 1.1 0l1.2-1.2c.3-.3.3-.8 0-1.1l-3.3-3.3c-.3-.3-.8-.3-1.1 0zM8.2 4.4L4.4 8.2c-.3.3-.3.8 0 1.1l2.3 2.3c.3.3.8.3 1.1 0l3.8-3.8L8.2 4.4z"/></svg>
+                Tools
+            </button>
+        </div>
+        <div class="nav-status">
+            <span class="conn-dot" id="navConnDot"></span>
+            <span class="conn-text" id="navConnText">Offline</span>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Tab: Dashboard
+         ═══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-view active" id="tabDashboard">
+        <div class="dashboard-scroll">
+            <div class="dashboard-grid">
+
+                <!-- Server Stats -->
+                <div class="card card-stats">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M4 11H2v3h2v-3zm5.5-4h-2v7h2V7zM15 2h-2v12h2V2z"/></svg>
+                            Server Stats
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-row">
+                            <span class="stat-label">Tiles</span>
+                            <span class="stat-value" id="statTiles">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Markers</span>
+                            <span class="stat-value" id="statMarkers">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Game Icons</span>
+                            <span class="stat-value" id="statGameIcons">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Settlements</span>
+                            <span class="stat-value" id="statSettlements">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Notes</span>
+                            <span class="stat-value" id="statNotes">0</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Regions</span>
+                            <span class="stat-value" id="statRegions">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map Preview -->
+                <div class="card card-map-preview">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M0 1l5.5 2L11 1l5 2v12l-5-2-5.5 2L0 13V1z"/></svg>
+                            Map Preview
+                        </h3>
+                        <button class="card-link" id="btnGoToMap">Open Map Tab →</button>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="mapPreviewCanvas" class="map-preview-canvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card card-actions">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.089z"/></svg>
+                            Quick Actions
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary" id="btnStitch">Stitch Map</button>
+                        <button class="btn btn-secondary" id="btnRefresh">Refresh Stats</button>
+                        <button class="btn btn-danger" id="btnClearTiles">Clear All Tiles</button>
+                    </div>
+                </div>
+
+                <!-- Activity Feed -->
+                <div class="card card-activity">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 3.5a.5.5 0 00-1 0V8a.5.5 0 00.252.434l3.5 2a.5.5 0 00.496-.868L8 7.71V3.5z"/><path fill="currentColor" d="M8 16A8 8 0 108 0a8 8 0 000 16zm7-8A7 7 0 111 8a7 7 0 0114 0z"/></svg>
+                            Activity Feed
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="activity-list" id="activityList">
+                            <div class="activity-empty">No activity yet</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collector Status -->
+                <div class="card card-collector">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1a.5.5 0 01.5.5v5.793l3.146-3.147a.5.5 0 01.708.708l-4 4a.5.5 0 01-.708 0l-4-4a.5.5 0 11.708-.708L7.5 7.293V1.5A.5.5 0 018 1zM14 11a1 1 0 011 1v2a1 1 0 01-1 1H2a1 1 0 01-1-1v-2a1 1 0 011-1h12zm-3 1.5a.5.5 0 110 1 .5.5 0 010-1zm2 0a.5.5 0 110 1 .5.5 0 010-1z"/></svg>
+                            Tile Collector
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-row">
+                            <span class="stat-label">Status</span>
+                            <span class="stat-value" id="collectorStatus">Unknown</span>
+                        </div>
+                        <div class="collector-controls">
+                            <button class="btn btn-small" id="btnPauseCollector">Pause</button>
+                            <button class="btn btn-small" id="btnResumeCollector">Resume</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connection Info -->
+                <div class="card card-connection">
+                    <div class="card-header">
+                        <h3>
+                            <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M13.5 3a.5.5 0 01.5.5V11h-2V5H8v6H6V7H2v4H0V3.5a.5.5 0 01.5-.5h13z"/><path fill="currentColor" d="M2 12h12v2H2v-2z"/></svg>
+                            Connection
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-row">
+                            <span class="stat-label">Server</span>
+                            <span class="stat-value" id="connServer">—</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">WebSocket</span>
+                            <span class="stat-value" id="connWs">—</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Uptime</span>
+                            <span class="stat-value" id="connUptime">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Tab: Map  (full map viewer)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-view" id="tabMap">
+
+        <!-- Map Toolbar -->
+        <div class="map-toolbar">
+            <div class="topbar-tools">
+                <!-- Draw Tools -->
+                <div class="tool-group">
+                    <button class="tool-btn active" id="btnToolPan" data-tool="pan" title="Pan (Hand)">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1a1 1 0 011 1v4.5a.5.5 0 001 0V4a1 1 0 112 0v3.5a.5.5 0 001 0V5a1 1 0 012 0v6a5 5 0 01-5 5H8.5A4.5 4.5 0 014 11.5V9a1 1 0 012 0v.5a.5.5 0 001 0V2a1 1 0 011-1z"/></svg>
+                    </button>
+                    <button class="tool-btn" id="btnToolMarker" data-tool="marker" title="Place Marker">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0a5 5 0 00-5 5c0 3.5 5 11 5 11s5-7.5 5-11A5 5 0 008 0zm0 7.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+                    </button>
+                    <button class="tool-btn" id="btnToolNote" data-tool="note" title="Place Note">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1a1 1 0 00-1 1v11a1 1 0 001 1h7.5a.5.5 0 000-1H2V2h12v5.5a.5.5 0 001 0V2a1 1 0 00-1-1H2z"/><path fill="currentColor" d="M9.5 10.5L14 6l1.5 1.5-4.5 4.5H9.5v-1.5z"/></svg>
+                    </button>
+                    <button class="tool-btn" id="btnToolRegion" data-tool="region" title="Draw Region">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2.5A1.5 1.5 0 012.5 1h3A1.5 1.5 0 017 2.5v3A1.5 1.5 0 015.5 7h-3A1.5 1.5 0 011 5.5v-3zm8 0A1.5 1.5 0 0110.5 1h3A1.5 1.5 0 0115 2.5v3A1.5 1.5 0 0113.5 7h-3A1.5 1.5 0 019 5.5v-3zM1 10.5A1.5 1.5 0 012.5 9h3A1.5 1.5 0 017 10.5v3A1.5 1.5 0 015.5 15h-3A1.5 1.5 0 011 13.5v-3z"/></svg>
+                    </button>
+                </div>
+                <span class="tool-separator"></span>
+                <!-- Visibility Toggles -->
+                <div class="tool-group">
+                    <button class="tool-btn active" id="btnToggleGrid" title="Grid">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M0 1.5A1.5 1.5 0 011.5 0h13A1.5 1.5 0 0116 1.5v13a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 14.5v-13zM1.5 1a.5.5 0 00-.5.5V5h5V1H1.5zM6 1v4h4V1H6zm4 0v4h5V1.5a.5.5 0 00-.5-.5H10zM15 6h-5v4h5V6zm0 5h-5v4h4.5a.5.5 0 00.5-.5V11zM9 15v-4H6v4h3zm-4 0v-4H1v3.5a.5.5 0 00.5.5H5zM1 10h4V6H1v4zm5 0h4V6H6v4z"/></svg>
+                    </button>
+                    <button class="tool-btn active" id="btnToggleMarkers" title="Markers">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0a5 5 0 00-5 5c0 3.5 5 11 5 11s5-7.5 5-11A5 5 0 008 0zm0 7.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+                    </button>
+                    <button class="tool-btn active" id="btnToggleGameIcons" title="Game Icons">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1a1 1 0 00-1 1v5.586a1 1 0 00.293.707l6.414 6.414a1 1 0 001.414 0l5.586-5.586a1 1 0 000-1.414L8.293 1.293A1 1 0 007.586 1H2zm2 3a1 1 0 110-2 1 1 0 010 2z"/></svg>
+                    </button>
+                    <button class="tool-btn active" id="btnToggleSettlements" title="Settlements">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1 3a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H8.5v7.5a.5.5 0 01-1 0V6H2a1 1 0 01-1-1V3z"/></svg>
+                    </button>
+                    <button class="tool-btn active" id="btnToggleNotes" title="Notes">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1a1 1 0 00-1 1v11a1 1 0 001 1h7.5a.5.5 0 000-1H2V2h12v5.5a.5.5 0 001 0V2a1 1 0 00-1-1H2z"/><path fill="currentColor" d="M9.5 10.5L14 6l1.5 1.5-4.5 4.5H9.5v-1.5z"/></svg>
+                    </button>
+                    <button class="tool-btn active" id="btnToggleRegions" title="Regions">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1 2.5A1.5 1.5 0 012.5 1h3A1.5 1.5 0 017 2.5v3A1.5 1.5 0 015.5 7h-3A1.5 1.5 0 011 5.5v-3z"/></svg>
+                    </button>
+                </div>
+                <span class="tool-separator"></span>
+                <!-- Layer Selector -->
+                <div class="tool-group layer-selector-group">
+                    <span class="layer-indicator" title="Current Layer">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.6L1 5.5l7 3.9 7-3.9L8 1.6zM1 8l7 3.9L15 8"/></svg>
+                        <select id="layerSelect" class="layer-select" title="Map Layer">
+                            <option value="0">Surface</option>
+                        </select>
+                    </span>
+                </div>
+                <span class="tool-separator"></span>
+                <!-- Actions -->
+                <div class="tool-group">
+                    <button class="tool-btn" id="btnFitMap" title="Fit to View">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1 1h5v1H2v4H1V1zm14 0h-5v1h4v4h1V1zM1 15h5v-1H2v-4H1v5zm14 0h-5v-1h4v-4h1v5z"/></svg>
+                    </button>
+                    <button class="tool-btn" id="btnScreenshot" title="Take Screenshot">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M10.5 1a.5.5 0 01.49.4l.6 3A1.5 1.5 0 0013 5.5h1.5A1.5 1.5 0 0116 7v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 14V7a1.5 1.5 0 011.5-1.5H3a1.5 1.5 0 001.41-1l.6-3A.5.5 0 015.5 1h5zM8 12a3 3 0 100-6 3 3 0 000 6z"/></svg>
+                    </button>
+                    <button class="tool-btn" id="btnExportData" title="Export Map Data">
+                        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1a.5.5 0 01.5.5v8.793l2.146-2.147a.5.5 0 01.708.708l-3 3a.5.5 0 01-.708 0l-3-3a.5.5 0 11.708-.708L7.5 10.293V1.5A.5.5 0 018 1zM2 13.5a.5.5 0 01.5-.5h11a.5.5 0 010 1h-11a.5.5 0 01-.5-.5z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: coords + zoom + layer -->
+            <div class="map-toolbar-status">
+                <div class="coord-display" id="coordDisplay">
+                    <span class="coord-label">Tile</span>
+                    <span class="coord-value" id="mapCoords">0, 0</span>
+                </div>
+                <div class="layer-display">
+                    <span class="layer-badge" id="currentLayerDisplay">Surface</span>
+                </div>
+                <div class="zoom-display">
+                    <span class="zoom-value" id="zoomLevel">1.0×</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map + Right Panel layout -->
+        <div class="map-layout">
+            <!-- Canvas viewport -->
+            <div class="map-viewport" id="mapViewport">
+                <canvas id="mapCanvas"></canvas>
+
+                <!-- Floating minimap -->
+                <div class="minimap" id="minimap">
+                    <canvas id="minimapCanvas" width="160" height="120"></canvas>
+                </div>
+
+                <!-- Zoom buttons -->
+                <div class="zoom-controls">
+                    <button class="zoom-btn" id="btnZoomIn" title="Zoom In">+</button>
+                    <button class="zoom-btn" id="btnZoomOut" title="Zoom Out">−</button>
+                </div>
+
+                <!-- Screenshot flash -->
+                <div class="screenshot-flash" id="screenshotFlash"></div>
+
+                <!-- Empty state -->
+                <div class="map-empty-state" id="mapEmptyState">
+                    <div class="empty-icon">🗺️</div>
+                    <h3>No tiles collected yet</h3>
+                    <p>Launch Haven & Hearth with the Moonflower TileSync plugin to start mapping.</p>
+                </div>
+            </div>
+
+            <!-- Right Panel with sub-tabs -->
+            <aside class="right-panel" id="rightPanel">
+                <div class="panel-tabs">
+                    <button class="panel-tab active" data-panel="panelLayers" title="Layers & Info">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1.6L1 5.5l7 3.9 7-3.9L8 1.6zM1 8l7 3.9L15 8l-7-3.9L1 8zM1 10.5l7 3.9 7-3.9"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelMarkers" title="Markers">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0a5 5 0 00-5 5c0 3.5 5 11 5 11s5-7.5 5-11A5 5 0 008 0zm0 7.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelGameIcons" title="Game Icons">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1a1 1 0 00-1 1v5.586a1 1 0 00.293.707l6.414 6.414a1 1 0 001.414 0l5.586-5.586a1 1 0 000-1.414L8.293 1.293A1 1 0 007.586 1H2zm2 3a1 1 0 110-2 1 1 0 010 2z"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelSettlements" title="Settlements">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M1 3a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H8.5v7.5a.5.5 0 01-1 0V6H2a1 1 0 01-1-1V3z"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelNotes" title="Notes">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M2 1a1 1 0 00-1 1v11a1 1 0 001 1h7.5a.5.5 0 000-1H2V2h12v5.5a.5.5 0 001 0V2a1 1 0 00-1-1H2z"/><path fill="currentColor" d="M9.5 10.5L14 6l1.5 1.5-4.5 4.5H9.5v-1.5z"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelActivity" title="Activity">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M8 3.5a.5.5 0 00-1 0V8a.5.5 0 00.252.434l3.5 2a.5.5 0 00.496-.868L8 7.71V3.5z"/><path fill="currentColor" d="M8 16A8 8 0 108 0a8 8 0 000 16zm7-8A7 7 0 111 8a7 7 0 0114 0z"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelScreenshots" title="Screenshots">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M10.5 1a.5.5 0 01.49.4l.6 3A1.5 1.5 0 0013 5.5h1.5A1.5 1.5 0 0116 7v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 14V7a1.5 1.5 0 011.5-1.5H3a1.5 1.5 0 001.41-1l.6-3A.5.5 0 015.5 1h5zM8 12a3 3 0 100-6 3 3 0 000 6z"/></svg>
+                    </button>
+                    <button class="panel-tab" data-panel="panelBots" title="Bot Tracking">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M6 8a3 3 0 100-6 3 3 0 000 6zm-5 6s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H1zm9-1.5a5.972 5.972 0 00-1.528-3.531C9.475 8.338 10.195 8 11 8a3 3 0 100-6 3 3 0 012.438 4.742C14.47 7.762 15 9.086 15 10.5a1.5 1.5 0 01-1.5 1.5H10z"/></svg>
+                    </button>
+                </div>
+
+                <!-- Panel: Layers & Info -->
+                <div class="panel-content active" id="panelLayers">
+                    <div class="panel-header"><h3>Layers & Info</h3></div>
+                    <div class="panel-body">
+                        <div class="info-grid">
+                            <div class="info-cell">
+                                <span class="info-label">Tiles</span>
+                                <span class="info-value" id="mapTileCount">0</span>
+                            </div>
+                            <div class="info-cell">
+                                <span class="info-label">Markers</span>
+                                <span class="info-value" id="mapMarkerCount">0</span>
+                            </div>
+                            <div class="info-cell">
+                                <span class="info-label">Icons</span>
+                                <span class="info-value" id="mapIconCount">0</span>
+                            </div>
+                            <div class="info-cell">
+                                <span class="info-label">Notes</span>
+                                <span class="info-value" id="mapNoteCount">0</span>
+                            </div>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Bounds</span>
+                            <span class="info-value mono" id="mapBounds">—</span>
+                        </div>
+                        <hr class="panel-divider">
+                        <div class="layer-toggles">
+                            <label class="layer-toggle"><input type="checkbox" id="chkLayerGrid" checked><span class="layer-swatch" style="background:#c9a84c33"></span>Grid Overlay</label>
+                            <label class="layer-toggle"><input type="checkbox" id="chkLayerMarkers" checked><span class="layer-swatch" style="background:#c9a84c"></span>Markers</label>
+                            <label class="layer-toggle"><input type="checkbox" id="chkLayerGameIcons" checked><span class="layer-swatch" style="background:#3a8a5c"></span>Game Icons</label>
+                            <label class="layer-toggle"><input type="checkbox" id="chkLayerSettlements" checked><span class="layer-swatch" style="background:#d4763a"></span>Settlements</label>
+                            <label class="layer-toggle"><input type="checkbox" id="chkLayerNotes" checked><span class="layer-swatch" style="background:#e8d5a3"></span>Notes</label>
+                            <label class="layer-toggle"><input type="checkbox" id="chkLayerRegions" checked><span class="layer-swatch" style="background:#d4763a66"></span>Regions</label>
+                        </div>
+                        <hr class="panel-divider">
+                        <div class="action-row">
+                            <button class="panel-btn primary" id="mapBtnStitch">
+                                <svg width="12" height="12" viewBox="0 0 16 16"><path fill="currentColor" d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3H14a2 2 0 012 2v9a2 2 0 01-2 2H2a2 2 0 01-2-2V5a2 2 0 012-2h3.5V.5A.5.5 0 016 0z"/></svg>
+                                Stitch
+                            </button>
+                            <button class="panel-btn danger" id="mapBtnClear">
+                                <svg width="12" height="12" viewBox="0 0 16 16"><path fill="currentColor" d="M5.5 5.5A.5.5 0 016 6v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm2.5 0a.5.5 0 01.5.5v6a.5.5 0 01-1 0V6a.5.5 0 01.5-.5zm3 .5a.5.5 0 00-1 0v6a.5.5 0 001 0V6z"/><path fill="currentColor" d="M14.5 3a1 1 0 01-1 1H13v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h-.5a1 1 0 01-1-1V2a1 1 0 011-1H6a1 1 0 011-1h2a1 1 0 011 1h3.5a1 1 0 011 1v1z"/></svg>
+                                Clear
+                            </button>
+                        </div>
+                        <hr class="panel-divider">
+                        <div class="panel-header"><h3>Map Origin</h3></div>
+                        <div class="info-row">
+                            <span class="info-label">Current</span>
+                            <span class="info-value mono" id="mapOriginDisplay">0, 0</span>
+                        </div>
+                        <div class="action-row" style="gap:6px; flex-wrap:wrap;">
+                            <input type="number" id="originXInput" class="panel-input" placeholder="X" style="width:60px" value="0">
+                            <input type="number" id="originYInput" class="panel-input" placeholder="Y" style="width:60px" value="0">
+                            <button class="panel-btn primary" id="mapBtnSetOrigin">Set Origin</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Markers -->
+                <div class="panel-content" id="panelMarkers">
+                    <div class="panel-header">
+                        <h3>Markers</h3>
+                        <button class="panel-icon-btn" id="btnAddMarker" title="Add Marker">+</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="panel-search">
+                            <input type="text" id="markerSearch" placeholder="Search markers..." class="panel-input">
+                        </div>
+                        <div class="scrollable-list" id="markerList">
+                            <div class="list-empty">No markers yet</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Game Icons (auto-detected from plugin) -->
+                <div class="panel-content" id="panelGameIcons">
+                    <div class="panel-header">
+                        <h3>Game Icons</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="panel-search">
+                            <input type="text" id="iconSearch" placeholder="Search icons..." class="panel-input">
+                        </div>
+                        <div class="filter-chips" id="iconFilterChips">
+                            <button class="chip active" data-filter="all">All</button>
+                            <button class="chip" data-filter="tree">🌳</button>
+                            <button class="chip" data-filter="herb">🌱</button>
+                            <button class="chip" data-filter="mushroom">🍄</button>
+                            <button class="chip" data-filter="animal">🐾</button>
+                            <button class="chip" data-filter="rock">🪨</button>
+                            <button class="chip" data-filter="ore">⛏</button>
+                            <button class="chip" data-filter="building">🏠</button>
+                            <button class="chip" data-filter="water">💧</button>
+                        </div>
+                        <div class="scrollable-list" id="iconList">
+                            <div class="list-empty">No game icons detected — launch the TileSync plugin</div>
+                        </div>
+                        <div class="panel-hint">Game icons are auto-detected by the MoonflowerTileSync plugin</div>
+                    </div>
+                </div>
+
+                <!-- Panel: Settlements (auto-detected villages & claims) -->
+                <div class="panel-content" id="panelSettlements">
+                    <div class="panel-header">
+                        <h3>Settlements</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="panel-search">
+                            <input type="text" id="settlementSearch" placeholder="Search settlements..." class="panel-input">
+                        </div>
+                        <div class="filter-chips" id="settlementFilterChips">
+                            <button class="chip active" data-filter="all">All</button>
+                            <button class="chip" data-filter="village">Villages</button>
+                            <button class="chip" data-filter="claim">Claims</button>
+                        </div>
+                        <div class="scrollable-list" id="settlementList">
+                            <div class="list-empty">No settlements detected</div>
+                        </div>
+                        <div class="panel-hint">Villages and claims are auto-detected by the plugin</div>
+                    </div>
+                </div>
+
+                <!-- Panel: Notes (user-placed annotations) -->
+                <div class="panel-content" id="panelNotes">
+                    <div class="panel-header">
+                        <h3>Notes</h3>
+                        <button class="panel-icon-btn" id="btnAddNote" title="Add Note">+</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="panel-search">
+                            <input type="text" id="noteSearch" placeholder="Search notes..." class="panel-input">
+                        </div>
+                        <div class="scrollable-list" id="noteList">
+                            <div class="list-empty">No notes yet — click the map to add one</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Activity -->
+                <div class="panel-content" id="panelActivity">
+                    <div class="panel-header">
+                        <h3>Live Activity</h3>
+                        <button class="panel-icon-btn" id="btnClearActivity" title="Clear">×</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="scrollable-list activity-feed" id="mapActivityFeed">
+                            <div class="list-empty">Waiting for activity...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Screenshots -->
+                <div class="panel-content" id="panelScreenshots">
+                    <div class="panel-header"><h3>Screenshots</h3></div>
+                    <div class="panel-body">
+                        <div class="screenshot-options">
+                            <label class="option-row">
+                                <span>Include</span>
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" id="ssIncludeMarkers" checked> Markers</label>
+                                    <label><input type="checkbox" id="ssIncludeGameIcons" checked> Icons</label>
+                                    <label><input type="checkbox" id="ssIncludeSettlements" checked> Settlements</label>
+                                    <label><input type="checkbox" id="ssIncludeNotes" checked> Notes</label>
+                                    <label><input type="checkbox" id="ssIncludeGrid"> Grid</label>
+                                </div>
+                            </label>
+                            <label class="option-row">
+                                <span>Format</span>
+                                <select id="ssFormat" class="panel-select">
+                                    <option value="png">PNG</option>
+                                    <option value="jpeg">JPEG</option>
+                                    <option value="webp">WebP</option>
+                                </select>
+                            </label>
+                        </div>
+                        <button class="panel-btn primary wide" id="btnTakeScreenshot">
+                            <svg width="12" height="12" viewBox="0 0 16 16"><path fill="currentColor" d="M10.5 1a.5.5 0 01.49.4l.6 3A1.5 1.5 0 0013 5.5h1.5A1.5 1.5 0 0116 7v7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 14V7a1.5 1.5 0 011.5-1.5H3a1.5 1.5 0 001.41-1l.6-3A.5.5 0 015.5 1h5zM8 12a3 3 0 100-6 3 3 0 000 6z"/></svg>
+                            Capture Current View
+                        </button>
+                        <button class="panel-btn wide" id="btnScreenshotFull">Capture Full Map</button>
+                        <hr class="panel-divider">
+                        <div class="scrollable-list" id="screenshotGallery">
+                            <div class="list-empty">No screenshots taken</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Bot Tracking -->
+                <div class="panel-content" id="panelBots">
+                    <div class="panel-header">
+                        <h3>Bot Tracking</h3>
+                        <span class="panel-badge" id="botOnlineCount">0 online</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="bot-controls">
+                            <label class="layer-toggle">
+                                <input type="checkbox" id="chkTrackingEnabled" checked>
+                                <span class="layer-swatch tracking-swatch" style="background:#4ade80"></span>
+                                Tracking
+                                <span class="panel-badge tracking-on" id="botTrackingBadge">ON</span>
+                            </label>
+                            <label class="layer-toggle">
+                                <input type="checkbox" id="chkShowBots" checked>
+                                <span class="layer-swatch" style="background:#4a7fb5"></span>
+                                Show Bots on Map
+                            </label>
+                        </div>
+                        <hr class="panel-divider">
+                        <div class="bot-card-list" id="botList">
+                            <div class="list-empty">No clients connected — launch Moonflower in-game</div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Tab: Tools  (future planning tools)
+         ═══════════════════════════════════════════════════════════════════ -->
+    <section class="tab-view" id="tabTools">
+        <div class="dashboard-scroll">
+            <div class="tools-grid">
+                <div class="tool-card" data-tool="food-planner">
+                    <div class="tool-icon">🍖</div>
+                    <h3>Food Planner</h3>
+                    <p>Plan and optimize your food recipes for maximum FEP gain</p>
+                    <span class="tool-status">Coming Soon</span>
+                </div>
+                <div class="tool-card" data-tool="farming">
+                    <div class="tool-icon">🌾</div>
+                    <h3>Farming Guide</h3>
+                    <p>Crop management, rotation planner, and seed genetics</p>
+                    <span class="tool-status">Coming Soon</span>
+                </div>
+                <div class="tool-card" data-tool="skills">
+                    <div class="tool-icon">📚</div>
+                    <h3>Skill Planner</h3>
+                    <p>Plan your character's LP progression and curiosity study</p>
+                    <span class="tool-status">Coming Soon</span>
+                </div>
+                <div class="tool-card" data-tool="crafting">
+                    <div class="tool-icon">⚒️</div>
+                    <h3>Crafting Calculator</h3>
+                    <p>Calculate crafting requirements, quality, and outputs</p>
+                    <span class="tool-status">Coming Soon</span>
+                </div>
+                <div class="tool-card" data-tool="combat">
+                    <div class="tool-icon">⚔️</div>
+                    <h3>Combat Helper</h3>
+                    <p>Combat opening, deck builder, and maneuver reference</p>
+                    <span class="tool-status">Coming Soon</span>
+                </div>
+                <div class="tool-card" data-tool="wiki">
+                    <div class="tool-icon">📖</div>
+                    <h3>Wiki Browser</h3>
+                    <p>Integrated Haven & Hearth wiki search and reference</p>
+                    <span class="tool-status">Coming Soon</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Dialogs (shared — used by Map tab)
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- Add Marker Dialog -->
+    <dialog class="modal-dialog" id="markerDialog">
+        <form class="dialog-form" id="markerForm">
+            <h3 class="dialog-title">Place Marker</h3>
+            <label class="form-field">
+                <span>Name</span>
+                <input type="text" name="name" required class="dialog-input" placeholder="e.g. Iron Vein">
+            </label>
+            <label class="form-field">
+                <span>Category</span>
+                <select name="category" class="dialog-input" id="markerCategorySelect"></select>
+            </label>
+            <label class="form-field">
+                <span>Color</span>
+                <input type="color" name="color" value="#c9a84c" class="dialog-color">
+            </label>
+            <label class="form-field">
+                <span>Description</span>
+                <textarea name="description" class="dialog-input" rows="2" placeholder="Optional notes..."></textarea>
+            </label>
+            <input type="hidden" name="x" id="markerDialogX">
+            <input type="hidden" name="y" id="markerDialogY">
+            <div class="dialog-actions">
+                <button type="button" class="panel-btn" id="markerDialogCancel">Cancel</button>
+                <button type="submit" class="panel-btn primary">Place</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- Add Note Dialog -->
+    <dialog class="modal-dialog" id="noteDialog">
+        <form class="dialog-form" id="noteForm">
+            <h3 class="dialog-title">Add Note</h3>
+            <label class="form-field">
+                <span>Title</span>
+                <input type="text" name="title" required class="dialog-input" placeholder="e.g. Enemy base spotted">
+            </label>
+            <label class="form-field">
+                <span>Text</span>
+                <textarea name="text" class="dialog-input" rows="3" placeholder="Describe what you found..."></textarea>
+            </label>
+            <label class="form-field">
+                <span>Icon</span>
+                <select name="icon" class="dialog-input" id="noteIconSelect">
+                    <option value="📝">📝 Note</option>
+                    <option value="⚠">⚠ Warning</option>
+                    <option value="⭐">⭐ Important</option>
+                    <option value="🏠">🏠 Location</option>
+                    <option value="⚔">⚔ Combat</option>
+                    <option value="💀">💀 Danger</option>
+                    <option value="🎯">🎯 Target</option>
+                    <option value="❓">❓ Unknown</option>
+                    <option value="🏴">🏴 Enemy</option>
+                    <option value="🏳">🏳 Ally</option>
+                </select>
+            </label>
+            <label class="form-field">
+                <span>Color</span>
+                <input type="color" name="color" value="#e8d5a3" class="dialog-color">
+            </label>
+            <label class="form-field">
+                <span>Screenshot (optional)</span>
+                <div class="screenshot-upload-area" id="noteScreenshotArea">
+                    <input type="file" id="noteScreenshotFile" accept="image/*" class="screenshot-file-input">
+                    <div class="screenshot-dropzone" id="noteDropzone">
+                        <span>📷 Click or drop an image</span>
+                    </div>
+                    <img id="noteScreenshotPreview" class="screenshot-preview-thumb" style="display:none">
+                    <button type="button" class="panel-btn small" id="noteScreenshotClear" style="display:none">Remove</button>
+                </div>
+            </label>
+            <input type="hidden" name="x" id="noteDialogX">
+            <input type="hidden" name="y" id="noteDialogY">
+            <input type="hidden" name="screenshot" id="noteScreenshotData">
+            <div class="dialog-actions">
+                <button type="button" class="panel-btn" id="noteDialogCancel">Cancel</button>
+                <button type="submit" class="panel-btn primary">Save Note</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- Screenshot Preview Dialog -->
+    <dialog class="modal-dialog wide" id="screenshotDialog">
+        <div class="screenshot-preview">
+            <img id="screenshotPreviewImg" alt="Screenshot preview">
+            <div class="dialog-actions">
+                <button class="panel-btn" id="ssDialogClose">Close</button>
+                <button class="panel-btn primary" id="ssDialogDownload">Download</button>
+                <button class="panel-btn" id="ssDialogCopy">Copy to Clipboard</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Note Detail Dialog (view note with screenshot) -->
+    <dialog class="modal-dialog wide" id="noteDetailDialog">
+        <div class="note-detail">
+            <h3 class="dialog-title" id="noteDetailTitle">Note</h3>
+            <p class="note-detail-text" id="noteDetailText"></p>
+            <img id="noteDetailScreenshot" class="note-detail-screenshot" style="display:none">
+            <div class="note-detail-meta" id="noteDetailMeta"></div>
+            <div class="dialog-actions">
+                <button class="panel-btn" id="noteDetailClose">Close</button>
+                <button class="panel-btn danger" id="noteDetailDelete">Delete</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Bot Interact Dialog -->
+    <dialog class="modal-dialog" id="botInteractDialog">
+        <div class="dialog-form">
+            <h3 class="dialog-title">Interact with Object</h3>
+            <div class="form-field">
+                <span>Target</span>
+                <div class="dialog-info" id="botInteractTarget">—</div>
+            </div>
+            <label class="form-field">
+                <span>Menu Option</span>
+                <input type="text" id="botInteractMenuOption" class="dialog-input" placeholder="e.g. Pick, Pick up, Open...">
+            </label>
+            <input type="hidden" id="botInteractGobId">
+            <input type="hidden" id="botInteractBotId">
+            <div class="dialog-actions">
+                <button type="button" class="panel-btn" id="botInteractCancel">Cancel</button>
+                <button type="button" class="panel-btn primary" id="botInteractSubmit">Interact</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/map-renderer.js"></script>
+    <script src="js/markers.js"></script>
+    <script src="js/regions.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/map-page.js"></script>
+</body>
+</html>

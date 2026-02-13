@@ -1,0 +1,36 @@
+{
+  "name": "haven-cartographer",
+  "version": "1.0.0",
+  "description": "Map server and tile collector for Haven & Hearth",
+  "main": "src/server/index.js",
+  "scripts": {
+    "start": "node src/server/index.js",
+    "dev": "node --watch src/server/index.js",
+    "collector": "node src/collector/watcher.js",
+    "stitch": "node src/stitcher/stitch.js",
+    "setup": "node scripts/setup.js",
+    "test": "node --test test/**/*.test.js"
+  },
+  "keywords": [
+    "haven",
+    "hearth",
+    "mmo",
+    "map",
+    "cartographer"
+  ],
+  "author": "Rele",
+  "license": "MIT",
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "multer": "^2.0.2",
+    "sharp": "^0.33.2",
+    "sql.js": "^1.10.3",
+    "uuid": "^9.0.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}
