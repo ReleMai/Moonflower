@@ -26,7 +26,7 @@ fish-icon map spots, pending supervised validation of the latest refinements.
 Status: complete on 2026-08-21; online game compatibility is Milestone 2.
 
 Goal: Preserve the custom control platform while updating the client to the
-latest verified compatible Hurricane/official-client source.
+latest verified compatible official-client source.
 
 Acceptance criteria:
 - Pre-update source is recoverable locally.

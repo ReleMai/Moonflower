@@ -159,7 +159,7 @@ public class AlarmWindow extends Window {
 
 		add(defaultsReloadedText = new Label("", warningFoundry), UI.scale(400, 488)).setcolor(Color.GREEN);
 
-		add(new Button(UI.scale(180), "Load Nightdawg's Defaults") {
+		add(new Button(UI.scale(180), "Load MoonFlower Defaults") {
 			@Override
 			public void click() {
 				AlarmManager.defaultSettings();

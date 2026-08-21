@@ -28,7 +28,7 @@ Acceptance criteria:
    fish choice with the highest final percentage.
 5. New fish appearing in the main inventory or an equipped Creel during a
    fishing attempt are saved to
-   `%APPDATA%\Haven and Hearth\Hurricane\fishing.db`; unrelated new items are
+   `%APPDATA%\Haven and Hearth\MoonFlower\fishing.db`; unrelated new items are
    rejected by the fish classifier.
 6. Each saved observation includes world, segment/grid/offset, cast and player
    coordinates, water, fish, pole/line/hook/bait-or-lure names/resources/qualities,
@@ -76,6 +76,7 @@ packaged JAR underneath a live JVM can terminate its UI thread.
 ```powershell
 Push-Location client
 ant clean deftgt
+java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.MoonFlowerChecks
 java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.cookbook.CookbookChecks
 java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.fishing.FishingChecks
 java -cp bin/hafen.jar haven.Resource find-updates

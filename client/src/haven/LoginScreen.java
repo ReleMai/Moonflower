@@ -163,7 +163,6 @@ public class LoginScreen extends Widget {
 			} else {
 				bgIndex = selindex;
 			}
-            ee = false;
 			changeLoginScreen(backgrounds.get(bgIndex-1));
 		}
 	};
@@ -240,42 +239,9 @@ public class LoginScreen extends Widget {
 				super.wdgmsg(sender, msg, args);
 		}
 	};
-	Config.githubLatestVersion = "Loading...";
-	GitHubVersionFetcher.fetchLatestVersion("Nightdawg", "Hurricane", new GitHubVersionFetcher.VersionCallback() {
-		@Override
-		public void onVersionFetched(String version) {
-			Config.githubLatestVersion = version; // Update immediately upon response
-		}
-	});
+	Config.githubLatestVersion = Config.clientVersion;
 	GameUI.verifiedAccount = false;
 	GameUI.subscribedAccount = false;
-	add(new IButton("customclient/discord", "", "-d", "-h") {
-		{settip("Hurricane Client Discord");}
-		public void click() {
-			URI uri = null;
-			try {
-				uri = new URI("https://discord.gg/7Ct4t6uME6");
-			} catch (URISyntaxException e) {
-				return;
-			}
-            try {
-                ui.wnd.toolkit().browse(uri);
-            } catch(java.net.MalformedURLException e) {
-                getparent(GameUI.class).error("Could not follow link.");
-            } catch(IOException e) {
-                getparent(GameUI.class).error("Could not launch web browser: " + e.getMessage());
-            }
-        }
-
-        @Override
-        public boolean mousedown(MouseDownEvent ev) {
-            if (ev.b == 3) {
-                changeLoginScreen(haven.Client.gameDir + "res/customclient/nd.png");
-                ee = true;
-            }
-            return super.mousedown(ev);
-        }
-    }, new Coord(this.sz.x + UI.scale(-60), 10));
     Config.setPlayerName(null);
     GameUI.gameTimeSpeedMultiplier = 3.29f;
     }
@@ -701,7 +667,7 @@ public class LoginScreen extends Widget {
 
 	private void playMainTheme(Resource theme) {
 		if (!mainThemeStopped &&(mainThemeClip == null || !ui.globalSfxIsPlaying(mainThemeClip))) {
-				Audio.CS klippi = ee ? fromres(eeTheme) : fromres(theme);
+				Audio.CS klippi = fromres(theme);
 				mainThemeClip = new Audio.VolAdjust(klippi, Utils.getprefi("loginScreenMusicVolume", 40)/100d);
                 ui.globalSfxPlay(mainThemeClip);
 		}
@@ -713,8 +679,6 @@ public class LoginScreen extends Widget {
 			mainThemeStopped = true;
 		}
 	}
-    boolean ee = false;
-    Resource eeTheme = Resource.local().loadwait("customclient/sfx/ndTheme");
 	private void changeLoginScreen(String imgPath){
 		stopMainTheme();
 		mainThemeStopped = false;
@@ -726,9 +690,9 @@ public class LoginScreen extends Widget {
 		firstTimeUseWindow = new Window(Coord.z, "Hey!", true) {
 			{
 				Widget prev;
-				prev = add(new Label("This is your first time launching Hurricane!"), UI.scale(new Coord(34, 3)));
+				prev = add(new Label("This is your first time launching MoonFlower!"), UI.scale(new Coord(34, 3)));
 				prev = add(new Label("Please make sure to set up your Keybindings and Settings!"), prev.pos("bl").adds(0, 8).xs(0));
-				prev = add(new Label("The default ones are what Nightdawg uses."), prev.pos("bl").adds(0, 8).xs(34));
+				prev = add(new Label("The default settings are a safe place to start."), prev.pos("bl").adds(0, 8).xs(34));
 				Button close = new Button(UI.scale(120), "Okay!", false) {
 					@Override
 					public void click() {

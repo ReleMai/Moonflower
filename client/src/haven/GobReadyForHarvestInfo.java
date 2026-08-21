@@ -167,7 +167,7 @@ public class GobReadyForHarvestInfo extends GobInfo {
 			img = Resource.remote().loadwait(resourceName).layer(Resource.imgc).img;
             img = PUtils.convolvedown(PUtils.rasterimg(PUtils.blurmask2(img.getRaster(), 2, 1, Color.BLACK)), UI.scale(26, 26), CharWnd.iconfilter); // ND: WHY DOES "GRAD" HAVE TO BE 2 HERE, WHEN FOR BEESKEP ICONS IT'S 4???? This blurmask is behaving weird and idk why
 		} catch (Exception e) {
-			System.out.println("Couldn't find content icon for \"" + resourceName + "\"! Tell Nightdawg to add it!");
+			System.out.println("Couldn't find content icon for \"" + resourceName + "\". Please report it to the MoonFlower maintainers.");
 			img = null;
 		}
 		iconCache.put(resourceName, img);

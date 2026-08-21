@@ -52,7 +52,7 @@ foreach ($relative in @(
 }
 
 if ($sources.Count -eq 0) {
-    Write-Host "No existing Hurricane client data was found. Created empty backup folder $destination"
+    Write-Host "No existing MoonFlower client data was found. Created empty backup folder $destination"
     exit 0
 }
 

@@ -1,55 +1,39 @@
-# Hurricane Client
+# MoonFlower Client
 
-This is just another custom client you can use to play the wonderful game,
-Haven & Hearth. This client is built on top of the "Vanilla" Client, and
-does not depend on any other custom clients.
-I try to merge all of the code changes that are done to the base client
-by Loftar, and I try to keep it up to date, to avoid crashes.
+MoonFlower is a source-built Haven & Hearth client with local quality-of-life
+features, a cookbook, a fishing helper and journal, display-only fishing map
+spots, and optional integration with the loopback operator platform in this
+repository.
 
-This client can be played standalone, or through Steam, by subscribing to
-the Steam Workshop item.
+The client only connects to additional services when those integrations are
+explicitly configured. Normal game traffic continues to use the official
+Haven & Hearth services.
 
-Important Note:
-- This client does not send any data to any place besides the official Seatribe server, unless you set it to do so.
+## Requirements
 
-## Links:
+- Java 21 or newer for this repository's verified build
+- Apache Ant for source builds
 
-Forum Thread:
-https://www.havenandhearth.com/forum/viewtopic.php?t=76544
+## Build
 
-Discord Server:
-https://discord.gg/7Ct4t6uME6
+Close MoonFlower before building. The build guard refuses to replace the
+packaged JAR while a client is running.
 
-Steam Workshop:
-https://steamcommunity.com/sharedfiles/filedetails/?id=3423755273
+```powershell
+ant clean deftgt
+```
 
-## Downloading/Updating the Hurricane Client (Outside of Steam):
-Use the Hurricane Updater: https://github.com/Nightdawg/Hurricane-Updater/releases/latest/download/HurricaneUpdater.jar
-(Source Code: https://github.com/Nightdawg/Hurricane-Updater)
+## Launch
 
-### If the updater doesn't work:
-1. Make sure your installed Java version is **any version between Java 17 and Java 25**
-2. You might need to add the updater file (HurricaneUpdater.jar) to your anti-virus exceptions list.
+Run `Play.bat` from `client/bin` after a successful build. Linux users can use
+`Play_Linux.sh`.
 
-## Launching the Hurricane Client (Outside of Steam):
+## Local Data
 
-Run the Play.bat file inside the client folder, or Play_Linux.sh (for Linux/MacOS)
+Preferences are stored in `%APPDATA%\Haven and Hearth\MoonFlower-prefs.xml`.
+MoonFlower databases are stored in `%APPDATA%\Haven and Hearth\MoonFlower` so
+clean builds cannot remove live cookbook, fishing, route, or static data.
 
-The client works with **any version between Java 17 and Java 25**
-I've also been playing on GraalVM (some different open-source java distribution based on OpenJDK),
-and I seem to get like 15-20 extra FPS out of the client.
+## Repository
 
-### If the client doesn't launch:
-1. Make sure your installed Java version is **any version between Java 17 and Java 25**
-2. You might need to add the launcher file (Play.bat or Play_Linux.sh) to your anti-virus exceptions list.
-
-
-## This client also supports Cediner's Web Map server (you set up your own private map server, it's not a public map):
-https://github.com/Cediner/hnh-map-vuetify
-Ganhart/Aritain's updated version: https://github.com/Aritain/hnh-map-updated
-
-## OR you can use dafels' Mapping service (or set up your own private map server):
-https://www.havenandhearth.com/forum/viewtopic.php?f=49&t=79701
-
-## Additionally, the client also supports the cookbook integration (disabled by default).
-You can either use a token from a public cookbook, or host your own (for example, https://github.com/Cediner/hnh-food-book)
+[ReleMai/Moonflower](https://github.com/ReleMai/Moonflower)

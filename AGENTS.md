@@ -79,13 +79,12 @@ Example:
 - New behavior works in the simplest test case.
 - Code remains organized and readable.
 
-## Haven Client Safety And Provenance
+## MoonFlower Client Safety And Provenance
 
-- Treat Hurricane as the custom-client upstream and the Seatribe repository as
-  the authoritative vanilla-client source. Record exact refs before compatibility
-  claims.
-- Preserve the reconstructed Hurricane `v1.59b` local patch boundary; never
-  overwrite custom integration touchpoints with whole old files.
+- Treat the Seatribe repository as the authoritative vanilla-client source and
+  record exact refs before compatibility claims.
+- Preserve the recovered local patch boundary; never overwrite custom
+  integration touchpoints with whole historical files.
 - Never execute `artifacts/legacy-launcher/autohaven-socrates556.jar` or inspect,
   reuse, log, or commit credentials from legacy artifacts.
 - Keep the operator server bound to loopback unless the user explicitly approves

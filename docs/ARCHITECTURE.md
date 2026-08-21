@@ -7,7 +7,7 @@ Haven game servers
         ^
         | official client protocol/resources
         v
-Hurricane Java client (one visible process per bot)
+MoonFlower Java client (one visible process per bot)
         |
         | authenticated bot WebSocket + state/events/commands
         v
@@ -39,7 +39,7 @@ React operator dashboard <---- Python WebRTC media gateway
 - Client widget/resource classes are both gameplay dependencies and telemetry
   inputs.
 - Remote input and screenshots depend on upstream toolkit/window APIs.
-- Bot actions depend on Hurricane automation classes with no compatibility
+- Bot actions depend on inherited automation classes with no compatibility
   interface.
 - Protocol messages have enums but no explicit negotiated version.
 - The dashboard currently concentrates most UI behavior in `web/src/App.tsx`.

@@ -237,7 +237,7 @@
     <copy file="hafen.hl" todir="bin"/>
     <copy file="launcher.hl" todir="bin"/>
     <!-- Seed databases are copied into the package for first-run migration.
-         Mutable copies live under Config.localdir()/Hurricane, not bin/. -->
+         Mutable copies live under Config.localdir()/MoonFlower, not bin/. -->
     <copy file="static_data.db" todir="bin"/>
     <copy file="hitboxes.db" todir="bin"/>
     <chmod file="bin/hafen.jar" perm="a+x" />

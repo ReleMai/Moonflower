@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 /**
- * Resolves Hurricane-owned mutable data outside the rebuildable client package.
+ * Resolves MoonFlower-owned mutable data outside the rebuildable client package.
  */
 public final class ClientData {
     private ClientData() {
@@ -16,11 +16,11 @@ public final class ClientData {
 	Path local = Config.localdir();
 	Path base = (local == null)
 	    ? Utils.path(System.getProperty("user.dir", "."))
-	    : Utils.pj(local, "Hurricane");
+	    : Utils.pj(local, "MoonFlower");
 	try {
 	    Files.createDirectories(base);
 	} catch(IOException e) {
-	    throw(new IllegalStateException("Could not create Hurricane data directory: " + base, e));
+	    throw(new IllegalStateException("Could not create MoonFlower data directory: " + base, e));
 	}
 	return(base.toAbsolutePath().normalize());
     }

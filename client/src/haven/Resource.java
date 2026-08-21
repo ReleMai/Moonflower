@@ -644,8 +644,10 @@ public class Resource implements Serializable {
 
 	public Named load(String name, int ver, int prio) {
         if (name.startsWith("gfx/hud/")) {
-            String uiTheme =  Utils.getpref("uiThemeName", "Nightdawg Dark");
-            if (!uiTheme.equals("Nightdawg Dark")) {
+            String uiTheme = (Utils.getprefi("uiThemeDropBox", 0) == 0)
+                ? "MoonFlower Dark"
+                : Utils.getpref("uiThemeName", "MoonFlower Dark");
+            if (!uiTheme.equals("MoonFlower Dark")) {
                 String result = name.replaceFirst("^gfx/hud", "");
                 String finalString = "customclient/uiThemes/" + uiTheme + result;
                 File customHudFile = new File(haven.Client.gameDir + "res/" + finalString +".res");

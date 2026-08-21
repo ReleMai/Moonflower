@@ -5,14 +5,14 @@ complete, or after the user explicitly authorizes replacing that active task.
 
 ```text
 Implement the next client feature as one bounded, client-local vertical slice:
-upgrade the existing Hurricane Fishing Bot into a fishing helper that can equip
+upgrade the existing MoonFlower Fishing Bot into a fishing helper that can equip
 and prepare a pole from the player's available inventory, start fishing at a
 nearby valid water location, and persist trustworthy catch observations so the
 player can rediscover productive fishing spots.
 
 Start by reading AGENTS.md, docs/CURRENT_TASKS.md, docs/ARCHITECTURE.md,
 docs/CODING_STANDARDS.md, docs/FILE_ORGANIZATION.md, docs/DATA_BACKUP.md,
-docs/UPSTREAM_PROVENANCE.md, and docs/VERIFICATION.md. Inspect git status and
+and docs/VERIFICATION.md. Inspect git status and
 preserve all uncommitted user work. The Cookbook work currently modifies shared
 client seams, including GItem and GameUI, so do not overwrite or casually fold
 those edits into this feature. Do not replace docs/CURRENT_TASKS.md until its
@@ -33,13 +33,11 @@ Before editing, inspect and briefly explain the actual relevant code, especially
 - client/src/haven/ClientData.java
 - the local SQLite patterns under client/src/haven/cookbook/
 
-Record and use the exact current upstream refs before making compatibility
-claims. Hurricane is the custom-client upstream and Seatribe is authoritative
-for the vanilla protocol/client. Do not copy an old FishingBot file wholesale:
-the local bot and its botcontrol integration are custom touchpoints. At the time
-this prompt was written, the recorded refs were Hurricane v1.69 at
-045b1f598a9009b279b778eeb2256c651baf88f8 and Seatribe
-f4b86b85514ef3d77d95b08be0bea46179ef0b3a; refresh them if they may have moved.
+Record and use the exact current official-client ref before making compatibility
+claims. Seatribe is authoritative for the vanilla protocol/client. Do not copy
+an old FishingBot file wholesale: the local bot and its botcontrol integration
+are custom touchpoints. Refresh source refs whenever compatibility may have
+moved.
 
 Research-grounded mechanics to design around:
 
@@ -224,8 +222,7 @@ only one concrete next slice in CURRENT_TASKS.md.
 
 - [Ring of Brodgar: Fishing](https://ringofbrodgar.com/wiki/Fishing)
 - [Haven forum: casting-rod fishing and node behavior](https://www.havenandhearth.com/forum/viewtopic.php?f=42&t=65074)
-- [Hurricane v1.69 FishingBot source](https://github.com/Nightdawg/Hurricane/blob/v1.69/src/haven/automated/FishingBot.java)
-- [Hurricane project documentation](https://nightdawg.github.io/HurricaneDocs/)
+- [MoonFlower repository](https://github.com/ReleMai/Moonflower)
 
 The wiki and forum mechanics are community-maintained and can drift. Treat them
 as design inputs, then verify current resource/UI behavior in the visible client.

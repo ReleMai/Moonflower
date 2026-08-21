@@ -4,7 +4,7 @@
 
 From the repository root:
 
-Close the visible Hurricane client before building. `build-all.ps1` and the
+Close the visible MoonFlower client before building. `build-all.ps1` and the
 client Ant deployment targets intentionally fail while `hafen.jar` is running.
 Java loads classes lazily, so rebuilding `client/bin/hafen.jar` underneath a
 live client can produce `NoClassDefFoundError` and leave a frozen white window.
@@ -14,7 +14,7 @@ live client can produce `NoClassDefFoundError` and leave a frozen white window.
 ```
 
 This runs the React lint/build gates, packages and tests the Maven reactor,
-packages the Hurricane client with Ant, and prepares the Python media gateway.
+packages the MoonFlower client with Ant, and prepares the Python media gateway.
 
 ## Start And Stop
 
@@ -57,7 +57,7 @@ actions.
 - Server logs: repository-root `server-run.log` and `server-run.err.log`
 - Gateway logs: `artifacts\runtime\media-gateway*.log`
 - Client settings/maps: `%APPDATA%\Haven and Hearth\`
-- Custom client databases: `%APPDATA%\Haven and Hearth\Hurricane\`
+- Custom client databases: `%APPDATA%\Haven and Hearth\MoonFlower\`
 
 The default server database path is a sibling of this repository. Do not delete
 or relocate it casually; back it up before migrations or destructive tests.

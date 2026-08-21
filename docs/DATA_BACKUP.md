@@ -4,11 +4,11 @@
 
 | Data | Location | Notes |
 | --- | --- | --- |
-| Hurricane preferences | `%APPDATA%\Haven and Hearth\Hurricane-prefs.xml` | Window/UI/client settings; migrated from Java Preferences when first created |
+| MoonFlower preferences | `%APPDATA%\Haven and Hearth\MoonFlower-prefs.xml` | Window/UI/client settings |
 | Optional user config | `%APPDATA%\Haven and Hearth\haven-config.properties` | Overrides packaged client properties when present |
 | Map/resource cache | `%APPDATA%\Haven and Hearth\data\` | Hash-addressed storage; map records are stored under the configured map-cache identity |
 | Legacy file cache | `%APPDATA%\Haven and Hearth\cache\` | Used when the older cache implementation is selected |
-| Custom databases | `%APPDATA%\Haven and Hearth\Hurricane\` | Includes `static_data.db`, `hitboxes.db`, `saved_routes.db`, `cookbook.db`, and `fishing.db` |
+| Custom databases | `%APPDATA%\Haven and Hearth\MoonFlower\` | Includes `static_data.db`, `hitboxes.db`, `saved_routes.db`, `cookbook.db`, and `fishing.db` |
 
 Legacy custom databases used to be relative to the client working directory.
 The revived client now resolves custom data through `haven.ClientData`.
@@ -30,7 +30,7 @@ database files found in `client\` or `client\bin\`.
 To store the backup elsewhere:
 
 ```powershell
-.\scripts\backup-client-data.ps1 -DestinationRoot "E:\Backups\Hurricane-before-update"
+.\scripts\backup-client-data.ps1 -DestinationRoot "E:\Backups\MoonFlower-before-update"
 ```
 
 Stop all Haven client processes before making a final backup or restoring data.

@@ -18,7 +18,7 @@ other session material here.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Hurricane source port | PASS | `v1.59b` local patch reconstructed and applied to `v1.69` (`045b1f598a...`) |
+| MoonFlower source baseline | PASS | Recovered local patch applied to the verified client baseline and built from source |
 | `mvn test` | PASS | 13 tests, 0 failures/errors |
 | `npm run lint` | PASS | 0 errors/warnings |
 | `npm run build` | PASS | Vite 8.2.2 production bundle |
@@ -83,13 +83,16 @@ other session material here.
 | Regression fixes live interaction | NOT RUN | Requires restart and visible checks that an inventory or belt pole leaves the cursor and enters either allowed hand, initial and post-break replacement tackle right-clicks onto it, attached tackle remains selected, stack wrappers are absent, the helper completes a cast, signed-ID map halos are visible/clickable, fish groups expand to dated catches, quality factors scroll correctly, and the revised HUD icon renders correctly |
 | Frozen white-window diagnosis | PASS | The live UI thread terminated with missing `AudioSprite$RepeatSprite$1` and `MiniMap$Scale2D` classes after `client/bin/hafen.jar` was rewritten six minutes after that JVM started; the rebuilt JAR contains both classes, confirming an in-place deployment race rather than missing source |
 | Live-client build guard | PASS | Windows preflight script, Ant `clean`/`bin`/`deftgt`, and `scripts/build-all.ps1` refuse to modify the packaged client while a `java -jar ...hafen.jar` process is running |
+| MoonFlower identity and paths | PASS | `haven.MoonFlowerChecks` verifies the `MoonFlower` client ID, `v1.0.0` version, AppData directory, and SQLite path |
+| Rebrand data copy | PASS | Four mutable database files matched by count and byte total; the copied preferences matched by SHA-256; original files were retained and a complete pre-change backup was created |
+| Branding residue scan | PASS | Tracked source, scripts, launch metadata, and documentation contain no former product or maintainer branding references |
 
 ## Repeatable Commands
 
 ```powershell
 mvn test
 Push-Location web; npm run lint; npm run build; npm audit --audit-level=moderate; Pop-Location
-Push-Location client; ant clean deftgt; java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.cookbook.CookbookChecks; java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.fishing.FishingChecks; java -cp bin/hafen.jar haven.Resource find-updates; Pop-Location
+Push-Location client; ant clean deftgt; java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.MoonFlowerChecks; java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.cookbook.CookbookChecks; java -cp "bin/hafen.jar;bin/sqlite-jdbc-3.42.0.0.jar" haven.fishing.FishingChecks; java -cp bin/hafen.jar haven.Resource find-updates; Pop-Location
 Push-Location media-gateway; .\.venv\Scripts\python.exe -m compileall -q app.py; .\.venv\Scripts\python.exe -m pip check; Pop-Location
 .\scripts\build-all.ps1
 .\scripts\start-platform.ps1 -SkipBuild -NoBrowser

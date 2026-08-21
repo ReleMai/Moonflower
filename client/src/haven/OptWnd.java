@@ -506,7 +506,7 @@ public class OptWnd extends Window {
 			}
 		}, leftColumn.pos("bl").adds(0, 2));
 		leftColumn = add(new Label("Background Music Theme:"), leftColumn.pos("bl").adds(0, 6).x(0));
-		List<String> musicThemes = Arrays.asList("Hurricane  ", "Legacy");
+		List<String> musicThemes = Arrays.asList("MoonFlower", "Legacy");
 		add(new OldDropBox<String>(musicThemes.size(), musicThemes) {
 			{
 				super.change(musicThemes.get(Utils.getprefi("backgroundMusicTheme", 0)));
@@ -981,7 +981,7 @@ public class OptWnd extends Window {
 
 		Widget rightColumn;
         rightColumn = add(new Label("UI Theme (Req. Restart):"), UI.scale(230, 2));
-        List<String> uiThemes = Arrays.asList("Nightdawg Dark", "Trollex Red", "Trollex Blue", "Custom Theme");
+        List<String> uiThemes = Arrays.asList("MoonFlower Dark", "Trollex Red", "Trollex Blue", "Custom Theme");
         Widget uiThemesWdg = add(new OldDropBox<String>(uiThemes.size(), uiThemes) {
             {
                 super.change(uiThemes.get(Utils.getprefi("uiThemeDropBox", 0)));
@@ -4628,16 +4628,16 @@ public class OptWnd extends Window {
 			prev = add(new Label("Sound File"), prev.pos("ur").add(70, 0));
 			prev = add(new Label("Volume"), prev.pos("ur").add(78, 0));
 
-			comps = addAlarmWidget("whitePlayerAlarm", "White OR Unknown:", "ND_YoHeadsUp", true,null, prev);
+			comps = addAlarmWidget("whitePlayerAlarm", "White OR Unknown:", "MF_YoHeadsUp", true,null, prev);
 			{whitePlayerAlarmEnabledCheckbox = comps.checkbox; whitePlayerAlarmFilename = comps.filename; whitePlayerAlarmVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("whiteVillageOrRealmPlayerAlarm", "Village/Realm Member:", "ND_HelloFriend",true,null, prev);
+			comps = addAlarmWidget("whiteVillageOrRealmPlayerAlarm", "Village/Realm Member:", "MF_HelloFriend",true,null, prev);
 			{whiteVillageOrRealmPlayerAlarmEnabledCheckbox = comps.checkbox; whiteVillageOrRealmPlayerAlarmFilename = comps.filename; whiteVillageOrRealmPlayerAlarmVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("greenPlayerAlarm", "Green:", "ND_FlyingTheFriendlySkies", false, BuddyWnd.gc[1], prev);
+			comps = addAlarmWidget("greenPlayerAlarm", "Green:", "MF_FlyingTheFriendlySkies", false, BuddyWnd.gc[1], prev);
 			{greenPlayerAlarmEnabledCheckbox = comps.checkbox; greenPlayerAlarmFilename = comps.filename; greenPlayerAlarmVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("redPlayerAlarm", "Red:", "ND_EnemySighted", true, BuddyWnd.gc[2], prev);
+			comps = addAlarmWidget("redPlayerAlarm", "Red:", "MF_EnemySighted", true, BuddyWnd.gc[2], prev);
 			{redPlayerAlarmEnabledCheckbox = comps.checkbox; redPlayerAlarmFilename = comps.filename; redPlayerAlarmVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
 			comps = addAlarmWidget("bluePlayerAlarm", "Blue:", "", false, BuddyWnd.gc[3], prev);
@@ -4659,19 +4659,19 @@ public class OptWnd extends Window {
 			prev = add(new Label("Sound File"), prev.pos("ur").add(69, 0));
 			prev = add(new Label("Volume"), prev.pos("ur").add(78, 0));
 
-			comps = addAlarmWidget("combatStartSound", "Combat Started Alert:", "ND_HitAndRun", false, null, prev);
+			comps = addAlarmWidget("combatStartSound", "Combat Started Alert:", "MF_HitAndRun", false, null, prev);
 			{combatStartSoundEnabledCheckbox = comps.checkbox; combatStartSoundFilename = comps.filename; combatStartSoundVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("cleaveSound", "Cleave Sound Effect:", "ND_Cleave", true, null, prev);
+			comps = addAlarmWidget("cleaveSound", "Cleave Sound Effect:", "MF_Cleave", true, null, prev);
 			{cleaveSoundEnabledCheckbox = comps.checkbox; cleaveSoundFilename = comps.filename; cleaveSoundVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("opkSound", "Oppknock Sound Effect:", "ND_Opk", true, null, prev);
+			comps = addAlarmWidget("opkSound", "Oppknock Sound Effect:", "MF_Opk", true, null, prev);
 			{opkSoundEnabledCheckbox = comps.checkbox; opkSoundFilename = comps.filename; opkSoundVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("ponyPowerSound", "Pony Power <10% Alert:", "ND_HorseEnergy", true, null, prev);
+			comps = addAlarmWidget("ponyPowerSound", "Pony Power <10% Alert:", "MF_HorseEnergy", true, null, prev);
 			{ponyPowerSoundEnabledCheckbox = comps.checkbox; ponyPowerSoundFilename = comps.filename; ponyPowerSoundVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
-			comps = addAlarmWidget("lowEnergySound", "Energy <2500% Alert:", "ND_NotEnoughEnergy", true, null, prev);
+			comps = addAlarmWidget("lowEnergySound", "Energy <2500% Alert:", "MF_NotEnoughEnergy", true, null, prev);
 			{lowEnergySoundEnabledCheckbox = comps.checkbox; lowEnergySoundFilename = comps.filename; lowEnergySoundVolumeSlider = comps.volume; prev = comps.lastWidget;}
 
 			prev = add(CustomAlarmManagerButton = new Button(UI.scale(360), ">>> Other Alarms (Custom Alarm Manager) <<<", () -> {
@@ -5254,7 +5254,7 @@ public class OptWnd extends Window {
             "\nAdditionally, you can add files to the \"Custom Theme\" folder, to create your own theme (which won't get erased when you update the client). " +
             "\nThe Custom Theme folder can be found in your $col[218,163,0]{client folder}, under $col[218,163,0]{\\ res \\ customclient \\ uiThemes \\ Custom Theme}" +
             "\n" +
-            "\n$col[185,185,185]{You don't need to change *everything* for the Custom Theme to work. If it's missing something, it just defaults to whatever the \"Nightdawg Dark\" theme uses.}", UI.scale(300));
+            "\n$col[185,185,185]{You don't need to change *everything* for the Custom Theme to work. If it's missing something, it defaults to the MoonFlower Dark theme.}", UI.scale(300));
 	private static final Object extendedMouseoverInfoTooltip = RichText.render("This setting adds additional info to:" +
 			"\n- Object Ctrl+Shift Mouseover Info (Adds lots of info)" +
 			"\n- Item Tooltips (Shows Resource Name)" +
@@ -5620,7 +5620,7 @@ public class OptWnd extends Window {
 	private static final Object sendLiveLocationTooltip = RichText.render("Enable this to show your current location on your web map server.", UI.scale(320));
 	private static final Object liveLocationNameTooltip = RichText.render("If you send your location to the server, your name will appear as whatever you set in this text entry + your current character name." +
 			"\n" +
-			"\n$col[218,163,0]{For example:} Nightdawg (VillageCrafter)$col[185,185,185]{, where }\"Nightdawg\" $col[185,185,185]{is the name I set in this text entry, and} \"VillageCrafter\" $col[185,185,185]{is the character's original name." +
+			"\n$col[218,163,0]{For example:} Homestead (VillageCrafter)$col[185,185,185]{, where }\"Homestead\" $col[185,185,185]{is the name set in this text entry, and} \"VillageCrafter\" $col[185,185,185]{is the character's original name." +
 			"\nThe character's original name is the one you see in the character selection screen, NOT the presentation name.}", UI.scale(320));
 
 	// Misc/Other
