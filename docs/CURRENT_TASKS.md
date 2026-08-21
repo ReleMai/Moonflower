@@ -69,6 +69,10 @@ Acceptance criteria:
 
 ## Verification Commands
 
+The visible client must be closed before running these commands. The Ant build
+now stops with a clear error if `hafen.jar` is running, because replacing the
+packaged JAR underneath a live JVM can terminate its UI thread.
+
 ```powershell
 Push-Location client
 ant clean deftgt

@@ -21,6 +21,16 @@ Rule to remember next time:
 
 ```text
 Date: 2026-08-21
+Task: Diagnose the recurring frozen white Hurricane window.
+What worked: Capturing the live Java thread state and comparing the process start time with the packaged JAR timestamp exposed the failure without guessing.
+What was confusing: The rebuilt JAR contained every reported missing class, so the error initially looked inconsistent with the current package.
+What broke or almost broke: A clean/deploy build rewrote client/bin while the visible JVM was still running; later lazy class loads failed and terminated both a loader thread and the Haven UI thread.
+What I learned: A successful rebuild does not make in-place deployment safe for a running Java client, even when most already-loaded features continue working.
+Rule to remember next time: Close the visible client before clean or deployment builds, and keep the build guard enabled so live client/bin files are never replaced.
+```
+
+```text
+Date: 2026-08-21
 Task: Recover and port the custom client from Hurricane v1.59b to v1.69.
 What worked: Reconstructing an exact upstream base from hashes made the local patch small enough to review and apply semantically.
 What was confusing: Build output, mutable SQLite data, and historical runtime evidence were mixed into the source tree without provenance.

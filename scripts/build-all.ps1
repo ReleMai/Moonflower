@@ -29,6 +29,7 @@ function Stop-PackagedServer {
 
 Push-Location $root
 try {
+    & (Join-Path $PSScriptRoot "assert-client-stopped.ps1")
     Stop-PackagedServer
 
     Write-Host "Building web..."

@@ -4,6 +4,24 @@
   <property file="build.properties" />
   <property name="ext-lib-base" value="http://www.havenandhearth.com/java" />
 
+  <target name="detect-platform">
+    <condition property="platform.windows">
+      <os family="windows" />
+    </condition>
+  </target>
+
+  <target name="assert-no-live-client-windows" depends="detect-platform" if="platform.windows">
+    <exec executable="powershell.exe" failonerror="true">
+      <arg value="-NoProfile" />
+      <arg value="-ExecutionPolicy" />
+      <arg value="Bypass" />
+      <arg value="-File" />
+      <arg file="../scripts/assert-client-stopped.ps1" />
+    </exec>
+  </target>
+
+  <target name="assert-no-live-client" depends="assert-no-live-client-windows" />
+
   <target name="build-env">
     <mkdir dir="build" />
     <mkdir dir="build/classes" />
@@ -178,7 +196,7 @@
     <copy file="local-config.properties" tofile="build/haven-config.properties" failonerror="false" quiet="true" />
   </target>
 
-  <target name="bin" depends="jar, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, res-jar">
+  <target name="bin" depends="assert-no-live-client, jar, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, res-jar">
     <mkdir dir="bin" />
     <copy todir="bin">
       <fileset dir="build">
@@ -235,7 +253,7 @@
     </java>
   </target>
 
-  <target name="deftgt" depends="jars, opt/panama, bin" />
+  <target name="deftgt" depends="assert-no-live-client, jars, opt/panama, bin" />
 
   <target name="run" depends="bin">
         <condition property="jogl-exports">
@@ -283,7 +301,7 @@
     </exec>
   </target>
 
-  <target name="clean">
+  <target name="clean" depends="assert-no-live-client">
     <delete dir="build" />
     <delete dir="lib/ext" />
     <delete dir="bin" />

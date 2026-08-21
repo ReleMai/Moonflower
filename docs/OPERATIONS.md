@@ -4,6 +4,11 @@
 
 From the repository root:
 
+Close the visible Hurricane client before building. `build-all.ps1` and the
+client Ant deployment targets intentionally fail while `hafen.jar` is running.
+Java loads classes lazily, so rebuilding `client/bin/hafen.jar` underneath a
+live client can produce `NoClassDefFoundError` and leave a frozen white window.
+
 ```powershell
 .\scripts\build-all.ps1
 ```

@@ -58,7 +58,7 @@ other session material here.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| `client/ant clean deftgt` | PARTIAL | `clean` deleted the build tree but could not delete `bin/builtin-res.jar` because the visible client held it open; the following `ant deftgt` rebuilt all 873 client sources and 48 Panama sources successfully |
+| `client/ant clean deftgt` | PARTIAL | The historical run rebuilt `client/bin` while the visible client held files open; this was later confirmed unsafe and is now blocked by the live-client build guard |
 | `haven.fishing.FishingChecks` | PASS | Schema, repeat observations, world filtering, null qualities, reordered choice parsing, current bait/fish classification, resource fallback, grouped map projection, signed-negative grid IDs, map coordinates, transient-marker isolation, tackle averaging, and weakest-component analysis passed |
 | `haven.cookbook.CookbookChecks` | PASS | Existing Cookbook persistence and ranking checks still pass after the shared client rebuild |
 | `haven.Resource find-updates` | PASS | All fetched resources are up to date |
@@ -81,6 +81,8 @@ other session material here.
 | Fishing Journal HUD composition | PASS (STATIC) | A dedicated open-journal/fish icon shares the Cookbook-style menu extension, opens the GameUI-owned journal, and leaves the five native controls in their original order |
 | Authoritative catch confirmation | NOT RUN | Records remain explicitly `candidate` until supervised live evidence identifies a reliable caught-fish event |
 | Regression fixes live interaction | NOT RUN | Requires restart and visible checks that an inventory or belt pole leaves the cursor and enters either allowed hand, initial and post-break replacement tackle right-clicks onto it, attached tackle remains selected, stack wrappers are absent, the helper completes a cast, signed-ID map halos are visible/clickable, fish groups expand to dated catches, quality factors scroll correctly, and the revised HUD icon renders correctly |
+| Frozen white-window diagnosis | PASS | The live UI thread terminated with missing `AudioSprite$RepeatSprite$1` and `MiniMap$Scale2D` classes after `client/bin/hafen.jar` was rewritten six minutes after that JVM started; the rebuilt JAR contains both classes, confirming an in-place deployment race rather than missing source |
+| Live-client build guard | PASS | Windows preflight script, Ant `clean`/`bin`/`deftgt`, and `scripts/build-all.ps1` refuse to modify the packaged client while a `java -jar ...hafen.jar` process is running |
 
 ## Repeatable Commands
 
