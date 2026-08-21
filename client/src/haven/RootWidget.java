@@ -56,7 +56,7 @@ public class RootWidget extends ConsoleHost implements UI.Notice.Handler, Widget
 	if(ev.propagate(this))
 	    return(true);
 	if(ev.c == '`') {
-	    if(UIPanel.profile.get()) {
+	    if(UILoop.profile.get()) {
 		add(new Profwnd(guprof, "UI profile"), UI.scale(100, 100));
 		add(new Profwnd(grprof, "GL profile"), UI.scale(500, 100));
 		/* XXXRENDER
@@ -64,8 +64,6 @@ public class RootWidget extends ConsoleHost implements UI.Notice.Handler, Widget
 		   if((gi != null) && (gi.map != null))
 		   add(new Profwnd(gi.map.prof, "Map profile"), UI.scale(100, 250));
 		*/
-	    }
-	    if(UIPanel.profilegpu.get()) {
 		add(new Profwnd(ggprof, "GPU profile"), UI.scale(500, 250));
 	    }
 	    return(true);
@@ -132,7 +130,7 @@ public class RootWidget extends ConsoleHost implements UI.Notice.Handler, Widget
 			clip = new Audio.Resampler(clip).sp(spd);
 		    if(vol != 1.0)
 			clip = new Audio.VolAdjust(clip, vol);
-		    Audio.play(clip);
+		    ui.sfx(clip);
 		}, null);
 	} else if(msg == "bgm") {
 	    int a = 0;
@@ -174,25 +172,23 @@ public class RootWidget extends ConsoleHost implements UI.Notice.Handler, Widget
 
     private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();
     {
-	cmdmap.put("wdgtree", new Console.Command() {
-		public void run(Console cons, String[] args) throws Exception {
-		    for(Widget w = RootWidget.this; w != null; w = w.rnext()) {
-			for(Widget p = w.parent; p != null; p = p.parent)
-			    cons.out.write('\t');
-			cons.out.write(w.visible ? 'S' : 'H');
-			cons.out.write(' ');
-			cons.out.write(w.hasfocus ? "F" : "f");
-			cons.out.write(w.focusctl ? "C" : "c");
-			cons.out.write(w.focustab ? "T" : "t");
-			cons.out.write(w.canfocus ? "A" : "a");
-			cons.out.write(w.autofocus ? "T" : "t");
-			cons.out.write(((w.parent != null) && (w.parent.focused == w)) ? "P" : "p");
-			cons.out.write(' ');
-			cons.out.write(w.toString());
-			cons.out.write('\n');
-		    }
-		}
-	    });
+	cmdmap.put("wdgtree", (cons, args) -> {
+	    for(Widget w = RootWidget.this; w != null; w = w.rnext()) {
+		for(Widget p = w.parent; p != null; p = p.parent)
+		    cons.out.write('\t');
+		cons.out.write(w.visible ? 'S' : 'H');
+		cons.out.write(' ');
+		cons.out.write(w.hasfocus ? "F" : "f");
+		cons.out.write(w.focusctl ? "C" : "c");
+		cons.out.write(w.focustab ? "T" : "t");
+		cons.out.write(w.canfocus ? "A" : "a");
+		cons.out.write(w.autofocus ? "T" : "t");
+		cons.out.write(((w.parent != null) && (w.parent.focused == w)) ? "P" : "p");
+		cons.out.write(' ');
+		cons.out.write(w.toString());
+		cons.out.write('\n');
+	    }
+	});
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);

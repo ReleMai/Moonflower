@@ -65,6 +65,7 @@ public class Window extends Widget {
     public static final Coord dlmrgn = UI.scale(10, 10); // ND: Margin set for LARGE windows, between the content and window edge
     public static final Coord dsmrgn = UI.scale(4, 4); // ND: margin set for SMALL windows, between the content and window edge
     public static final BufferedImage ctex = Resource.loadsimg("gfx/hud/fonttex");
+    public static final BufferedImage ctexUnfocused = Resource.loadsimg("gfx/hud/fonttexUnfocused");
     @Deprecated public static final Text.Furnace cf = DefaultDeco.cf;
     @Deprecated public static final Text.Furnace ncf = DefaultDeco.ncf;
     public static final IBox wbox = new IBox.Scaled("gfx/hud/wnd", "tl", "tr", "bl", "br", "extvl", "extvr", "extht", "exthb") {
@@ -218,8 +219,8 @@ public class Window extends Widget {
 
     public static class DefaultDeco extends DragDeco {
 	public static final Text.Forge cf =  new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.fraktur, 15).aa(true), ctex),
-								   UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
-	public static final Text.Forge ncf = new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.fraktur, 15).aa(true), ctex),
+								   UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
+	public static final Text.Forge ncf = new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.fraktur, 15).aa(true), ctexUnfocused),
 								   UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
 	public final boolean lg;
 	public final IButton cbtn;
@@ -670,8 +671,13 @@ public class Window extends Widget {
 	return(super.keydown(ev));
     }
 
+    private Runnable reqclose = () -> wdgmsg("close");
+    public Window reqclose(Runnable reqclose) {
+	this.reqclose = reqclose;
+	return(this);
+    }
     public void reqclose() {
-	wdgmsg("close");
+	reqclose.run();
     }
 
     public static interface Animation {
@@ -854,13 +860,24 @@ public class Window extends Widget {
 	return(FadeAnim.trans);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 	Window wnd = new Window(new Coord(300, 200), "Inventory", true);
-	new haven.rs.DrawBuffer(haven.rs.Context.getdefault().env(), new Coord(512, 512))
+	boolean[] done = {false};
+	new haven.rs.DrawBuffer(haven.iosys.tk.Acephal.instance().env(), new Coord(512, 512))
 	    .draw(g -> {
 		    wnd.draw(g);
-		    g.getimage(img -> Debug.dumpimage(img, args[0]));
+		    g.getimage(img -> {
+			Debug.dumpimage(img, args[0]);
+			synchronized(done) {
+			    done[0] = true;
+			    done.notifyAll();
+			}
+		    });
 	    });
+	synchronized(done) {
+	    while(!done[0])
+		done.wait();
+	}
     }
 
     public static final Coord guiTopLeftCornerDiff = UI.scale(15, 8); // ND: You'd think gui.c starts in the top left corner of the screen. You'd be wrong. I don't even know how.

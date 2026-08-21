@@ -229,6 +229,10 @@ public class Widget {
 	    ch.attached();
     }
 
+    public UI ui() {
+	return(ui);
+    }
+
     private <T extends Widget> T add0(T child) {
 	if((child.ui == null) && (this.ui != null))
 	    ((Widget)child).attach(this.ui);
@@ -890,6 +894,7 @@ public class Widget {
 
     public static class TickEvent extends Event {
 	public final double dt;
+	public boolean visible = true;
 
 	public TickEvent(double dt) {
 	    this.dt = dt;
@@ -901,6 +906,17 @@ public class Widget {
 		dispatch(wdg);
 	    }
 	    return(true);
+	}
+
+	public boolean dispatch(Widget w) {
+	    boolean pv = visible;
+	    try {
+		if(!w.visible)
+		    visible = false;
+		return(super.dispatch(w));
+	    } finally {
+		visible = pv;
+	    }
 	}
 
 	protected boolean shandle(Widget w) {
@@ -1354,7 +1370,7 @@ public class Widget {
 	    return(true);
 	if(focusctl && focustab) {
 	    Widget f = focused;
-	    if(key_tab.match(ev.awt) && (f != null)) {
+	    if(key_tab.match(ev.awt, KeyMatch.S) && (f != null)) {
 		while(true) {
 		    if((ev.mods & KeyMatch.S) == 0) {
 			Widget n = f.rnext();

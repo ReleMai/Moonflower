@@ -14,14 +14,14 @@ public class InteractWithNearestObject implements Runnable {
         this.gui = gui;
     }
 
-    public final static HashSet<String> smallGates = new HashSet<String>(Arrays.asList(
+    public final static HashSet<String> fenceGates = new HashSet<String>(Arrays.asList(
             "drystonewallgate",
             "drystonewallbiggate",
             "polegate",
             "polebiggate"
     ));
 
-    public final static HashSet<String> reinforcedGates = new HashSet<String>(Arrays.asList(
+    public final static HashSet<String> wallGates = new HashSet<String>(Arrays.asList(
             "brickwallgate",
             "brickbiggate",
             "palisadegate",
@@ -34,7 +34,6 @@ public class InteractWithNearestObject implements Runnable {
             "bat",
             "swan",
             "goshawk",
-            "precioussnowflake",
             "truffle-black0",
             "truffle-black1",
             "truffle-black2",
@@ -46,6 +45,11 @@ public class InteractWithNearestObject implements Runnable {
             "gemstone",
             "boarspear"
     ));
+
+    public final static Set<String> otherForageablesThatRequireFlowerMenuPick = new HashSet<String>(Arrays.asList(
+            "precioussnowflake" // gfx/terobjs/items/precioussnowflake
+    ));
+
 
     public final static HashSet<String> mines = new HashSet<String>(Arrays.asList(
             "gfx/terobjs/ladder",
@@ -76,31 +80,31 @@ public class InteractWithNearestObject implements Runnable {
             } catch (Loading l) {
             }
             if (res != null) {
-                // Open nearby gates, but not visitor gates
-                boolean isSmallGate = smallGates.contains(res.basename());
-                boolean isReinforcedGate = InteractWithNearestObject.reinforcedGates.contains(res.basename());
+                boolean isFenceGate = InteractWithNearestObject.fenceGates.contains(res.basename());
+                boolean isWallGate = InteractWithNearestObject.wallGates.contains(res.basename());
+                boolean isVisitorGate = false;
                 try {
-                    if (isReinforcedGate) {
-                        if (gui.genus.equals("b7c199a4557503a8")) {
-                            isReinforcedGate = false;
-                        } else {
+                    if (isWallGate) {
                         for (Gob.Overlay ol : gob.ols) {
                             String oname = ol.spr.res.name;
-                            if (oname.equals("gfx/fx/eq"))
-                                isReinforcedGate = false;
-                        }
+                            if (oname.equals("gfx/fx/eq")) {
+                                isWallGate = false;
+                                isVisitorGate = true;
+                                break;
+                            }
                         }
                     }
                 } catch (NullPointerException ignored) {}
-                boolean isNonVisitorGate = isSmallGate || isReinforcedGate;
-                if ((isNonVisitorGate && Utils.getprefb("clickNearestObject_NonVisitorGates", true))
+                if ((isFenceGate && Utils.getprefb("clickNearestObject_FenceGates", true))
+                || (isWallGate && Utils.getprefb("clickNearestObject_WallGates", true))
+                || (isVisitorGate && Utils.getprefb("clickNearestObject_VisitorGates", false))
                 || ((res.name.startsWith("gfx/terobjs/herbs") || otherPickableObjects.contains(res.basename())) && Utils.getprefb("clickNearestObject_Forageables", true))
                 || (Arrays.stream(Config.critterResPaths).anyMatch(res.name::matches) || res.name.matches(".*(rabbit|bunny)$")) && Utils.getprefb("clickNearestObject_Critters", true)
                 || (caves.contains(res.name) && Utils.getprefb("clickNearestObject_Caves", false))
                 || (mines.contains(res.name) && Utils.getprefb("clickNearestObject_MineholesAndLadders", false))) {
                     if (distFromPlayer < maxDistance && (theObject == null || distFromPlayer < theObject.rc.dist(plc))) {
                         theObject = gob;
-                        if (res.name.startsWith("gfx/terobjs/herbs")) FlowerMenu.setNextSelection("Pick"); // ND: Set the flower menu option to "pick" only for these particular ones.
+                        if (res.name.startsWith("gfx/terobjs/herbs") || InteractWithNearestObject.otherForageablesThatRequireFlowerMenuPick.contains(res.basename())) FlowerMenu.setNextSelection("Pick"); // ND: Set the flower menu option to "pick" only for these particular ones.
                     }
                 }
             }

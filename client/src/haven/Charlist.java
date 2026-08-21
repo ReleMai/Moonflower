@@ -72,7 +72,6 @@ public class Charlist extends Widget {
 	Gob.nightQueenDefeated = false;
     Gob.caveHermitAcquired = false;
 	Gob.alarmPlayed.clear();
-	GameUI.stopAllThemes();
     Config.setPlayerName(null);
     GameUI.gameTimeSpeedMultiplier = 3.29f;
     }
@@ -198,6 +197,8 @@ public class Charlist extends Widget {
 			}
 		}
 	}
+    if (ui != null)
+        GameUI.stopAllThemes(ui);
     }
 
 	public void dispose() {
@@ -368,19 +369,19 @@ public class Charlist extends Widget {
         }
     }
 
-	public static void playCharSelectTheme() {
-		if (!charSelectThemeStopped &&(charSelectThemeClip == null || !((Audio.Mixer) Audio.player.stream).playing(charSelectThemeClip))) {
+	public void playCharSelectTheme() {
+		if (!charSelectThemeStopped &&(charSelectThemeClip == null || !ui.globalSfxIsPlaying(charSelectThemeClip))) {
 			Audio.CS klippi = fromres(charSelectTheme);
 			if (Utils.getprefi("backgroundMusicTheme", 0) == 0) klippi = fromres(charSelectTheme);
 			else if (Utils.getprefi("backgroundMusicTheme", 0) == 1) klippi = fromres(charSelectThemeLegacy);
 			charSelectThemeClip = new Audio.VolAdjust(klippi, Utils.getprefi("charSelectionScreenVolume", 40)/100d);
-			Audio.play(charSelectThemeClip);
+            ui.globalSfxPlay(charSelectThemeClip);
 		}
 	}
 
-	public static void stopCharSelectTheme() {
+	public void stopCharSelectTheme() {
 		if(charSelectThemeClip != null){
-			Audio.stop(charSelectThemeClip);
+            ui.globalSfxStop(charSelectThemeClip);
 			charSelectThemeStopped = true;
 		}
 	}

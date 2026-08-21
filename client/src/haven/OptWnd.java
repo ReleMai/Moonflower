@@ -40,6 +40,7 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.UnsupportedAudioFileException;
 import java.awt.*;
+import java.util.function.*;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -54,6 +55,7 @@ public class OptWnd extends Window {
     public final Panel main;
 	public final Panel advancedSettings;
     public Panel current;
+	private PButton videoButton, audioButton, keybindButton;
 	private static final ScheduledExecutorService skyboxExecutor = Executors.newSingleThreadScheduledExecutor();
 	private static Future<?> skyboxFuture;
 	public static final Color msgGreen = new Color(8, 211, 0);
@@ -63,7 +65,6 @@ public class OptWnd extends Window {
 	public static FlowerMenuAutoSelectManagerWindow flowerMenuAutoSelectManagerWindow;
 	public static AutoDropManagerWindow autoDropManagerWindow;
 	AlarmWindow alarmWindow;
-	public static GSettings currentgprefs;
 	public static final Map<String, Color> improvedOpeningsImageColor =	new ConcurrentHashMap<>(4);
 
     public void chpanel(Panel p) {
@@ -82,25 +83,51 @@ public class OptWnd extends Window {
     }
 
     public class PButton extends Button {
-	public final Panel tgt;
+	public final Supplier<Panel> tgt;
 	public final int key;
+	private Panel actual = null;
 	public String newCap; // ND: Used to change the title of the options window
 
-//	public PButton(int w, String title, int key, Panel tgt) {
-//	    super(w, title, false);
-//	    this.tgt = tgt;
-//	    this.key = key;
-//	}
+    public PButton(int w, String title, int key, Supplier<Panel> tgt) {
+        super(w, title, false);
+        this.tgt = tgt;
+        this.key = key;
+    }
 
-	public PButton(int w, String title, int key, Panel tgt, String newCap) {
-		super(w, title, false);
-		this.tgt = tgt;
-		this.key = key;
-		this.newCap = newCap;
+	public PButton(int w, String title, int key, Panel tgt) {
+	    super(w, title, false);
+	    this.tgt = null;
+	    this.key = key;
+	    this.actual = tgt;
+	}
+
+    public PButton(int w, String title, int key, Panel tgt, String newCap) {
+        super(w, title, false);
+        this.tgt = null;
+        this.key = key;
+        this.actual = tgt;
+        this.newCap = newCap;
+    }
+
+        public PButton(int w, String title, int key, Supplier<Panel> tgt, String newCap) {
+            super(w, title, false);
+            this.tgt = tgt;
+            this.key = key;
+            this.newCap = newCap;
+        }
+
+	private Panel getpanel() {
+	    if(actual == null)
+		actual = OptWnd.this.add(tgt.get(), Coord.z);
+	    return(actual);
+	}
+
+	public void preload() {
+	    getpanel();
 	}
 
 	public void click() {
-	    chpanel(tgt);
+	    chpanel(getpanel());
 		OptWnd.this.cap = newCap;
 	}
 
@@ -130,9 +157,10 @@ public class OptWnd extends Window {
 	private final Widget back;
 	private CPanel curcf;
 
-	public VideoPanel(Panel prev) {
+	public VideoPanel(UI ui, Panel prev) {
 	    super();
 		back = add(new PButton(UI.scale(200), "Back", 27, prev, "Options            "));
+        resetcf(ui);
 		pack(); // ND: Fixes top bar not being fully draggable the first time I open the video panel. Idfk.
 	}
 
@@ -272,7 +300,7 @@ public class OptWnd extends Window {
 				    error(e.getMessage());
 				    return;
 				}
-				resetcf();
+				resetcf(ui);
 			    }
 			};
 		    prev = grp.add("Global", prev.pos("bl").adds(5, 2));
@@ -335,7 +363,7 @@ public class OptWnd extends Window {
 				if(!done[0])
 				    return;
 				try {
-				    ui.setgprefs(prefs = prefs.update(null, prefs.syncmode, JOGLPanel.SyncMode.values()[btn]));
+				    ui.setgprefs(prefs = prefs.update(null, prefs.syncmode, GSettings.SyncMode.values()[btn]));
 				} catch(GSettings.SettingException e) {
 				    error(e.getMessage());
 				    return;
@@ -408,11 +436,11 @@ public class OptWnd extends Window {
 
 	public void draw(GOut g) {
 	    if((curcf == null) || (ui.gprefs != curcf.prefs))
-		resetcf();
+		resetcf(ui);
 	    super.draw(g);
 	}
 
-	private void resetcf() {
+	private void resetcf(UI ui) {
 	    if(curcf != null)
 		curcf.destroy();
 	    curcf = add(new CPanel(ui.gprefs), 0, 0);
@@ -441,12 +469,13 @@ public class OptWnd extends Window {
     public static HSlider knarrSoundVolumeSlider;
 
     public class AudioPanel extends Panel {
-	public AudioPanel(Panel back) {
-		Widget leftColumn, rightColumn;
-		leftColumn = add(new Label("Master audio volume"), 179, 0);
-		leftColumn = add(new HSlider(UI.scale(460), 0, 1000, (int)(Audio.volume * 1000)) {
+	public AudioPanel(UI ui, Panel back) {
+        Widget leftColumn, rightColumn;
+	    Audio.Root sys = ui.audio.sys;
+        leftColumn = add(new Label("Master audio volume"), UI.scale(179, 0));
+        leftColumn = add(new HSlider(UI.scale(460), 0, 1000, (int)(sys.volume() * 1000)) {
 		    public void changed() {
-			Audio.setvolume(val / 1000.0);
+			sys.volume(val / 1000.0);
 		    }
 		}, leftColumn.pos("bl").adds(0, 2).x(0));
 
@@ -502,7 +531,7 @@ public class OptWnd extends Window {
 						Utils.setprefi("backgroundMusicTheme", i);
 					}
 				}
-				GameUI.settingStopAllThemes();
+				GameUI.settingStopAllThemes(ui);
 			}
 		}, leftColumn.pos("ur").adds(0, 1));
 
@@ -545,19 +574,19 @@ public class OptWnd extends Window {
 	    {
 		Label dpy = new Label("");
 		addhlp(leftColumn.pos("bl").adds(0, 2).x(0), UI.scale(5),
-			leftColumn = new HSlider(UI.scale(460-40), Math.round(Audio.fmt.getSampleRate() * 0.05f), Math.round(Audio.fmt.getSampleRate() / 4), Audio.bufsize()) {
-			   protected void added() {
-			   dpy();
-			   }
-			   void dpy() {
-			   dpy.settext(Math.round((this.val * 1000) / Audio.fmt.getSampleRate()) + " ms");
-			   }
-			   public void changed() {
-			   Audio.bufsize(val, true);
-			   dpy();
-			   }
-		   	}, dpy);
-			leftColumn.tooltip = audioLatencyTooltip;
+                leftColumn = new HSlider(UI.scale(420), Math.round(Audio.SAMPLE_RATE * 0.05f), Math.round(Audio.SAMPLE_RATE / 4), sys.bufsize()) {
+			       protected void added() {
+				   dpy();
+			       }
+			       void dpy() {
+				   dpy.settext(Math.round((this.val * 1000) / Audio.SAMPLE_RATE) + " ms");
+			       }
+			       public void changed() {
+				   sys.bufsize(val);
+				   dpy();
+			       }
+			   }, dpy);
+            leftColumn.tooltip = audioLatencyTooltip;
 	    }
 
 		leftColumn = add(new Label("Other Sound Settings"), leftColumn.pos("bl").adds(177, 20));
@@ -761,7 +790,7 @@ public class OptWnd extends Window {
 		final double smin = 1, smax = Math.floor(UI.maxscale() / gran) * gran;
 		final int steps = (int)Math.round((smax - smin) / gran);
 		addhlp(leftColumn.pos("bl").adds(0, 4), UI.scale(5),
-		       leftColumn = new HSlider(UI.scale(160), 0, steps, (int)Math.round(steps * (Utils.getprefd("uiscale", 1.0) - smin) / (smax - smin))) {
+		       leftColumn = new HSlider(UI.scale(160), 0, steps, (int)Math.round(steps * (UI.scale(1.0) - smin) / (smax - smin))) {
 			       protected void added() {
 				   dpy();
 			       }
@@ -780,7 +809,7 @@ public class OptWnd extends Window {
 		leftColumn = add(showFramerateCheckBox = new CheckBox("Show Framerate"){
 			{a = (Utils.getprefb("showFramerate", true));}
 			public void changed(boolean val) {
-				GLPanel.Loop.showFramerate = val;
+				UILoop.showFramerate = val;
 				Utils.setprefb("showFramerate", val);
 			}
 		}, leftColumn.pos("bl").adds(0, 18));
@@ -902,13 +931,13 @@ public class OptWnd extends Window {
 				a = val;
 				if (val) {
 					try {
-						File file = new File(haven.MainFrame.gameDir + "res/customclient/sfx/CurioFinished.wav");
+						File file = new File(haven.Client.gameDir + "res/customclient/sfx/CurioFinished.wav");
 						if (file.exists()) {
 							AudioInputStream in = AudioSystem.getAudioInputStream(file);
 							AudioFormat tgtFormat = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 2, 4, 44100, false);
 							AudioInputStream pcmStream = AudioSystem.getAudioInputStream(tgtFormat, in);
 							Audio.CS klippi = new Audio.PCMClip(pcmStream, 2, 2);
-							((Audio.Mixer) Audio.player.stream).add(new Audio.VolAdjust(klippi, 0.8));
+                            ui.globalSfxPlay(new Audio.VolAdjust(klippi, 0.8));
 						}
 					} catch (Exception e) {
 					}
@@ -1782,7 +1811,7 @@ public class OptWnd extends Window {
                 ChaseVectorSprite.ENEMYCOLOR = enemyVectorColorOptionWidget.currentColor;
             }), enemyVectorColorOptionWidget.pos("ur").adds(16, 0)).tooltip = resetButtonTooltip;
 
-			
+
 
 			Widget backButton;
 			add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Advanced Settings"), leftColumn.pos("bl").adds(0, 33).x(0));
@@ -2012,6 +2041,7 @@ public class OptWnd extends Window {
 	public static CheckBox showMoundBedsRadiiCheckBox;
 	public static CheckBox showBarrelContentsTextCheckBox;
 	public static CheckBox showIconSignTextCheckBox;
+    public static CheckBox showProduceSackTextCheckBox;
 	public static CheckBox showCheeseRacksTierTextCheckBox;
 	public static CheckBox highlightCliffsCheckBox;
 	public static ColorOptionWidget highlightCliffsColorOptionWidget;
@@ -2783,6 +2813,16 @@ public class OptWnd extends Window {
 				}
 			}, rightColumn.pos("bl").adds(0, 2));
 			showIconSignTextCheckBox.tooltip = showIconSignTextTooltip;
+            rightColumn = add(showProduceSackTextCheckBox = new CheckBox("Show Produce Sack Text"){
+                {a = (Utils.getprefb("showProduceSackText", true));}
+                public void changed(boolean val) {
+                    Utils.setprefb("showProduceSackText", val);
+                    if (ui != null && ui.gui != null){
+                        ui.gui.optionInfoMsg("Produce Sack Text is now " + (val ? "SHOWN" : "HIDDEN") + "!", (val ? msgGreen : msgGray), Audio.resclip(val ? Toggle.sfxon : Toggle.sfxoff));
+                    }
+                }
+            }, rightColumn.pos("bl").adds(0, 2));
+            showProduceSackTextCheckBox.tooltip = showProduceSackTextTooltip;
 			rightColumn = add(showCheeseRacksTierTextCheckBox = new CheckBox("Show Cheese Racks Tier Text"){
 				{a = (Utils.getprefb("showCheeseRacksTierText", false));}
 				public void changed(boolean val) {
@@ -3078,8 +3118,8 @@ public class OptWnd extends Window {
 		Label topNote = new Label("Don't use the same keys on multiple Keybinds!");
 		topNote.setcolor(Color.RED);
 		y = adda(topNote, UI.scale(155), y, 0.5, 0.0).pos("bl").adds(0, 5).y;
-		y = adda(new Label("If you do that, only one of them will work. God knows which."), 310 / 2, y, 0.5, 0.0).pos("bl").adds(0, 5).y;
-		Scrollport scroll = add(new Scrollport(UI.scale(new Coord(310, 360))), 0, 60);
+		y = adda(new Label("If you do that, only one of them will work. God knows which."), UI.scale(155), y, 0.5, 0.0).pos("bl").adds(0, 5).y;
+		Scrollport scroll = add(new Scrollport(UI.scale(310, 360)), UI.scale(0, 60));
 	    Widget cont = scroll.cont;
 	    Widget prev;
 	    y = 0;
@@ -3165,20 +3205,24 @@ public class OptWnd extends Window {
 		y = addbtnImproved(cont, "Click Nearest Object (You)","When this button is pressed, you will instantly click the nearest object to you, selected from below." +
 				"\n$col[218,163,0]{Range:} $col[185,185,185]{12 tiles (approximately)}", new Color(255, 191, 0,255), GameUI.kb_clickNearestObject, y);
 		Widget objectsLeft, objectsRight;
-		y = cont.adda(objectsLeft = new Label("Objects to Click:"), UI.scale(20), y + UI.scale(2), 0, 0.0).pos("bl").adds(0, 5).y;
-		objectsLeft = cont.add(new CheckBox("Forageables"){{a = Utils.getprefb("clickNearestObject_Forageables", true);}
-			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Forageables", val);}}, objectsLeft.pos("ur").adds(4, 0)).settip("Pick the nearest Forageable.");
+		y = cont.adda(objectsLeft = new Label("Objects to Click:"), UI.scale(10), y + UI.scale(2), 0, 0.0).pos("bl").adds(0, 5).y;
+		objectsLeft = cont.add(new CheckBox("Fence Gates"){{a = Utils.getprefb("clickNearestObject_FenceGates", true);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_FenceGates", val);}}, objectsLeft.pos("ur").adds(4, 0)).settip("Open/Close the nearest Fence Gate.");
+		objectsRight = cont.add(new CheckBox("Forageables"){{a = Utils.getprefb("clickNearestObject_Forageables", true);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Forageables", val);}}, objectsLeft.pos("ur").adds(38, 0)).settip("Pick the nearest Forageable.");
+		objectsLeft = cont.add(new CheckBox("Wall Gates"){{a = Utils.getprefb("clickNearestObject_WallGates", true);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_WallGates", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Open/Close the nearest Wall Gate (Palisade/Brick Wall).");
 		objectsRight = cont.add(new CheckBox("Critters"){{a = Utils.getprefb("clickNearestObject_Critters", true);}
-			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Critters", val);}}, objectsLeft.pos("ur").adds(50, 0)).settip("Chase the nearest Critter.");
-		objectsLeft = cont.add(new CheckBox("Non-Visitor Gates"){{a = Utils.getprefb("clickNearestObject_NonVisitorGates", true);}
-			public void changed(boolean val) {Utils.setprefb("clickNearestObject_NonVisitorGates", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Open/Close the nearest Non-Visitor Gate.");
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Critters", val);}}, objectsRight.pos("bl").adds(0, 4)).settip("Chase the nearest Critter.");
+		objectsLeft = cont.add(new CheckBox("Visitor Gates"){{a = Utils.getprefb("clickNearestObject_VisitorGates", false);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_VisitorGates", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Open/Close the nearest Visitor Gate (Palisade/Brick Wall).");
 		objectsRight = cont.add(new CheckBox("Caves"){{a = Utils.getprefb("clickNearestObject_Caves", false);}
 			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Caves", val);}}, objectsRight.pos("bl").adds(0, 4)).settip("Go through the nearest Cave Entrance/Exit.");
-		objectsLeft = cont.add(new CheckBox("Mineholes & Ladders"){{a = Utils.getprefb("clickNearestObject_MineholesAndLadders", false);}
+		objectsLeft = cont.add(new CheckBox("Mineholes/Ladders"){{a = Utils.getprefb("clickNearestObject_MineholesAndLadders", false);}
 			public void changed(boolean val) {Utils.setprefb("clickNearestObject_MineholesAndLadders", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Hop down the nearest Minehole, or Climb up the nearest Ladder.");
 		objectsRight = cont.add(new CheckBox("Doors"){{a = Utils.getprefb("clickNearestObject_Doors", false);}
 			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Doors", val);}}, objectsRight.pos("bl").adds(0, 4)).settip("Go through the nearest Door.");
-		y+=UI.scale(60);
+		y+=UI.scale(80);
 		y = addbtnImproved(cont, "Hop on Nearest Vehicle", "When this button is pressed, your character will run towards the nearest mountable Vehicle/Animal, and try to mount it." +
 				"\n\n$col[185,185,185]{If the closest vehicle to you is full, or unmountable (like a rowboat on land), it will keep looking for the next closest mountable vehicle.}" +
 				"\n\n$col[218,163,0]{Works with:} Knarr, Snekkja, Rowboat, Dugout, Kicksled, Coracle, Wagon, Wilderness Skis, Tamed Horse" +
@@ -3207,6 +3251,7 @@ public class OptWnd extends Window {
 		y = addbtn(cont, "Show Bee Skep Harvest Icons", GameUI.kb_toggleBeeSkepIcons, y);
 		y = addbtn(cont, "Show Barrel Contents Text", GameUI.kb_toggleBarrelContentsText, y);
 		y = addbtn(cont, "Show Icon Sign Text", GameUI.kb_toggleIconSignText, y);
+        y = addbtn(cont, "Show Produce Sack Text", GameUI.kb_toggleProduceSackText, y);
 		y = addbtn(cont, "Show Cheese Racks Tier Text", GameUI.kb_toggleCheeseRacksTierText, y);
 		y = addbtn(cont, "Show Objects Speed", GameUI.kb_toggleSpeedInfo, y);
 		y = addbtn(cont, "Hide/Show Cursor Item", GameUI.kb_toggleCursorItem, y);
@@ -4687,7 +4732,7 @@ public class OptWnd extends Window {
 				public boolean mousedown(MouseDownEvent ev) {
 					if (ev.b != 1)
 						return true;
-					File file = new File(haven.MainFrame.gameDir + "AlarmSounds/" + finalFilename.buf.line() + ".wav");
+					File file = new File(haven.Client.gameDir + "AlarmSounds/" + finalFilename.buf.line() + ".wav");
 					if (!file.exists() || file.isDirectory()) {
 						if (ui != null && ui.gui != null)
 							ui.gui.msg("Error while playing an alarm, file " + file.getAbsolutePath() + " does not exist!", Color.WHITE);
@@ -4698,7 +4743,7 @@ public class OptWnd extends Window {
 						AudioFormat tgtFormat = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 2, 4, 44100, false);
 						AudioInputStream pcmStream = AudioSystem.getAudioInputStream(tgtFormat, in);
 						Audio.CS clip = new Audio.PCMClip(pcmStream, 2, 2);
-						((Audio.Mixer) Audio.player.stream).add(new Audio.VolAdjust(clip, finalVolume.val / 50.0));
+                        ui.globalSfxPlay(new Audio.VolAdjust(clip, finalVolume.val / 50.0));
 					} catch (UnsupportedAudioFileException | IOException e) {
 						e.printStackTrace();
 					}
@@ -5088,15 +5133,14 @@ public class OptWnd extends Window {
 	autoDropManagerWindow = new AutoDropManagerWindow();
 	flowerMenuAutoSelectManagerWindow = new FlowerMenuAutoSelectManagerWindow();
 	main = add(new Panel());
-	Panel video = add(new VideoPanel(main));
-	Panel audio = add(new AudioPanel(main));
-	Panel keybind = add(new BindingPanel(main));
 
 	int y = UI.scale(6);
 	Widget prev;
-	y = main.add(new PButton(UI.scale(200), "Video Settings", -1, video, "Video Settings"), 0, y).pos("bl").adds(0, 5).y;
-	y = main.add(new PButton(UI.scale(200), "Audio Settings", -1, audio, "Audio Settings"), 0, y).pos("bl").adds(0, 5).y;
-	y = main.add(new PButton(UI.scale(200), "Keybindings (Hotkeys)", -1, keybind, "Keybindings (Hotkeys)"), 0, y).pos("bl").adds(0, 5).y;
+//	y = main.add(new PButton(UI.scale(200), "Interface settings", 'v', () -> new InterfacePanel(main)), 0, y).pos("bl").adds(0, 5).y;
+//	y += UI.scale(60);
+	y = main.add(videoButton = new PButton(UI.scale(200), "Video settings", 'v', () -> new VideoPanel(ui, main), "Video Settings"), 0, y).pos("bl").adds(0, 5).y;
+	y = main.add(audioButton = new PButton(UI.scale(200), "Audio settings", 'a', () -> new AudioPanel(ui, main), "Audio Settings"), 0, y).pos("bl").adds(0, 5).y;
+	y = main.add(keybindButton = new PButton(UI.scale(200), "Keybindings", 'k', () -> new BindingPanel(main), "Keybindings (Hotkeys)"), 0, y).pos("bl").adds(0, 5).y;
 	y += UI.scale(20);
 
 	advancedSettings = add(new Panel());
@@ -5165,7 +5209,7 @@ public class OptWnd extends Window {
 	    }), 0, y).pos("bl").adds(0, 5).y;
 	}
 	y = main.add(new Button(UI.scale(200), "Close", false).action(() -> {
-		    OptWnd.this.hide();
+		    OptWnd.this.reqclose();
 	}), 0, y).pos("bl").adds(0, 5).y;
 	this.main.pack();
 
@@ -5176,13 +5220,9 @@ public class OptWnd extends Window {
 	this(true);
     }
 
-    public void wdgmsg(Widget sender, String msg, Object... args) {
-	if((sender == this) && (msg == "close")) {
-	    hide();
-		cap = "Options            ";
-	} else {
-	    super.wdgmsg(sender, msg, args);
-	}
+    public void reqclose() {
+	hide();
+	cap = "Options            ";
     }
 
     public void show() {
@@ -5213,9 +5253,10 @@ public class OptWnd extends Window {
             "\nThe Custom Theme folder can be found in your $col[218,163,0]{client folder}, under $col[218,163,0]{\\ res \\ customclient \\ uiThemes \\ Custom Theme}" +
             "\n" +
             "\n$col[185,185,185]{You don't need to change *everything* for the Custom Theme to work. If it's missing something, it just defaults to whatever the \"Nightdawg Dark\" theme uses.}", UI.scale(300));
-	private static final Object extendedMouseoverInfoTooltip = RichText.render("Holding Ctrl+Shift shows the Resource Path when mousing over Objects or Tiles. " +
-			"\nThis setting will add a lot of additional information on top of that." +
-			"\n" +
+	private static final Object extendedMouseoverInfoTooltip = RichText.render("This setting adds additional info to:" +
+			"\n- Object Ctrl+Shift Mouseover Info (Adds lots of info)" +
+			"\n- Item Tooltips (Shows Resource Name)" +
+			"\n- Action Button Tooltips (Shows Resource Name)" +
 			"\n$col[185,185,185]{Unless you're a client dev, you don't really need to enable this setting, like ever.}", UI.scale(300));
 	private static final Object disableMenuGridHotkeysTooltip = RichText.render("This completely disables the hotkeys for the action buttons & categories in the bottom right corner menu (aka the menu grid)." +
 			"\n" +
@@ -5359,6 +5400,9 @@ public class OptWnd extends Window {
 	private static final Object showIconSignTextTooltip = RichText.render("This adds text on top of icon signs, that shows the name of the currently displayed icon. Empty signs won't show any text." +
 			"\n" +
 			"\n$col[218,163,0]{Keybind:} $col[185,185,185]{This can also be toggled using a keybind.}", UI.scale(300));
+    private static final Object showProduceSackTextTooltip = RichText.render("This adds text on top of produce sacks, that shows the name of the currently displayed icon. Empty sacks won't show any text." +
+            "\n" +
+            "\n$col[218,163,0]{Keybind:} $col[185,185,185]{This can also be toggled using a keybind.}", UI.scale(300));
 	private static final Object showCheeseRacksTierTextTooltip = RichText.render("This adds text on top of each cheese tray inside cheese racks, that shows the current tier of the cheese present in the tray." +
 			"\n" +
 			"\n$col[185,185,185]{Unfortunately, the server only sends the tier info, so the client can't tell which exact cheese is in the trays.}" +
@@ -5584,8 +5628,9 @@ public class OptWnd extends Window {
 	@Override
 	protected void attached() {
 		super.attached();
-		if (ui != null)
-			currentgprefs = ui.gprefs;
+		videoButton.preload();
+		audioButton.preload();
+		keybindButton.preload();
 		if (ui.gui != null) {
 			ui.gui.add(autoDropManagerWindow); // ND: this.parent.parent is root widget in login screen or gui in game.
 			autoDropManagerWindow.hide();

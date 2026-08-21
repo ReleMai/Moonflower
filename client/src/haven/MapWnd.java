@@ -35,6 +35,7 @@ import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.awt.image.*;
 import haven.render.*;
+import haven.iosys.tk.*;
 import haven.MapFile.Marker;
 import haven.MapFile.PMarker;
 import haven.MapFile.SMarker;
@@ -46,8 +47,6 @@ import haven.MiniMap.Location;
 import static haven.MCache.tilesz;
 import static haven.MCache.cmaps;
 import static haven.Utils.eq;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.*;
 
 public class MapWnd extends Window implements Console.Directory {
     public static final Resource markcurs = Resource.local().loadwait("gfx/hud/curs/flag");
@@ -1297,46 +1296,35 @@ public class MapWnd extends Window implements Console.Directory {
     }
 
     public void exportmap() {
-	java.awt.EventQueue.invokeLater(() -> {
-		JFileChooser fc = new JFileChooser();
-		fc.setFileFilter(new FileNameExtensionFilter("Exported Haven map data", "hmap"));
-		if(fc.showSaveDialog(null) != JFileChooser.APPROVE_OPTION)
-		    return;
-		Path path = fc.getSelectedFile().toPath();
-		if(path.getFileName().toString().indexOf('.') < 0)
-		    path = path.resolveSibling(path.getFileName() + ".hmap");
-		exportmap(path);
-	    });
+	FilePicker dialog = ui.wnd.toolkit().picker().make(FilePicker.Mode.SAVE, ui.wnd);
+	dialog.filter("Exported Haven map data", "hmap");
+	dialog.show().map(Promise.cnonnull(path -> {
+	    if(path.getFileName().toString().indexOf('.') < 0)
+		path = path.resolveSibling(path.getFileName() + ".hmap");
+	    exportmap(path);
+	})).report(ui);
     }
 
     public void importmap() {
-	java.awt.EventQueue.invokeLater(() -> {
-		JFileChooser fc = new JFileChooser();
-		fc.setFileFilter(new FileNameExtensionFilter("Exported Haven map data", "hmap"));
-		if(fc.showOpenDialog(null) != JFileChooser.APPROVE_OPTION)
-		    return;
-		importmap(fc.getSelectedFile().toPath());
-	    });
+	FilePicker dialog = ui.wnd.toolkit().picker().make(FilePicker.Mode.OPEN, ui.wnd);
+	dialog.filter("Exported Haven map data", "hmap");
+	dialog.show().map(Promise.cnonnull(this::importmap)).report(ui);
     }
 
     private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();
     {
-	cmdmap.put("exportmap", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if(args.length > 1)
-			exportmap(Utils.path(args[1]));
-		    else
-			exportmap();
-		}
-	    });
-	cmdmap.put("importmap", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if(args.length > 1)
-			importmap(Utils.path(args[1]));
-		    else
-			importmap();
-		}
-	    });
+	cmdmap.put("exportmap", (cons, args) -> {
+	    if(args.length > 1)
+		exportmap(Utils.path(args[1]));
+	    else
+		exportmap();
+	});
+	cmdmap.put("importmap", (cons, args) -> {
+	    if(args.length > 1)
+		importmap(Utils.path(args[1]));
+	    else
+		importmap();
+	});
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);

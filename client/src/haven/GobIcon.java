@@ -37,10 +37,9 @@ import java.util.function.*;
 import java.io.*;
 import java.nio.file.*;
 import java.awt.image.*;
+import haven.iosys.tk.*;
 import java.awt.Color;
 import java.util.stream.Collectors;
-import javax.swing.JFileChooser;
-import javax.swing.filechooser.*;
 
 public class GobIcon extends GAttrib {
     public static int size = UI.scale(Utils.getprefi("mapIconsSize", 20));
@@ -818,7 +817,7 @@ public class GobIcon extends GAttrib {
 
 	    protected boolean searchmatch(ListIcon icon, String text) {
 		return((icon.name != null) &&
-		       (icon.name.toLowerCase().indexOf(text.toLowerCase()) >= 0));
+		       Fuzzy.fuzzyContains(icon.name.toLowerCase(Locale.ROOT), text.toLowerCase(Locale.ROOT)));
 	    }
 
 		@Override
@@ -946,27 +945,31 @@ public class GobIcon extends GAttrib {
 		protected List<NotificationSetting> items() {return(items);}
 		protected Widget makeitem(NotificationSetting item, int idx, Coord sz) {return(SListWidget.TextItem.of(sz, Text.std, () -> item.name));}
 
-		private void selectwav() {
-		    java.awt.EventQueue.invokeLater(() -> {
-			    JFileChooser fc = new JFileChooser();
-			    fc.setFileFilter(new FileNameExtensionFilter("PCM wave file", "wav"));
-			    if(fc.showOpenDialog(null) != JFileChooser.APPROVE_OPTION)
-				return;
+		private void selectwav(NotificationSetting prev) {
+		    FilePicker dialog = ui.wnd.toolkit().picker().make(FilePicker.Mode.OPEN, ui.wnd);
+		    dialog.filter("PCM wave file", "wav");
+		    dialog.show().map(path -> {
+			Debug.dump(path, prev.name);
+			if(path == null) {
+			    super.change(prev);
+			} else {
 			    for(Iterator<NotificationSetting> i = items.iterator(); i.hasNext();) {
 				NotificationSetting item = i.next();
 				if(item.wav != null)
 				    i.remove();
 			    }
-			    NotificationSetting ws = new NotificationSetting(fc.getSelectedFile().toPath());
+			    NotificationSetting ws = new NotificationSetting(path);
 			    items.add(items.indexOf(NotificationSetting.other), ws);
 			    change(ws);
-			});
+			}
+		    }).report(ui);
 		}
 
 		public void change(NotificationSetting item) {
+		    NotificationSetting prev = sel;
 		    super.change(item);
 		    if(item == NotificationSetting.other) {
-			selectwav();
+			selectwav(prev);
 		    } else {
 			conf.resns = item.res;
 			conf.filens = item.wav;
@@ -1092,15 +1095,16 @@ public class GobIcon extends GAttrib {
 		newPresetName = new TextEntry(UI.scale(120), ""){
 			public boolean keydown(KeyDownEvent e) {
 				if(e.awt.getKeyCode() == KeyEvent.VK_ESCAPE) {
-					setfocus(SettingsWindow.this.cont);
-				}
-				return(buf.key(e.awt));
+					setfocus(SettingsWindow.this.list);
+					return(true);
+				} else
+					return(buf.key(e.awt));
 			}
 		};
 		left.last(new Button(UI.scale(170), "Save New Preset", false).action(() -> {
 			if (newPresetName.text().equals(""))
 				ui.gui.error("Please set a name for the new map icons preset!");
-			else if (newPresetName.text().trim().length() == 0)
+			else if (newPresetName.text().trim().isEmpty())
 				ui.gui.error("Brother don't just use a bunch of spaces as the preset name, that's stupid. Give it a nice name.");
 			else if (mapIconPresets.keySet().stream().anyMatch(newPresetName.text()::equals)) {
 //					ui.gui.error("A preset named " + "\"" + newPresetName.text() + "\"" + " already exists. Please choose a different name, or delete the old one.");
@@ -1150,12 +1154,13 @@ public class GobIcon extends GAttrib {
 				};
 				ui.gui.add(confirmOverwriteWnd, new Coord((ui.gui.sz.x - confirmOverwriteWnd.sz.x) / 2, (ui.gui.sz.y - confirmOverwriteWnd.sz.y*3) / 2));
 				confirmOverwriteWnd.show();
+				setfocus(SettingsWindow.this.list);
 			} else {
 				iconCategoriesList.change(GobIconCategoryList.GobCategory.ALL);
-
 				if (future != null)
 					future.cancel(true);
 				future = executor.scheduleWithFixedDelay(this::savePreset, 200, 300, TimeUnit.MILLISECONDS);
+				setfocus(SettingsWindow.this.list);
 			}
 		}), UI.scale(10));
 
@@ -1241,7 +1246,7 @@ public class GobIcon extends GAttrib {
 
 	public static void load() {
 		mapIconPresets.clear();
-		File config = new File(haven.MainFrame.gameDir + "MapIconsPresets/yourSavedPresets");
+		File config = new File(haven.Client.gameDir + "MapIconsPresets/yourSavedPresets");
 		if (!config.exists()) {
 			defaultPresets();
 		} else {
@@ -1268,12 +1273,12 @@ public class GobIcon extends GAttrib {
 
 	public static void defaultPresets() {
 		mapIconPresets.clear();
-		loadPresetsFromFile(new File(haven.MainFrame.gameDir + "MapIconsPresets/defaultPresets"));
+		loadPresetsFromFile(new File(haven.Client.gameDir + "MapIconsPresets/defaultPresets"));
 	}
 
 	public static void savePresetsToFile() {
 		try {
-			BufferedWriter bw = Files.newBufferedWriter(Paths.get(new File(haven.MainFrame.gameDir + "MapIconsPresets/yourSavedPresets").toURI()), StandardCharsets.UTF_8);
+			BufferedWriter bw = Files.newBufferedWriter(Paths.get(new File(haven.Client.gameDir + "MapIconsPresets/yourSavedPresets").toURI()), StandardCharsets.UTF_8);
 			for (int x = 1; x < mapIconPresets.keySet().size(); x++) { // ND: Start at 1, cause 0 is always an empty string added in the code when settings are loaded
 				String presetName = ((String) mapIconPresets.keySet().toArray()[x]);
 				StringBuilder enabledIcons = new StringBuilder();

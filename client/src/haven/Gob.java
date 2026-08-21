@@ -116,6 +116,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	private Overlay archeryRadius;
 	BarrelContentsGobInfo barrelContentsGobInfo;
 	IconSignGobInfo iconSignGobInfo;
+    ProduceSackGobInfo produceSackGobInfo;
 	GobCheeseRackInfo cheeseRackInfo;
 	public boolean combatFoeHighlighted = false;
 	private GobSpeedInfo gobSpeedInfo;
@@ -1275,6 +1276,10 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 				iconSignGobInfo = new IconSignGobInfo(this);
 				setattr(IconSignGobInfo.class, iconSignGobInfo);
 			}
+            if (res.name.startsWith("gfx/terobjs/producesack") && produceSackGobInfo == null) {
+                produceSackGobInfo = new ProduceSackGobInfo(this);
+                setattr(ProduceSackGobInfo.class, produceSackGobInfo);
+            }
 			if (res.name.startsWith("gfx/terobjs/cheeserack") && cheeseRackInfo == null) {
 				cheeseRackInfo = new GobCheeseRackInfo(this);
 				setattr(GobCheeseRackInfo.class, cheeseRackInfo);
@@ -2212,14 +2217,14 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 					}
 					if (poses.contains("knock") || poses.contains("drowned")) {
 						if (!imDead) {
-							File file = new File(haven.MainFrame.gameDir + "res/customclient/sfx/PlayerKnockedOut.wav");
+							File file = new File(haven.Client.gameDir + "res/customclient/sfx/PlayerKnockedOut.wav");
 							if (file.exists()) {
 								try {
 									AudioInputStream in = AudioSystem.getAudioInputStream(file);
 									AudioFormat tgtFormat = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 2, 4, 44100, false);
 									AudioInputStream pcmStream = AudioSystem.getAudioInputStream(tgtFormat, in);
 									Audio.CS klippi = new Audio.PCMClip(pcmStream, 2, 2);
-									((Audio.Mixer) Audio.player.stream).add(new Audio.VolAdjust(klippi, 1));
+                                    glob.sess.ui.globalSfxPlay(new Audio.VolAdjust(klippi, 1));
 								} catch (UnsupportedAudioFileException e) {
 									e.printStackTrace();
 								} catch (IOException e) {
@@ -2230,9 +2235,9 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 							isDeadPlayer = true;
 							File file = null;
 							if (playerGender.equals("male")) {
-								file = new File(haven.MainFrame.gameDir + "res/customclient/sfx/MalePlayerKilled.wav");
+								file = new File(haven.Client.gameDir + "res/customclient/sfx/MalePlayerKilled.wav");
 							} else if (playerGender.equals("female")) {
-								file = new File(haven.MainFrame.gameDir + "res/customclient/sfx/FemalePlayerKilled.wav");
+								file = new File(haven.Client.gameDir + "res/customclient/sfx/FemalePlayerKilled.wav");
 							}
 							if (file != null && file.exists() && somethingJustDied) {
 								try {
@@ -2240,7 +2245,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 									AudioFormat tgtFormat = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 2, 4, 44100, false);
 									AudioInputStream pcmStream = AudioSystem.getAudioInputStream(tgtFormat, in);
 									Audio.CS klippi = new Audio.PCMClip(pcmStream, 2, 2);
-									((Audio.Mixer) Audio.player.stream).add(new Audio.VolAdjust(klippi, 1));
+                                    glob.sess.ui.globalSfxPlay(new Audio.VolAdjust(klippi, 1));
 								} catch (UnsupportedAudioFileException e) {
 									e.printStackTrace();
 								} catch (IOException e) {
@@ -2379,13 +2384,13 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	private void playPlayerColorAlarm(Boolean enabled, String line, int val) {
 		if (enabled) {
 			try {
-				File file = new File(haven.MainFrame.gameDir + "AlarmSounds/" + line + ".wav");
+				File file = new File(haven.Client.gameDir + "AlarmSounds/" + line + ".wav");
 				if (file.exists()) {
 					AudioInputStream in = AudioSystem.getAudioInputStream(file);
 					AudioFormat tgtFormat = new AudioFormat(AudioFormat.Encoding.PCM_SIGNED, 44100, 16, 2, 4, 44100, false);
 					AudioInputStream pcmStream = AudioSystem.getAudioInputStream(tgtFormat, in);
 					Audio.CS klippi = new Audio.PCMClip(pcmStream, 2, 2);
-					((Audio.Mixer) Audio.player.stream).add(new Audio.VolAdjust(klippi, val / 50.0));
+                    glob.sess.ui.globalSfxPlay(new Audio.VolAdjust(klippi, val / 50.0));
 					alarmPlayed.add(id);
 				}
 			} catch (Exception ignored) {
@@ -2547,6 +2552,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		if (barrelContentsGobInfo != null) barrelContentsGobInfo.clear();
 		if (cheeseRackInfo != null) cheeseRackInfo.clear();
 		if (iconSignGobInfo != null) iconSignGobInfo.clear();
+        if (produceSackGobInfo != null) produceSackGobInfo.clear();
 		setGobSearchOverlay();
 	}
 

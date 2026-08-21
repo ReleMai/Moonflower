@@ -149,6 +149,8 @@ public abstract class ItemInfo {
 		});
 	    for(Tip tip : tips)
 		tip.layout(this);
+	    if((cmp.sz.x <= 0) || (cmp.sz.y <= 0))
+		return(null);
 	    return(cmp.compose());
 	}
     }
@@ -181,6 +183,27 @@ public abstract class ItemInfo {
 	public BufferedImage tipimg() {
 	    return(str.img);
 	}
+    }
+
+    public static class ResourceName extends Tip {
+	private final Text str;
+
+	public ResourceName(Owner owner, String name) {
+	    super(owner);
+	    this.str = Text.render(name, Color.GREEN);
+	}
+
+	public BufferedImage tipimg() {
+	    return((OptWnd.extendedMouseoverInfoCheckBox != null) && OptWnd.extendedMouseoverInfoCheckBox.a ? str.img : null);
+	}
+
+	public void layout(Layout l) {
+	    BufferedImage img = tipimg();
+	    if(img != null)
+		l.cmp.add(img, new Coord(0, l.cmp.sz.y + img.getHeight()));
+	}
+
+	public int order() {return(20000);}
     }
 
     public static class Name extends Tip {
@@ -439,7 +462,8 @@ public abstract class ItemInfo {
 	}
 	if(l.tips.size() < 1)
 	    return(null);
-	return(PUtils.strokeImg(l.render()));
+	BufferedImage ret = l.render();
+	return((ret == null) ? null : PUtils.strokeImg(ret));
     }
 
     public static BufferedImage shorttip(List<ItemInfo> info) {

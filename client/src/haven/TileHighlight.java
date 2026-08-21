@@ -244,6 +244,8 @@ public class TileHighlight {
     }
     
     private static void tryInit(GameUI gui) {
+	if(gui != null && gui.mapfile != null)
+	    gui.mapfile.toggleol(TileHighlight.TAG, true);
 	if(initialized) {return;}
 	categories.add(ALL);
 	ArrayList<TileItem> all = new ArrayList<>();
@@ -261,7 +263,6 @@ public class TileHighlight {
 	    all.addAll(items);
 	}
 	all.sort(Comparator.comparing(item -> item.name));
-	gui.mapfile.toggleol(TileHighlight.TAG, true);
 	initialized = true;
     }
     
@@ -315,7 +316,7 @@ public class TileHighlight {
 	    
 	    add(new CategoryList(UI.scale(125), 4, elh), 0, h).sel = category;
 	    
-	    list = add(new TileList(UI.scale(220), UI.unscale(12)), UI.scale(135), h);
+	    list = add(new TileList(UI.scale(220), 12), UI.scale(135), h);
 	    filter = adda(new Label(FILTER_DEFAULT), list.pos("ur").y(0), 1, 0);
 	    pack();
 	    setfocus(list);
@@ -333,7 +334,7 @@ public class TileHighlight {
 	
 	private void updateFilter(String text) {
 	    filter.settext((text == null || text.isEmpty()) ? FILTER_DEFAULT : text);
-	    filter.c = list.pos("ur").y(0).adds(-filter.sz.x, 0);
+	    filter.c = list.pos("ur").y(0).add(-filter.sz.x, 0);
 	}
 	
 	@Override
@@ -505,7 +506,11 @@ public class TileHighlight {
 	    for (c.x = 0; c.x < cmaps.x; c.x++) {
 		for (c.y = 0; c.y < cmaps.y; c.y++) {
 		    int tile = grid.gettile(c);
+		    if(tile < 0 || tile >= grid.tilesets.length)
+			continue;
 		    MapFile.TileInfo tileset = grid.tilesets[tile];
+		    if(tileset == null || tileset.res == null)
+			continue;
 		    boolean v = isHighlighted(tileset.res.name);
 		    set(c, v);
 		    if(v) { setn(c, true); } //make 1 tile border around actual tiles

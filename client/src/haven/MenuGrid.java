@@ -45,6 +45,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
     private static Coord gsz = new Coord(6, 4);
     public final Set<Pagina> paginae = new HashSet<Pagina>();
     public Pagina cur;
+    public int pagseq = 0;
     private final Map<Object, Pagina> pmap = new CacheMap<>(CacheMap.RefType.WEAK);
     private Pagina dragging;
     private Collection<PagButton> curbtns = Collections.emptyList();
@@ -287,6 +288,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		Resource.Pagina pg = res.layer(Resource.pagina);
 		if(pg != null)
 		    info.add(new ItemInfo.Pagina(this, pg.text));
+		info.add(new ItemInfo.ResourceName(this, res.name));
 	    }
 	    return(info);
 	}
@@ -312,10 +314,13 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		tt += " [$b{$col[255,128,0]{" + key.longname() + "}}]";
 	    BufferedImage ret = PUtils.strokeImg(PUtils.strokeImg(ttfnd.render(tt, UI.scale(300)).img));
 	    if(withpg) {
-		List<ItemInfo> info = info();
+		List<ItemInfo> info = new ArrayList<>(info());
 		info.removeIf(el -> el instanceof ItemInfo.Name);
-		if(!info.isEmpty())
-		    ret = ItemInfo.catimgs(0, ret, ItemInfo.longtip(info));
+		if(!info.isEmpty()) {
+		    BufferedImage longtip = ItemInfo.longtip(info);
+		    if(longtip != null)
+			ret = ItemInfo.catimgs(0, ret, longtip);
+		}
 	    }
 	    return(ret);
 	}
@@ -691,6 +696,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 			paginae.remove(pag);
 		    }
 		}
+		pagseq++;
 		updlayout();
 	    }
 	} else {

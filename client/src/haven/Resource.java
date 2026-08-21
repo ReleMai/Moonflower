@@ -61,7 +61,7 @@ public class Resource implements Serializable {
     public final String name;
     public int ver;
     public ResSource source;
-    public final transient Pool pool;
+    public transient Pool pool;
     protected Collection<Layer> layers = new LinkedList<Layer>();
     private boolean used = false;
 
@@ -326,7 +326,6 @@ public class Resource implements Serializable {
 					"com5", "com6", "com7", "com8", "com9",
 					"lpt0", "lpt1", "lpt2", "lpt3", "lpt4",
 					"lpt5", "lpt6", "lpt7", "lpt8", "lpt9"));
-	public static final boolean windows = System.getProperty("os.name", "").startsWith("Windows");
 	private static final boolean[] winsafe;
 	public final Path base;
 
@@ -347,7 +346,7 @@ public class Resource implements Serializable {
 	}
 
 	private static String checkpart(String part, String whole) throws FileNotFoundException {
-	    if(windows && wintraps.contains(part))
+	    if(Config.windows && wintraps.contains(part))
 		throw(new FileNotFoundException(whole));
 	    return(part);
 	}
@@ -649,7 +648,7 @@ public class Resource implements Serializable {
             if (!uiTheme.equals("Nightdawg Dark")) {
                 String result = name.replaceFirst("^gfx/hud", "");
                 String finalString = "customclient/uiThemes/" + uiTheme + result;
-                File customHudFile = new File(haven.MainFrame.gameDir + "res/" + finalString +".res");
+                File customHudFile = new File(haven.Client.gameDir + "res/" + finalString +".res");
                 if(customHudFile.exists()) {
                     name = finalString;
                 }
@@ -883,12 +882,11 @@ public class Resource implements Serializable {
 
     private static String resolveLocalResourceDir() {
 	String explicit = System.getProperty("haven.gamedir");
-	if((explicit != null) && !explicit.isBlank())
-	    return(explicit + "res");
-	return(haven.MainFrame.gameDir + "res");
+	String gameDir = ((explicit != null) && !explicit.isBlank()) ? explicit : haven.Client.gameDir;
+	return(Paths.get((gameDir == null) ? "" : gameDir).resolve("res").toString());
     }
 
-    private static Pool _remote = null;
+    private static volatile Pool _remote = null;
     public static Pool remote() {
 	if(_remote == null) {
 	    synchronized(Resource.class) {
@@ -2053,6 +2051,28 @@ public class Resource implements Serializable {
 	    this.ver = ver;
 	else if(ver != this.ver)
 	    throw(new LoadException("Wrong res version (" + ver + " != " + this.ver + ")", this));
+	Pool rem = _remote;
+	if((rem != null) && (source instanceof FileSource)) {
+	    /* ND: A resource loaded from a local .res file is created by the
+	     * local() pool, which cannot reach the game server, so its external
+	     * references (materials, linked sprites, code classpath, etc.) would
+	     * fail to resolve. Rebind it to the full remote() chain, which
+	     * checks local overrides first (via its parent pool) and only then
+	     * the server.
+	     *
+	     * Only rebind when remote() already exists -- deliberately never
+	     * force its creation here. During early startup a FileSource load
+	     * can happen before setupres() has installed the resource cache
+	     * (e.g. GobIcon preset loading on the main thread racing setupres()
+	     * on another); building remote() at that point would produce a
+	     * cache-less pool and make every resource re-download from the
+	     * network. Bundled resources that load that early have no external
+	     * references anyway, while gameplay overrides (the ones that need
+	     * this) load long after remote() has been set up with its cache.
+	     * Reassigned before decoding layers because some factories (e.g.
+	     * Material) capture res.pool at decode time. */
+	    this.pool = rem;
+	}
 	while(!in.eom()) {
 	    LayerFactory<?> lc = ltypes.get(in.string());
 	    int len = in.int32();

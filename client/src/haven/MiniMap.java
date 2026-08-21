@@ -27,6 +27,8 @@
 package haven;
 
 import haven.automated.pathfinder.Pathfinder;
+import haven.automated.mapper.MappingClient;
+import haven.iosys.tk.Windeye;
 import haven.render.*;
 
 import java.awt.image.BufferedImage;
@@ -428,9 +430,10 @@ public class MiniMap extends Widget {
 	}
 	icons = findicons(icons);
 
-		if (GLPanel.Loop.bgmode) {
-			zoomMomentum = 0.0f;
-		} else if (Math.abs(zoomMomentum) > 0.15) {
+        Windeye.Visibility wndvis = ui.wnd.visible();
+        if ((wndvis == Windeye.Visibility.UNKNOWN) ? !ui.wnd.focused() : (wndvis == Windeye.Visibility.NONE)) {
+            zoomMomentum = 0.0f;
+        } else if (Math.abs(zoomMomentum) > 0.15) {
 			double delta = dt*zoomMomentum*(zoomlevel/6f);
 			int nextdlvl = Math.max(Integer.highestOneBit((int)(zoomlevel+delta)),1);
 			if (zoomMomentum > 0 && nextdlvl > dlvl && !allowzoomout()) {
@@ -455,6 +458,11 @@ public class MiniMap extends Widget {
 		}
 		allowZooming = true;
 		ticksprites(dt);
+	if(tvisible()) {
+	    Location loc = this.curloc;
+	    if(loc != null)
+		redisplay(loc);
+	}
     }
 
     public void center(Locator loc) {
@@ -631,6 +639,13 @@ public class MiniMap extends Widget {
 
 	public GobIcon.Icon icon() {
 	    return(mm.markers.get(m).icon());
+	}
+
+	public void dispupdate() {
+	    if(mm.dloc == null)
+		this.sc = null;
+	    else
+        this.sc = m.tc.sub(mm.dloc.tc).div(mm.scalef()).add(mm.sz.div(2));
 	}
 
 	public void draw(GOut g, Coord c) {
@@ -810,6 +825,26 @@ public class MiniMap extends Widget {
             return(c.mul(1 << f));
     }
 
+    // ND: For future me, this is regarding l2dscale(), which loftar replaced scalef() with. I have no clue what l2dscale does.
+    // Anyway, here are a few examples of the old code, which I replaced it back with:
+    //
+    // for the xlate() method:
+    //      return(l2dscale(loc.tc.sub(dloc.tc)).add(sz.div(2)));
+    //      return(loc.tc.sub(dloc.tc).div(scalef()).add(sz.div(2)));
+    //
+    // for the st2c() method:
+    //      return(l2dscale(tc.add(sessloc.tc).sub(dloc.tc)).add(sz.div(2)));
+    //      return(UI.scale(tc.add(sessloc.tc).sub(dloc.tc).div(zoomlevel)).add(sz.div(2)));
+    //
+    // for the markerat() method:
+    //      if(mark.icon().checkhit(l2dscale(tc).sub(l2dscale(mark.m.tc))) && !filter(mark))
+    //      if(mark.icon().checkhit(tc.sub(mark.m.tc).div(scalef())) && !filter(mark))
+    //
+    // and for dispupdate(), but I am not sure if it breaks anything yet:
+    // 		this.sc = mm.l2dscale(m.tc).sub(mm.l2dscale(mm.dloc.tc)).add(mm.sz.div(2));
+    //      this.sc = m.tc.sub(mm.dloc.tc).div(mm.scalef()).add(mm.sz.div(2));
+
+
     public Coord st2c(Coord tc) {
 	return(UI.scale(tc.add(sessloc.tc).sub(dloc.tc).div(zoomlevel)).add(sz.div(2)));
     }
@@ -858,6 +893,13 @@ public class MiniMap extends Widget {
 		file.lock.readLock().unlock();
 	    }
 	}
+	for(Coord c : dgext) {
+	    DisplayGrid dgrid = display[dgext.ri(c)];
+	    if(dgrid == null)
+		continue;
+	    for(DisplayMarker mark : dgrid.markers(true))
+		mark.dispupdate();
+	}
 	for(DisplayIcon icon : icons)
 	    icon.dispupdate();
     }
@@ -890,7 +932,7 @@ public class MiniMap extends Widget {
 	    if(dgrid == null)
 		continue;
 	    for(DisplayMarker mark : dgrid.markers(true)) {
-		if(filter(mark))
+		if((mark.sc == null) || filter(mark))
 		    continue;
         mark.sc = mark.m.tc.sub(dloc.tc).div(scalef()).add(hsz);
 		mark.draw(g, mark.sc);
@@ -1126,10 +1168,8 @@ public class MiniMap extends Widget {
     }
 
     public void draw(GOut g) {
-	Location loc = this.curloc;
-	if(loc == null)
+	if(dloc == null)
 	    return;
-	redisplay(loc);
 	remparty();
 	drawparts(g);
     }
@@ -1249,6 +1289,8 @@ public class MiniMap extends Widget {
 		    file.lock.writeLock().unlock();
 		}
 		if(mid != null) {
+		    if(MappingClient.getInstance() != null && OptWnd.uploadMapTilesCheckBox.a)
+			MappingClient.getInstance().uploadSMarker(icon.gob, mid);
 		    synchronized(icon.gob) {
 			icon.gob.setattr(new MarkerID(icon.gob, mid));
 		    }

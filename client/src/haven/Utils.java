@@ -53,6 +53,21 @@ public class Utils {
     public static final java.awt.image.ColorModel rgbm = java.awt.image.ColorModel.getRGBdefault();
     private static Preferences prefs = null;
 
+    public static void initlocale() {
+	try {
+	    /* XXX? Localization is nice and all, but the game as a
+	     * whole currently isn't internationalized, so using the
+	     * local settings for things like number formatting just
+	     * leads to inconsistency.
+	     *
+	     * The locale still seems to influence AWT default font
+	     * selection, though. This should be investigated. */
+	    Locale.setDefault(Locale.US);
+	} catch(Exception e) {
+	    new Warning(e, "locale initialization failed").issue();
+	}
+    }
+
     static Coord imgsz(BufferedImage img) {
 	return(new Coord(img.getWidth(), img.getHeight()));
     }
@@ -121,6 +136,10 @@ public class Utils {
 	} catch(java.net.URISyntaxException e) {
 	    throw(new IllegalArgumentException(String.valueOf(cl) + " has a malformed location", e));
 	}
+    }
+
+    public static <T> T nonconst(T val) {
+	return(val);
     }
 
     public static SocketChannel connect(String host, int port) throws IOException {
@@ -383,7 +402,12 @@ public class Utils {
 			Preferences node = Preferences.userNodeForPackage(Utils.class);
 			if(prefspec.get() != null)
 			    node = node.node(prefspec.get());
-			prefs = node;
+			Path base = Config.localdir();
+			if(base == null) {
+			    prefs = node;
+			} else {
+			    prefs = XmlPrefs.create(Utils.pj(base, "Hurricane-prefs.xml"), node);
+			}
 		    }
 		}
 	    }
@@ -1078,7 +1102,7 @@ public class Utils {
 	return(ret.toArray(new String[0]));
     }
 
-    static int atoi(String a) {
+    public static int atoi(String a) {
 	try {
 	    return(Integer.parseInt(a));
 	} catch(NumberFormatException e) {
@@ -1135,7 +1159,7 @@ public class Utils {
 		    return(task.run());
 		} catch(RuntimeException | IOException exc) {
 		    if(last == null)
-			new Warning(exc, "weird I/O error occurred on " + String.valueOf(task)).issue();
+//			new Warning(exc, "weird I/O error occurred on " + String.valueOf(task)).issue();
 		    if(last != null)
 			exc.addSuppressed(last);
 		    last = exc;
@@ -1560,6 +1584,20 @@ public class Utils {
     public static <E extends Comparable<? super E>> E max(Collection<E> from) {return(max(from, Function.identity()));}
     public static <E extends Comparable<? super E>> E min(Collection<E> from) {return(min(from, Function.identity()));}
 
+    public static long gcd(long a, long b) {
+	a = Math.abs(a); b = Math.abs(b);
+	while(b != 0) {
+	    long t = b;
+	    b = a % b;
+	    a = t;
+	}
+	return(a);
+    }
+
+    public static long lcm(long a, long b) {
+	return(Math.abs(a * b) / gcd(a, b));
+    }
+
     public static float gcd(float x, float y, float E) {
 	float a = Math.max(x, y), b = Math.min(x, y);
 	while(b > E) {
@@ -1660,6 +1698,14 @@ public class Utils {
 
     public static boolean eq(Object a, Object b) {
 	return((a == b) || ((a != null) && a.equals(b)));
+    }
+
+    public static <T> T ifnull(T value, T orelse) {
+	return((value != null) ? value : orelse);
+    }
+
+    public static <T> T ifnull(T value, Supplier<? extends T> orelse) {
+	return((value != null) ? value : orelse.get());
     }
 
     public static boolean parsebool(String s, boolean def) {
@@ -1912,6 +1958,28 @@ public class Utils {
 	return(map.remove(key));
     }
 
+    public static <E> Set<E> union(Set<? extends E> a, Set<? extends E> b) {
+	Set<E> ret = new HashSet<>(a);
+	ret.addAll(b);
+	return(ret);
+    }
+
+    public static <E> Set<E> isect(Set<? extends E> a, Set<?> b) {
+	Set<E> ret = new HashSet<>(a);
+	ret.retainAll(b);
+	return(ret);
+    }
+
+    public static <E> Set<E> setdiff(Set<? extends E> a, Set<?> b) {
+	Set<E> ret = new HashSet<>(a);
+	ret.removeAll(b);
+	return(ret);
+    }
+
+    public static <E> Set<E> symdiff(Set<? extends E> a, Set<? extends E> b) {
+	return(setdiff(union(a, b), isect(a, b)));
+    }
+
     public static <T> List<T> reversed(List<T> ls) {
 	return(new AbstractList<T>() {
 		public int size() {
@@ -1997,6 +2065,31 @@ public class Utils {
 	for(T item : c)
 	    clean.accept(item);
 	c.clear();
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T waitfor(Consumer<Consumer<? super T>> promise) {
+	Object[] buf = {null, null};
+	promise.accept(value -> {
+	    synchronized(buf) {
+		buf[0] = value;
+		buf[1] = true;
+		buf.notifyAll();
+	    }
+	});
+	synchronized(buf) {
+	    boolean irq = false;
+	    while(buf[1] == null) {
+		try {
+		    buf.wait();
+		} catch(InterruptedException e) {
+		    irq = true;
+		}
+	    }
+	    if(irq)
+		Thread.currentThread().interrupt();
+	    return((T)buf[0]);
+	}
     }
 
     public static <T> T construct(Constructor<T> cons, Object... args) {
@@ -2110,6 +2203,54 @@ public class Utils {
     private static final long rtimeoff = System.nanoTime();
     public static double rtime() {
 	return((System.nanoTime() - rtimeoff) / 1e9);
+    }
+
+    public static interface CheckedSupplier<T> {
+	public T get() throws Exception;
+    }
+
+    public static <T> Supplier<T> uncheck(CheckedSupplier<T> ch) {
+	return(() -> {
+	    try {
+		return(ch.get());
+	    } catch(Exception t) {
+		if(t instanceof RuntimeException)
+		    throw((RuntimeException)t);
+		throw(new RuntimeException(t));
+	    }
+	});
+    }
+
+    public static interface CheckedConsumer<T> {
+	public void accept(T val) throws Exception;
+    }
+
+    public static <T> Consumer<T> uncheck(CheckedConsumer<T> ch) {
+	return(val -> {
+	    try {
+		ch.accept(val);
+	    } catch(Exception t) {
+		if(t instanceof RuntimeException)
+		    throw((RuntimeException)t);
+		throw(new RuntimeException(t));
+	    }
+	});
+    }
+
+    public static interface CheckedFunction<P, R> {
+	public R apply(P par) throws Exception;
+    }
+
+    public static <P, R> Function<P, R> uncheck(CheckedFunction<P, R> ch) {
+	return(par -> {
+	    try {
+		return(ch.apply(par));
+	    } catch(Exception t) {
+		if(t instanceof RuntimeException)
+		    throw((RuntimeException)t);
+		throw(new RuntimeException(t));
+	    }
+	});
     }
 
     public static class MapBuilder<K, V> {
@@ -2609,75 +2750,6 @@ public class Utils {
 	    }
 	}
     };
-
-    static {
-	Console.setscmd("die", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    throw(new Error("Triggered death"));
-		}
-	    });
-	Console.setscmd("sleep", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    long ms = (long)(Double.parseDouble(args[1]) * 1000);
-		    try {
-			Thread.sleep(ms);
-		    } catch(InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw(new RuntimeException(e));
-		    }
-		}
-	    });
-	Console.setscmd("lockdie", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    Object m1 = new Object(), m2 = new Object();
-		    int[] sync = {0};
-		    new HackThread(() -> {
-			    try {
-				synchronized(m2) {
-				    synchronized(sync) {
-					while(sync[0] != 1)
-					    sync.wait();
-					sync[0] = 2;
-					sync.notifyAll();
-				    }
-				    synchronized(m1) {
-					synchronized(sync) {
-					    sync[0] = 3;
-					    sync.notifyAll();
-					}
-				    }
-				}
-			    } catch(InterruptedException e) {}
-		    }, "Deadlocker").start();
-		    try {
-			synchronized(m1) {
-			    synchronized(sync) {
-				sync[0] = 1;
-				sync.notifyAll();
-				while(sync[0] != 2)
-				    sync.wait();
-			    }
-			    synchronized(m2) {
-				synchronized(sync) {
-				    sync[0] = 3;
-				    sync.notifyAll();
-				}
-			    }
-			}
-		    } catch(InterruptedException e) {}
-		}
-	    });
-	Console.setscmd("threads", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    Utils.dumptg(null, cons.out);
-		}
-	    });
-	Console.setscmd("gc", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    System.gc();
-		}
-	    });
-    }
 
 	private static final Pattern RESID = Pattern.compile(".*\\[([^,]*),?.*]");
 	public static String prettyResName(String resname) {

@@ -33,7 +33,6 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.*;
 import java.util.List;
@@ -53,7 +52,7 @@ public class LoginScreen extends Widget {
     public Widget loginSteam = null;
     private Text error, progress;
     private Button optbtn;
-	private OptWnd opts = new OptWnd(false); // ND: This needs to be created when the login screen is created, to prevent options nullpointers once we log into a character
+	private OptWnd opts;
 	AccountList accounts;
 	private String lastUser = "";
 	private String lastPass = "";
@@ -69,18 +68,24 @@ public class LoginScreen extends Widget {
 		add(Resource.local().loadwait("customclient/sfx/berserkerTheme"));
 		add(Resource.local().loadwait("customclient/sfx/beastmasterTheme"));
 		add(Resource.local().loadwait("customclient/sfx/dryadTheme"));
+        add(Resource.local().loadwait("customclient/sfx/druidTheme"));
+        add(Resource.local().loadwait("customclient/sfx/nomadTheme"));
+        add(Resource.local().loadwait("customclient/sfx/sageTheme"));
 	}};
-	private static List<String> backgrounds = new ArrayList<>() {{
-		add(haven.MainFrame.gameDir + "res/customclient/rogueScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/knightScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/vikingScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/sorceressScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/huntressScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/alchemistScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/valkyrieScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/berserkerScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/beastmasterScreen.png");
-		add(haven.MainFrame.gameDir + "res/customclient/dryadScreen.png");
+	private static final List<String> backgrounds = new ArrayList<>() {{
+		add(haven.Client.gameDir + "res/customclient/rogueScreen.png");
+		add(haven.Client.gameDir + "res/customclient/knightScreen.png");
+		add(haven.Client.gameDir + "res/customclient/vikingScreen.png");
+		add(haven.Client.gameDir + "res/customclient/sorceressScreen.png");
+		add(haven.Client.gameDir + "res/customclient/huntressScreen.png");
+		add(haven.Client.gameDir + "res/customclient/alchemistScreen.png");
+		add(haven.Client.gameDir + "res/customclient/valkyrieScreen.png");
+		add(haven.Client.gameDir + "res/customclient/berserkerScreen.png");
+		add(haven.Client.gameDir + "res/customclient/beastmasterScreen.png");
+		add(haven.Client.gameDir + "res/customclient/dryadScreen.png");
+        add(haven.Client.gameDir + "res/customclient/druidScreen.png");
+        add(haven.Client.gameDir + "res/customclient/nomadScreen.png");
+        add(haven.Client.gameDir + "res/customclient/sageScreen.png");
 	}};
 	final List<String> keys = new ArrayList<>(){{
 		add("Random!");
@@ -94,6 +99,9 @@ public class LoginScreen extends Widget {
 		add("Berserker");
 		add("Beastmaster");
 		add("Dryad");
+        add("Druid");
+        add("Nomad");
+        add("Sage");
 	}};
 	private OldDropBox backgroundDropBox;
 	static public int bgIndex = 1;
@@ -116,7 +124,7 @@ public class LoginScreen extends Widget {
     }
 
     public LoginScreen(String confname) {
-	super(bg(haven.MainFrame.gameDir + "res/customclient/bgsizer.png").sz());
+	super(bg(haven.Client.gameDir + "res/customclient/bgsizer.png").sz());
     if (Utils.getprefi("loginBgIndex", 0) == 0) {
         Random rand = new Random();
         bgIndex = rand.nextInt(keys.size()-1) + 1; // Generates 0–2, then add 1
@@ -155,7 +163,8 @@ public class LoginScreen extends Widget {
 			} else {
 				bgIndex = selindex;
 			}
-			changeLoginScreen(themes.get(bgIndex-1), backgrounds.get(bgIndex-1));
+            ee = false;
+			changeLoginScreen(backgrounds.get(bgIndex-1));
 		}
 	};
 	add(new CircleFadein(0.5));
@@ -184,7 +193,6 @@ public class LoginScreen extends Widget {
 		throw(new RuntimeException(e));
 	}
 	mainThemeStopped = false;
-	playMainTheme(themes.get(bgIndex-1));
 	add(loginScreenMusicVolumeSlider = new HSlider(UI.scale(220), 0, 100, Utils.getprefi("loginScreenMusicVolume", 40)) {
 		protected void attach(UI ui) {
 			super.attach(ui);
@@ -241,23 +249,33 @@ public class LoginScreen extends Widget {
 	});
 	GameUI.verifiedAccount = false;
 	GameUI.subscribedAccount = false;
-	GameUI.stopAllThemes();
 	add(new IButton("customclient/discord", "", "-d", "-h") {
 		{settip("Hurricane Client Discord");}
 		public void click() {
 			URI uri = null;
 			try {
-				uri = new URI("https://discord.gg/WnEYkeAzja");
+				uri = new URI("https://discord.gg/7Ct4t6uME6");
 			} catch (URISyntaxException e) {
 				return;
 			}
-			try {
-				WebBrowser.sshow(uri.toURL());
-			} catch (MalformedURLException | WebBrowser.BrowserException ignored) {
-			}
-
+            try {
+                ui.wnd.toolkit().browse(uri);
+            } catch(java.net.MalformedURLException e) {
+                getparent(GameUI.class).error("Could not follow link.");
+            } catch(IOException e) {
+                getparent(GameUI.class).error("Could not launch web browser: " + e.getMessage());
+            }
         }
-	}, new Coord(this.sz.x + UI.scale(-60), 10));
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            if (ev.b == 3) {
+                changeLoginScreen(haven.Client.gameDir + "res/customclient/nd.png");
+                ee = true;
+            }
+            return super.mousedown(ev);
+        }
+    }, new Coord(this.sz.x + UI.scale(-60), 10));
     Config.setPlayerName(null);
     GameUI.gameTimeSpeedMultiplier = 3.29f;
     }
@@ -643,6 +661,13 @@ public class LoginScreen extends Widget {
     protected void added() {
 	presize();
 	parent.setfocus(this);
+    opts = new OptWnd(false); // ND: This needs to be created when the login screen is created, to prevent options nullpointers once we log into a character
+    playMainTheme(themes.get(bgIndex-1));
+    if (ui != null) {
+		GameUI.stopAllThemes(ui);
+		ui.root.adda(opts, 0.5, 0.5);
+		opts.hide();
+	}
     }
 
 	public void dispose() {
@@ -675,21 +700,22 @@ public class LoginScreen extends Widget {
     }
 
 	private void playMainTheme(Resource theme) {
-		if (!mainThemeStopped &&(mainThemeClip == null || !((Audio.Mixer) Audio.player.stream).playing(mainThemeClip))) {
-				Audio.CS klippi = fromres(theme);
+		if (!mainThemeStopped &&(mainThemeClip == null || !ui.globalSfxIsPlaying(mainThemeClip))) {
+				Audio.CS klippi = ee ? fromres(eeTheme) : fromres(theme);
 				mainThemeClip = new Audio.VolAdjust(klippi, Utils.getprefi("loginScreenMusicVolume", 40)/100d);
-				Audio.play(mainThemeClip);
+                ui.globalSfxPlay(mainThemeClip);
 		}
 	}
 
 	private void stopMainTheme() {
 		if(mainThemeClip != null){
-			Audio.stop(mainThemeClip);
+            ui.globalSfxStop(mainThemeClip);
 			mainThemeStopped = true;
 		}
 	}
-
-	private void changeLoginScreen(Resource theme, String imgPath){
+    boolean ee = false;
+    Resource eeTheme = Resource.local().loadwait("customclient/sfx/ndTheme");
+	private void changeLoginScreen(String imgPath){
 		stopMainTheme();
 		mainThemeStopped = false;
 		backgroundImg.setimg(bg(imgPath));
@@ -701,8 +727,8 @@ public class LoginScreen extends Widget {
 			{
 				Widget prev;
 				prev = add(new Label("This is your first time launching Hurricane!"), UI.scale(new Coord(34, 3)));
-				prev = add(new Label("Please make sure to set up your Keybindings and Settings!"), prev.pos("bl").adds(0, 8).x(0));
-				prev = add(new Label("The default ones are what Nightdawg uses."), prev.pos("bl").adds(0, 8).x(34));
+				prev = add(new Label("Please make sure to set up your Keybindings and Settings!"), prev.pos("bl").adds(0, 8).xs(0));
+				prev = add(new Label("The default ones are what Nightdawg uses."), prev.pos("bl").adds(0, 8).xs(34));
 				Button close = new Button(UI.scale(120), "Okay!", false) {
 					@Override
 					public void click() {
@@ -711,7 +737,7 @@ public class LoginScreen extends Widget {
 						Utils.setprefb("firstTimeOpeningClient", false);
 					}
 				};
-				add(close, prev.pos("bl").adds(0, 10).adds(0, 6).x(76));
+				add(close, prev.pos("bl").adds(0, 10).adds(0, 6).xs(76));
 				pack();
 			}
 
