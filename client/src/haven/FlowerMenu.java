@@ -53,7 +53,7 @@ public class FlowerMenu extends Widget {
 	public static final Color ptcStroke = Color.BLACK;
 	private static String nextAutoSel;
 	public final String[] options;
-	private static final String DATABASE = "jdbc:sqlite:static_data.db";
+	private static final String DATABASE = ClientData.sqlite("static_data.db");
 	public static Map<String, Boolean> autoSelectMap = new TreeMap<>();
 
     @RName("sm")

@@ -218,6 +218,10 @@
     <copy file="steam_appid.txt" todir="bin"/>
     <copy file="hafen.hl" todir="bin"/>
     <copy file="launcher.hl" todir="bin"/>
+    <!-- Seed databases are copied into the package for first-run migration.
+         Mutable copies live under Config.localdir()/Hurricane, not bin/. -->
+    <copy file="static_data.db" todir="bin"/>
+    <copy file="hitboxes.db" todir="bin"/>
     <chmod file="bin/hafen.jar" perm="a+x" />
     <copy todir="bin/MapIconsPresets" >
       <fileset dir="MapIconsPresets" includes="**"/>

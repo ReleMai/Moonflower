@@ -8,7 +8,7 @@ import java.sql.*;
 import java.util.*;
 
 public class HitBoxes {
-    private static final String DATABASE = "jdbc:sqlite:hitboxes.db";
+    private static final String DATABASE = ClientData.sqlite("hitboxes.db");
     public static Map<String, CollisionBoxSecondary[]> collisionBoxMap = new HashMap<>();
 
     private static Set<String> passableGobs = new HashSet<>(Arrays.asList(

@@ -4,6 +4,7 @@ import io.havenbot.server.auth.OperatorAuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.AsyncSupportConfigurer;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -21,6 +22,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(operatorAuthInterceptor);
+    }
+
+    @Override
+    public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
+        // The MJPEG endpoint is an intentionally long-lived StreamingResponseBody.
+        // A zero Servlet async timeout keeps Spring from terminating it every 30s;
+        // client disconnects still surface as an IOException during frame writes.
+        configurer.setDefaultTimeout(0);
     }
 
     @Override
@@ -44,6 +53,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     }
 
     private String toResourceLocation(Path path) {
-        return path.toAbsolutePath().normalize().toUri().toString();
+        String location = path.toAbsolutePath().normalize().toUri().toString();
+        return location.endsWith("/") ? location : location + "/";
     }
 }

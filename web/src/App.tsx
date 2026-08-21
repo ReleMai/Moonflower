@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, ReactNode, SetStateAction } from 'react';
 import { api, getOperatorToken, setOperatorToken } from './api';
 import { resolvePackIcon } from './iconPack';
@@ -190,6 +190,27 @@ function formatJson(value: unknown) {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
+interface DashboardSnapshot {
+  bots: BotRecord[];
+  accounts: AccountRecord[];
+  tasks: TaskRecord[];
+  routes: RoutePresetRecord[];
+  taskPresets: TaskPresetRecord[];
+  audit: AuditRecord[];
+}
+
+async function loadDashboardSnapshot(): Promise<DashboardSnapshot> {
+  const [bots, accounts, tasks, routes, taskPresets, audit] = await Promise.all([
+    api.bots.list<BotRecord[]>(),
+    api.accounts.list<AccountRecord[]>(),
+    api.tasks.list<TaskRecord[]>(),
+    api.routes.list<RoutePresetRecord[]>(),
+    api.taskPresets.list<TaskPresetRecord[]>(),
+    api.audit.list<AuditRecord[]>(),
+  ]);
+  return { bots, accounts, tasks, routes, taskPresets, audit };
+}
+
 export default function App() {
   const [token, setToken] = useState<string | null>(getOperatorToken());
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -247,8 +268,6 @@ export default function App() {
     paramsJson: '{}',
   });
 
-  const { event, connected } = useOperatorSocket(Boolean(token));
-
   const selectedBot = useMemo(
     () => bots.find((bot) => bot.id === selectedBotId) ?? null,
     [bots, selectedBotId],
@@ -298,67 +317,85 @@ export default function App() {
     }
   }
 
-  async function refreshBotActivity(botId: string | null) {
-    if (!token || !botId) {
-      return;
-    }
-    const feed = await api.bots.activity<ActivityRecord[]>(botId, 120);
-    setActivityByBot((current) => ({ ...current, [botId]: feed }));
-  }
+  const applyDashboardSnapshot = useCallback((snapshot: DashboardSnapshot) => {
+    setBots(snapshot.bots);
+    setAccounts(snapshot.accounts);
+    setTasks(snapshot.tasks);
+    setRoutes(snapshot.routes);
+    setTaskPresets(snapshot.taskPresets);
+    setAudit(snapshot.audit);
+    setSelectedBotId((current) => {
+      if (current && snapshot.bots.some((bot) => bot.id === current)) {
+        return current;
+      }
+      return snapshot.bots[0]?.id ?? null;
+    });
+  }, []);
 
-  async function refreshBotClips(botId: string | null) {
+  const refreshBotClips = useCallback(async (botId: string | null) => {
     if (!token || !botId) {
       return;
     }
     const clips = await api.clips.list<MediaClipRecord[]>(botId);
     setClipsByBot((current) => ({ ...current, [botId]: clips }));
-  }
-
-  async function refreshAll() {
-    if (!token) return;
-    const [botData, accountData, taskData, routeData, taskPresetData, auditData] = await Promise.all([
-      api.bots.list<BotRecord[]>(),
-      api.accounts.list<AccountRecord[]>(),
-      api.tasks.list<TaskRecord[]>(),
-      api.routes.list<RoutePresetRecord[]>(),
-      api.taskPresets.list<TaskPresetRecord[]>(),
-      api.audit.list<AuditRecord[]>(),
-    ]);
-    setBots(botData);
-    setAccounts(accountData);
-    setTasks(taskData);
-    setRoutes(routeData);
-    setTaskPresets(taskPresetData);
-    setAudit(auditData);
-    const nextSelectedBotId = selectedBotId ?? botData[0]?.id ?? null;
-    if (nextSelectedBotId !== selectedBotId) {
-      setSelectedBotId(nextSelectedBotId);
-    }
-    if (nextSelectedBotId) {
-      await refreshBotActivity(nextSelectedBotId);
-      await refreshBotClips(nextSelectedBotId);
-    }
-  }
-
-  useEffect(() => {
-    refreshAll().catch((error: Error) => {
-      if (error.message.includes('401')) {
-        setToken(null);
-        setOperatorToken(null);
-      }
-    });
   }, [token]);
 
+  const refreshAll = useCallback(async () => {
+    if (!token) return;
+    const [snapshot, feed, clips] = await Promise.all([
+      loadDashboardSnapshot(),
+      selectedBotId ? api.bots.activity<ActivityRecord[]>(selectedBotId, 120) : null,
+      selectedBotId ? api.clips.list<MediaClipRecord[]>(selectedBotId) : null,
+    ]);
+    applyDashboardSnapshot(snapshot);
+    if (selectedBotId && feed) {
+      setActivityByBot((current) => ({ ...current, [selectedBotId]: feed }));
+    }
+    if (selectedBotId && clips) {
+      setClipsByBot((current) => ({ ...current, [selectedBotId]: clips }));
+    }
+  }, [applyDashboardSnapshot, selectedBotId, token]);
+
   useEffect(() => {
-    refreshBotActivity(selectedBotId).catch(() => undefined);
-    refreshBotClips(selectedBotId).catch(() => undefined);
+    if (!token) return;
+    let cancelled = false;
+    void loadDashboardSnapshot()
+      .then((snapshot) => {
+        if (!cancelled) {
+          applyDashboardSnapshot(snapshot);
+        }
+      })
+      .catch((error: Error) => {
+        if (!cancelled && error.message.includes('401')) {
+          setToken(null);
+          setOperatorToken(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyDashboardSnapshot, token]);
+
+  useEffect(() => {
+    if (!token || !selectedBotId) return;
+    let cancelled = false;
+    void Promise.all([
+      api.bots.activity<ActivityRecord[]>(selectedBotId, 120),
+      api.clips.list<MediaClipRecord[]>(selectedBotId),
+    ]).then(([feed, clips]) => {
+      if (!cancelled) {
+        setActivityByBot((current) => ({ ...current, [selectedBotId]: feed }));
+        setClipsByBot((current) => ({ ...current, [selectedBotId]: clips }));
+      }
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [selectedBotId, token]);
 
-  useEffect(() => {
-    if (!event) return;
-
-    if (event.type === 'activity-event') {
-      const record = asActivityRecord(event.payload);
+  const handleOperatorEvent = useCallback((operatorEvent: OperatorEvent) => {
+    if (operatorEvent.type === 'activity-event') {
+      const record = asActivityRecord(operatorEvent.payload);
       if (record) {
         setActivityByBot((current) => {
           const existing = current[record.botId] ?? [];
@@ -374,8 +411,8 @@ export default function App() {
       return;
     }
 
-    if (event.type === 'fast-state-update' || event.type === 'state-snapshot') {
-      const patch = operatorStatePatch(event.payload);
+    if (operatorEvent.type === 'fast-state-update' || operatorEvent.type === 'state-snapshot') {
+      const patch = operatorStatePatch(operatorEvent.payload);
       if (patch) {
         applyBotStatePatch(setBots, patch);
       }
@@ -395,10 +432,12 @@ export default function App() {
       'clip-saved',
     ]);
 
-    if (refreshTypes.has(event.type)) {
+    if (refreshTypes.has(operatorEvent.type)) {
       refreshAll().catch(() => undefined);
     }
-  }, [event, selectedBotId]);
+  }, [refreshAll, refreshBotClips]);
+
+  const { event, connected } = useOperatorSocket(Boolean(token), handleOperatorEvent);
 
   async function handleLogin(eventValue: FormEvent<HTMLFormElement>) {
     eventValue.preventDefault();
@@ -1528,20 +1567,23 @@ function CharacterSheetModal({
     ['Known Skills', String(knownSkillDetails.length || asArray(state.knownSkills).length || 0)],
     ['Active Quests', String(currentQuests.length)],
   ];
-  const detailLookupKey = detailEntry
-    ? [detailEntry.kind, detailEntry.wikiTitle, detailEntry.wikiSection, detailEntry.label].join('|')
-    : '';
+  function selectDetailEntry(entry: SheetEntry) {
+    setDetailData(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    setDetailEntry(entry);
+  }
+
+  function closeDetailEntry() {
+    setDetailEntry(null);
+    setDetailData(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
 
   useEffect(() => {
-    if (!detailEntry) {
-      setDetailData(null);
-      setDetailError(null);
-      setDetailLoading(false);
-      return;
-    }
+    if (!detailEntry) return;
     let cancelled = false;
-    setDetailLoading(true);
-    setDetailError(null);
     void api.wiki
       .detail<WikiDetailResponse>({
         label: detailEntry.label,
@@ -1569,7 +1611,7 @@ function CharacterSheetModal({
     return () => {
       cancelled = true;
     };
-  }, [detailLookupKey]);
+  }, [detailEntry]);
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -1593,7 +1635,7 @@ function CharacterSheetModal({
               key={entry.key}
               label={entry.label}
               value={entry.value}
-              onClick={() => setDetailEntry(entry)}
+              onClick={() => selectDetailEntry(entry)}
               title={hoverText(entry)}
             />
           ))}
@@ -1628,7 +1670,7 @@ function CharacterSheetModal({
             <h4>Attributes</h4>
             <div className="sheet-icon-stat-grid">
               {attributeDetails.map((entry) => (
-                <StatDetailCard key={entry.key || entry.label} entry={entry} onSelect={setDetailEntry} />
+                <StatDetailCard key={entry.key || entry.label} entry={entry} onSelect={selectDetailEntry} />
               ))}
               {attributeDetails.length === 0 ? <div className="info-card subtle">No attribute data loaded yet.</div> : null}
             </div>
@@ -1638,7 +1680,7 @@ function CharacterSheetModal({
             <h4>Skills</h4>
             <div className="sheet-icon-stat-grid">
               {skillDetails.map((entry) => (
-                <StatDetailCard key={entry.key || entry.label} entry={entry} onSelect={setDetailEntry} />
+                <StatDetailCard key={entry.key || entry.label} entry={entry} onSelect={selectDetailEntry} />
               ))}
               {skillDetails.length === 0 ? <div className="info-card subtle">No skill data loaded yet.</div> : null}
             </div>
@@ -1648,7 +1690,7 @@ function CharacterSheetModal({
             <h4>Known Skills</h4>
             <div className="sheet-icon-grid">
               {knownSkillDetails.map((entry, index) => (
-                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={setDetailEntry} />
+                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={selectDetailEntry} />
               ))}
               {knownSkillDetails.length === 0 ? <div className="info-card subtle">No known skills loaded yet.</div> : null}
             </div>
@@ -1658,7 +1700,7 @@ function CharacterSheetModal({
             <h4>Credos</h4>
             <div className="sheet-icon-grid">
               {credoDetails.map((entry, index) => (
-                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={setDetailEntry} />
+                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={selectDetailEntry} />
               ))}
               {credoDetails.length === 0 ? <div className="info-card subtle">No credo data loaded yet.</div> : null}
             </div>
@@ -1668,7 +1710,7 @@ function CharacterSheetModal({
             <h4>Equipment</h4>
             <div className="sheet-icon-grid">
               {equipmentDetails.map((entry, index) => (
-                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={setDetailEntry} />
+                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={selectDetailEntry} />
               ))}
               {equipmentDetails.length === 0 ? <div className="info-card subtle">No equipment data loaded yet.</div> : null}
             </div>
@@ -1678,7 +1720,7 @@ function CharacterSheetModal({
             <h4>Inventory Preview</h4>
             <div className="sheet-icon-grid">
               {inventoryDetails.map((entry, index) => (
-                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={setDetailEntry} />
+                <NamedEntryTile key={`${entry.label}-${index}`} entry={entry} onSelect={selectDetailEntry} />
               ))}
               {inventoryDetails.length === 0 ? <div className="info-card subtle">No inventory preview loaded yet.</div> : null}
             </div>
@@ -1688,7 +1730,7 @@ function CharacterSheetModal({
             <h4>Current Quests</h4>
             <div className="sheet-quest-list">
               {currentQuests.map((quest, index) => (
-                <QuestCard key={`${quest.id ?? quest.label}-${index}`} quest={quest} onSelect={setDetailEntry} />
+                <QuestCard key={`${quest.id ?? quest.label}-${index}`} quest={quest} onSelect={selectDetailEntry} />
               ))}
               {currentQuests.length === 0 ? <div className="info-card subtle">No active quests loaded yet.</div> : null}
             </div>
@@ -1701,7 +1743,7 @@ function CharacterSheetModal({
             detail={detailData}
             loading={detailLoading}
             error={detailError}
-            onClose={() => setDetailEntry(null)}
+            onClose={closeDetailEntry}
           />
         ) : null}
       </div>
@@ -1825,12 +1867,20 @@ function SheetEntryIcon({
   className: string;
 }) {
   const candidates = useMemo(() => iconCandidates(entry), [entry]);
+  const candidateKey = candidates.join('\u0000');
+
+  return <SheetEntryIconImage key={candidateKey} candidates={candidates} className={className} />;
+}
+
+function SheetEntryIconImage({
+  candidates,
+  className,
+}: {
+  candidates: string[];
+  className: string;
+}) {
   const [index, setIndex] = useState(0);
   const src = candidates[index] ?? '';
-
-  useEffect(() => {
-    setIndex(0);
-  }, [candidates]);
 
   return src ? (
     <img
@@ -1936,6 +1986,7 @@ function BotLiveVideo({
   useEffect(() => {
     let disposed = false;
     let peerConnection: RTCPeerConnection | null = null;
+    const videoElement = videoRef.current;
 
     async function connect() {
       setConnectionState('connecting');
@@ -1948,13 +1999,13 @@ function BotLiveVideo({
         }
       };
       pc.ontrack = (event) => {
-        if (disposed || !videoRef.current) {
+        if (disposed || !videoElement) {
           return;
         }
         const [stream] = event.streams;
         const mediaStream = stream ?? new MediaStream([event.track]);
-        videoRef.current.srcObject = mediaStream;
-        void videoRef.current.play().catch(() => undefined);
+        videoElement.srcObject = mediaStream;
+        void videoElement.play().catch(() => undefined);
         setConnectionState('live');
       };
       pc.addTransceiver('video', { direction: 'recvonly' });
@@ -1985,9 +2036,9 @@ function BotLiveVideo({
 
     return () => {
       disposed = true;
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.srcObject = null;
+      if (videoElement) {
+        videoElement.pause();
+        videoElement.srcObject = null;
       }
       if (peerConnection) {
         peerConnection.close();

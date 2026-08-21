@@ -2,6 +2,22 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 
+function Resolve-AntCommand {
+    foreach ($name in @("ant.bat", "ant")) {
+        $command = Get-Command $name -ErrorAction SilentlyContinue
+        if ($command) {
+            return $command.Source
+        }
+    }
+
+    $fallback = "C:\apache-ant\bin\ant.bat"
+    if (Test-Path -LiteralPath $fallback) {
+        return $fallback
+    }
+
+    throw "Apache Ant was not found on PATH or at $fallback. Install Ant and add its bin directory to PATH."
+}
+
 function Stop-PackagedServer {
     $processes = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
         Where-Object { $_.CommandLine -like "*server-0.1.0-SNAPSHOT.jar*" }
@@ -18,6 +34,7 @@ try {
     Write-Host "Building web..."
     Push-Location (Join-Path $root "web")
     try {
+        npm run lint
         npm run build
     } finally {
         Pop-Location
@@ -29,7 +46,8 @@ try {
     Write-Host "Packaging client..."
     Push-Location (Join-Path $root "client")
     try {
-        & "C:\apache-ant\bin\ant.bat" deftgt
+        $antCommand = Resolve-AntCommand
+        & $antCommand deftgt
     } finally {
         Pop-Location
     }

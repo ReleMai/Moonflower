@@ -3,6 +3,8 @@
 *.log
 *.class
 node_modules/
+__pycache__/
+*.py[cod]
 web/dist/
 web/.vite/
 server/target/
