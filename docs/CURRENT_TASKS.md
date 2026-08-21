@@ -35,9 +35,10 @@ Acceptance criteria:
    real and game time, day/night, moon phase, season, Survival, and Will.
 7. The Fishing Journal HUD button opens the read-only journal without requiring
    the helper window; the map shows grouped fish-icon spots derived from the
-   journal, and clicking one opens the recent catches for that tile. The journal
-   groups catches by fish resource, then shows the selected fish's catches by
-   date and time. Full catch and quality-factor details remain opt-in.
+   journal, clicking one opens the recent catches for that tile, and the map
+   sidebar can hide the fishing overlays without deleting journal data. The
+   journal groups catches by fish resource, then shows the selected fish's
+   catches by date and time. Full catch and quality-factor details remain opt-in.
 8. Stop, low energy, critical vitals, combat, missing inventory room, unreadable
    equipment, or a lost cursor all fail closed with a visible reason.
 9. Pole, line, hook, bait, and lure controls list only currently reachable items;
@@ -52,9 +53,10 @@ Acceptance criteria:
 12. A selected pole is placed through the equipment window's actual hand-slot
     drop path. Allowed slots come from the item's slot metadata; placement is
     retried while the rod remains held and accepts a refreshed equipped widget.
-13. Preparation is tackle-first: inspect the pole wherever it rests, attach any
-    missing selected line, hook, and bait/lure by taking that part and
-    right-clicking the stationary pole, then equip the fully prepared pole.
+13. Preparation uses one stable equipped-pole target: equip and acknowledge the
+    selected pole first, inspect its contents, then take each missing selected
+    line, hook, and bait/lure and send a zero-modifier item interaction directly
+    to the freshly re-resolved hand-pole.
 
 ## Scope Boundaries
 

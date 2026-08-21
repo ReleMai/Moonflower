@@ -319,12 +319,19 @@ public class MapWnd extends Window implements Console.Directory {
     public class Toolbox extends Widget {
 	public final MarkerList list;
 	private final Frame listf;
+	private final CheckBox fishingMarkers;
 	private final Button pmbtn, smbtn, nobtn, tobtn, mebtn, mibtn;
 	private TextEntry namesel;
 
 	private Toolbox() {
 	    super(UI.scale(200, 200));
-	    listf = add(new Frame(UI.scale(new Coord(200, 200)), false), 0, 0);
+	    fishingMarkers = add(new CheckBox("Show fishing markers"), 0, UI.scale(2));
+	    fishingMarkers.a = MiniMap.showFishingMarkers;
+	    fishingMarkers.changed(show -> {
+		MiniMap.showFishingMarkers = show;
+		Utils.setprefb("showFishingMarkers", show);
+	    });
+	    listf = add(new Frame(UI.scale(new Coord(200, 200)), false), 0, UI.scale(24));
 	    list = listf.add(new MarkerList(Coord.of(listf.inner().x, 0)), 0, 0);
 	    pmbtn = add(new Button(btnw, "Placed", false) {
 		    public void click() {
@@ -365,7 +372,7 @@ public class MapWnd extends Window implements Console.Directory {
 	public void resize(int h) {
 	    super.resize(new Coord(sz.x, h));
 	    listf.resize(listf.sz.x, sz.y - UI.scale(225));
-	    listf.c = new Coord(sz.x - listf.sz.x, 0);
+	    listf.c = new Coord(sz.x - listf.sz.x, UI.scale(24));
 	    list.resize(listf.inner());
 	    mebtn.c = new Coord(0, sz.y - mebtn.sz.y);
 	    mibtn.c = new Coord(sz.x - btnw, sz.y - mibtn.sz.y);
@@ -413,7 +420,7 @@ public class MapWnd extends Window implements Console.Directory {
 	}
 
 	public boolean filter(DisplayMarker mark) {
-	    return(markcfg.filter(mark.m));
+	    return(super.filter(mark) || markcfg.filter(mark.m));
 	}
 
 	public boolean clickmarker(DisplayMarker mark, Location loc, int button, boolean press) {

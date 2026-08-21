@@ -46,6 +46,15 @@ final class FishingEquipment {
         if(pole == null)
             return(Result.error("No reachable " + poleName + " was found in inventory, belt, or hands."));
 
+        WItem equipped = findPoleInHands(poleName);
+        if(equipped == null) {
+            equipped = ensurePoleEquipped(poleName, pole);
+            if(equipped == null)
+                return(Result.error("The " + poleName +
+                        " could not be placed in an available hand slot. Clear a hand and try again."));
+        }
+        pole = equipped;
+
         FishingAtlas.Part consumablePart = lure ? FishingAtlas.Part.LURE : FishingAtlas.Part.BAIT;
         for(int attempt = 0; attempt < 6; attempt++) {
             PoleState state = inspect(pole);
@@ -64,24 +73,12 @@ final class FishingEquipment {
                     return(Result.error("No selected " + (lure ? "lure" : "bait") +
                             " from inventory or an equipped Creel could be attached."));
             } else {
-                WItem equipped = findPoleInHands(poleName);
-                if(equipped == null) {
-                    equipped = ensurePoleEquipped(poleName, pole);
-                    if(equipped == null)
-                        return(Result.error("The prepared " + poleName +
-                                " could not be placed in an available hand slot."));
-                    PoleState equippedState = inspect(equipped);
-                    if(equippedState.loading)
-                        return(Result.waiting("Waiting for the equipped fishing-pole contents."));
-                    state = equippedState;
-                }
-                pole = equipped;
                 return(Result.ready(new Snapshot(describe(pole), state.line, state.hook,
                         state.consumable(consumablePart), lure ? "lure" : "bait")));
             }
-            pole = findPoleAnywhere(poleName, pole.item);
+            pole = findPoleInHands(poleName);
             if(pole == null)
-                return(Result.error("Fishing pole disappeared while tackle was being attached."));
+                return(Result.error("Equipped fishing pole disappeared while tackle was being attached."));
         }
         return(Result.error("Fishing pole did not reach a ready state."));
     }
@@ -216,7 +213,7 @@ final class FishingEquipment {
     }
 
     private boolean equip(WItem candidate, int slot, int allowedHands) throws InterruptedException {
-        Inventory source = Inventory.fromWidget(candidate.parent);
+        Widget source = candidate.parent;
         Coord sourceCoordinate = candidate.c.div(Inventory.sqsz);
         ItemData expected = describe(candidate);
         GItem moving = candidate.item;
@@ -254,8 +251,7 @@ final class FishingEquipment {
                 }
                 long now = System.currentTimeMillis();
                 if(equipory.slots[targetSlot] == null && now >= nextDrop) {
-                    Coord handSlot = Equipory.ecoords[targetSlot].add(Inventory.invsq.sz().div(2));
-                    equipory.drop(handSlot, handSlot);
+                    equipory.wdgmsg("drop", targetSlot);
                     nextDrop = now + EQUIP_RETRY_MS;
                 }
             }
@@ -288,59 +284,62 @@ final class FishingEquipment {
         WItem candidate = candidates(part, priority).stream().findFirst().orElse(null);
         if(candidate == null)
             return(false);
-        Inventory source = Inventory.fromWidget(candidate.parent);
+        Widget source = candidate.parent;
         Coord sourceCoordinate = candidate.c.div(Inventory.sqsz);
         GItem moving = candidate.item;
-        GItem poleItem = pole.item;
         moving.wdgmsg("take", Coord.z);
         if(!waitFor(() -> gui.vhand != null && gui.vhand.item == moving))
             return(false);
         String poleName = safeName(pole);
-        boolean attached = attachHeldItemToPole(poleName, poleItem, part, moving);
+        boolean attached = attachHeldItemToPole(poleName, part, moving);
         if(!attached)
             returnCursor(source, sourceCoordinate);
         return(attached);
     }
 
     /**
-     * Mirrors a player right-clicking held tackle onto a stable pole in inventory, belt,
-     * or a hand. The pole itself is never picked up until all required parts are attached.
+     * Mirrors the previous helper's proven interaction: take one tackle item, then send a
+     * zero-modifier item interaction directly to the freshly resolved equipped pole.
      */
-    private boolean attachHeldItemToPole(String poleName, GItem preferredPole,
-                                         FishingAtlas.Part part, GItem moving)
+    private boolean attachHeldItemToPole(String poleName, FishingAtlas.Part part, GItem moving)
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + ACTION_TIMEOUT_MS;
         long nextRightClick = 0;
         while(System.currentTimeMillis() < deadline) {
-            WItem currentPole = findPoleAnywhere(poleName, preferredPole);
+            WItem currentPole = findPoleInHands(poleName);
             if(currentPole != null) {
                 PoleState state = inspect(currentPole);
                 if(!state.loading && state.has(part))
                     return(true);
                 long now = System.currentTimeMillis();
                 if(gui.vhand != null && gui.vhand.item == moving && now >= nextRightClick) {
-                    Coord click = currentPole.sz.div(2);
-                    currentPole.iteminteract(click, click);
+                    currentPole.item.wdgmsg("itemact", 0);
                     nextRightClick = now + ATTACH_RETRY_MS;
                 }
             }
             Thread.sleep(50);
         }
-        WItem currentPole = findPoleAnywhere(poleName, preferredPole);
+        WItem currentPole = findPoleInHands(poleName);
         if(currentPole == null)
             return(false);
         PoleState state = inspect(currentPole);
         return(!state.loading && state.has(part));
     }
 
-    private void returnCursor(Inventory source, Coord sourceCoordinate) throws InterruptedException {
+    private void returnCursor(Widget source, Coord sourceCoordinate) throws InterruptedException {
         if(gui.vhand == null)
             return;
-        Inventory target = source == null ? gui.maininv : source;
+        if(source instanceof ItemStack) {
+            source.wdgmsg("drop");
+            if(waitFor(() -> gui.vhand == null))
+                return;
+        }
+        Inventory sourceInventory = Inventory.fromWidget(source);
+        Inventory target = sourceInventory == null ? gui.maininv : sourceInventory;
         if(target == null)
             return;
         Coord coordinate = sourceCoordinate;
-        if(coordinate == null || source == null)
+        if(coordinate == null || sourceInventory == null)
             coordinate = roomFor(target, gui.vhand);
         if(coordinate == null)
             return;

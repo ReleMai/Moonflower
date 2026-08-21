@@ -92,6 +92,7 @@ public class MiniMap extends Widget {
 	private Tex biometex;
     public static boolean showMapViewRange = Utils.getprefb("showMapViewRange", true);
 	public static boolean showMapGridLines = Utils.getprefb("showMapGridLines", false);
+    public static boolean showFishingMarkers = Utils.getprefb("showFishingMarkers", true);
 	private final List<MapSprite> mapSprites = new LinkedList<>();
 	private Coord2d lastMineSupportUpdatePos = null;
 	private static final double MINE_SUPPORT_UPDATE_THRESHOLD = 11.0 * 5; // 5 tiles, same as fog of war
@@ -1248,6 +1249,7 @@ public class MiniMap extends Widget {
 		continue;
 	    for(DisplayMarker mark : dgrid.markers(false)) {
 		if(mark.m instanceof FishingMapMarker &&
+			!filter(mark) &&
 			tc.sub(mark.m.tc).div(scalef()).dist(Coord.z) <= UI.scale(14))
 		    return(mark);
         try {
@@ -1321,7 +1323,7 @@ public class MiniMap extends Widget {
     }
 
     public boolean filter(DisplayMarker marker) {
-	return(false);
+	return(marker.m instanceof FishingMapMarker && !showFishingMarkers);
     }
 
     public boolean clickloc(Location loc, int button, boolean press) {
