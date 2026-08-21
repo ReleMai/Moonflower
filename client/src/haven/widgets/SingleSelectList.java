@@ -28,9 +28,7 @@ public class SingleSelectList<T> extends Widget {
         this.separatorThickness = Math.max(1, UI.scale(1));
 
         if (data != null) items.addAll(data);
-        for (T string : items){
-            itemsTex.add(PUtils.strokeTex(Text.std.render((String) string)));
-        }
+        rebuildTextures();
         this.verticalScrollbar = add(new Scrollbar(this.sz.y, 0,
                 Math.max(0, items.size() * this.rowHeight - this.sz.y)) {
             public void changed() { scrollOffsetY = this.val; }
@@ -40,11 +38,24 @@ public class SingleSelectList<T> extends Widget {
     }
 
     public void setItems(Collection<T> data) {
+        setItems(data, null);
+    }
+
+    public void setItems(Collection<T> data, T selected) {
         items.clear();
         if (data != null) items.addAll(data);
-        selectedIndex = -1;
+        rebuildTextures();
+        selectedIndex = selected == null ? -1 : items.indexOf(selected);
+        if(selectedIndex < 0 && !items.isEmpty())
+            selectedIndex = 0;
+        verticalScrollbar.max = Math.max(0, items.size() * rowHeight - this.sz.y);
         clampScroll();
-        resize(this.sz);
+    }
+
+    private void rebuildTextures() {
+        itemsTex.clear();
+        for(T item : items)
+            itemsTex.add(PUtils.strokeTex(Text.std.render(String.valueOf(item))));
     }
 
     public String getSelected() {
@@ -95,7 +106,11 @@ public class SingleSelectList<T> extends Widget {
         } else {
             selectedIndex = index;
         }
+        changed(getSelected(), selectedIndex);
         return true;
+    }
+
+    protected void changed(String selected, int selectedIndex) {
     }
 
     @Override

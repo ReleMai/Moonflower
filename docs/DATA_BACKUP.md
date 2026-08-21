@@ -8,13 +8,14 @@
 | Optional user config | `%APPDATA%\Haven and Hearth\haven-config.properties` | Overrides packaged client properties when present |
 | Map/resource cache | `%APPDATA%\Haven and Hearth\data\` | Hash-addressed storage; map records are stored under the configured map-cache identity |
 | Legacy file cache | `%APPDATA%\Haven and Hearth\cache\` | Used when the older cache implementation is selected |
-| Custom databases | `%APPDATA%\Haven and Hearth\Hurricane\` | `static_data.db`, `hitboxes.db`, and `saved_routes.db` |
+| Custom databases | `%APPDATA%\Haven and Hearth\Hurricane\` | Includes `static_data.db`, `hitboxes.db`, `saved_routes.db`, `cookbook.db`, and `fishing.db` |
 
-`static_data.db`, `hitboxes.db`, and `saved_routes.db` used to be relative to the
-client working directory. The revived client now resolves them through
-`haven.ClientData`. If a packaged or legacy database exists and the AppData copy
-does not, it is copied once before SQLite opens it. Existing AppData copies are
-never overwritten by that migration.
+Legacy custom databases used to be relative to the client working directory.
+The revived client now resolves custom data through `haven.ClientData`.
+`cookbook.db` and `fishing.db` are client-local observation stores created in
+AppData; they are not packaged seed databases. If a packaged or legacy database
+exists and the AppData copy does not, it is copied once before SQLite opens it.
+Existing AppData copies are never overwritten by that migration.
 
 ## Backup Command
 

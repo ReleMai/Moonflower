@@ -490,14 +490,12 @@ public class BotActionRegistry {
         }
     }
 
-    private void ensureFishingStarted(GameUI gui) throws Exception {
+    private void ensureFishingStarted(GameUI gui) {
         if (gui.fishingBot == null) {
             gui.fishingBot = new FishingBot(gui);
             gui.add(gui.fishingBot, haven.Utils.getprefc("wndc-fishingBotWindow", new haven.Coord(160, 160)));
-            gui.fishingThread = new Thread(gui.fishingBot, "FishingBot");
-            gui.fishingThread.start();
         }
-        clickPrivateButton(gui.fishingBot, "startButton");
+        gui.fishingBot.startAutomation();
     }
 
     private void stopFishing(GameUI gui) {

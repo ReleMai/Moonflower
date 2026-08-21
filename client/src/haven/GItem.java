@@ -54,6 +54,8 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
     private GSprite spr;
 	private ItemInfo.Raw rawinfo = ItemInfo.Raw.nil;;
     public List<ItemInfo> info = Collections.emptyList();
+	private boolean externalFoodChecked = false;
+	private int cookbookObservedSeq = -1;
 	public boolean sendttupdate = false;
 	public long meterUpdated = 0; // ND: last time meter was updated, ms
 	public Tex stackQualityTex = null;
@@ -232,20 +234,43 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
     }
 
 	public List<ItemInfo> info() {
+		List<ItemInfo> result = buildInfo(false);
+		observeCookbookIfNeeded();
+		if(!externalFoodChecked) {
+			externalFoodChecked = true;
+			try {
+				if (FoodService.isValidEndpoint() && !checkForHempBuff()) {
+					FoodService.checkFood(result, getres(), ui.gui.genus);
+				}
+			} catch (Exception ignored) {}
+		}
+		return(result);
+	}
+
+	private void observeCookbookIfNeeded() {
+		if(cookbookObservedSeq == infoseq)
+			return;
+		if((ui != null) && (ui.gui != null) && (ui.gui.cookbookService != null)) {
+			cookbookObservedSeq = infoseq;
+			ui.gui.cookbookService.observe(this);
+		}
+	}
+
+	/** Builds tooltip data for local consumers without activating optional network integrations. */
+	public List<ItemInfo> cookbookInfo() {
+		return(buildInfo(true));
+	}
+
+	private List<ItemInfo> buildInfo(boolean localOnly) {
 		if(this.info == null) {
 			ItemInfo.Raw raw = (rawinfo != null) ? rawinfo : ItemInfo.Raw.nil;
 			List<ItemInfo> info = ItemInfo.buildinfo(this, raw);
-			addcontinfo(info);
+			addcontinfo(info, localOnly);
 			Resource.Pagina pg = res.get().layer(Resource.pagina);
 			if(pg != null)
 				info.add(new ItemInfo.Pagina(this, pg.text));
 			info.add(new ItemInfo.ResourceName(this, res.get().name));
 			this.info = info;
-			try {
-				if (FoodService.isValidEndpoint() && !checkForHempBuff()) {
-					FoodService.checkFood(info, getres(), ui.gui.genus);
-				}
-			} catch (Exception ignored) {}
 		}
 		return(this.info);
 	}
@@ -285,17 +310,20 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 		qBuff = null;
 		stackQualityTex = null;
 		info = null;
+		externalFoodChecked = false;
 		infoseq++;
 	} else if(name == "tt") {
 		info = null;
 		qBuff = null;
 		stackQualityTex = null;
 		rawinfo = new ItemInfo.Raw(args);
+		externalFoodChecked = false;
 		if (sendttupdate) {
 			wdgmsg("ttupdate");
 		}
 		infoseq++;
 		meterUpdated = System.currentTimeMillis();
+		observeCookbookIfNeeded();
 	} else if(name == "meter") {
 	    meter = Utils.iv(args[0]);
 	} else if(name == "contopen") {
@@ -374,12 +402,14 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	}
     }
 
-    private void addcontinfo(List<ItemInfo> buf) {
+    private void addcontinfo(List<ItemInfo> buf, boolean localOnly) {
 	Widget contents = this.contents;
 	if(contents != null) {
 	    for(Widget ch : contents.children()) {
 		if(ch instanceof GItem) {
-		    for(ItemInfo inf : ((GItem)ch).info()) {
+		    GItem item = (GItem)ch;
+		    List<ItemInfo> childInfo = localOnly ? item.cookbookInfo() : item.info();
+		    for(ItemInfo inf : childInfo) {
 			if(inf instanceof ContentsInfo)
 			    ((ContentsInfo)inf).propagate(buf, this);
 		    }

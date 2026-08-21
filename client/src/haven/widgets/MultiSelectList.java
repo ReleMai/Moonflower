@@ -29,9 +29,7 @@ public class MultiSelectList<T> extends Widget {
         this.textPaddingX = UI.scale(8);
         this.separatorThickness = Math.max(1, UI.scale(1));
         if (data != null) items.addAll(data);
-        for (T string : items){
-            itemsTex.add(PUtils.strokeTex(Text.std.render((String) string)));
-        }
+        rebuildTextures();
         this.verticalScrollbar = add(new Scrollbar(this.sz.y, 0, Math.max(0, items.size() * this.rowHeight - this.sz.y)) {
             public void changed() { scrollOffsetY = this.val; }
         }, new Coord(this.sz.x - Scrollbar.width, 0));
@@ -39,13 +37,30 @@ public class MultiSelectList<T> extends Widget {
     }
 
     public void setItems(Collection<T> data) {
+        setItems(data, Collections.emptyList());
+    }
+
+    public void setItems(Collection<T> data, Collection<T> selected) {
         items.clear();
         if (data != null) items.addAll(data);
+        rebuildTextures();
         selectedIndices.clear();
+        if(selected != null) {
+            for(int index = 0; index < items.size(); index++) {
+                if(selected.contains(items.get(index)))
+                    selectedIndices.add(index);
+            }
+        }
         selectionAnchorIndex = -1;
+        verticalScrollbar.max = Math.max(0, items.size() * rowHeight - this.sz.y);
         clampScroll();
-        resize(this.sz);
         recomputeSelectedValues();
+    }
+
+    private void rebuildTextures() {
+        itemsTex.clear();
+        for(T item : items)
+            itemsTex.add(PUtils.strokeTex(Text.std.render(String.valueOf(item))));
     }
 
     public List<T> getSelected() {
@@ -107,7 +122,11 @@ public class MultiSelectList<T> extends Widget {
             selectionAnchorIndex = index;
         }
         recomputeSelectedValues();
+        changed(getSelected());
         return true;
+    }
+
+    protected void changed(List<T> selected) {
     }
 
     @Override

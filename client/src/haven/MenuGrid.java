@@ -29,6 +29,7 @@ package haven;
 import java.util.*;
 
 import haven.automated.*;
+import haven.automated.helpers.FishingAtlas;
 import haven.render.*;
 import java.awt.Color;
 import java.awt.Font;
@@ -572,12 +573,19 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	updlayout();
     }
 
-    public void use(PagButton r, Interaction iact, boolean reset) {
+	public void use(PagButton r, Interaction iact, boolean reset) {
 	Collection<PagButton> sub = new ArrayList<>();
 	cons(r.pag, sub);
 	if(sub.size() > 0) {
 	    change(r.pag);
 	} else {
+	    if((ui.gui != null) && FishingAtlas.isFishingAction(r.res.name)) {
+		ui.gui.startFishingHelperFromAction();
+		r.pag.anew = r.pag.tnew = 0;
+		if(reset)
+		    change(null);
+		return;
+	    }
 		try {
 			String[] ad = r.act().ad;
 			if (ad[0].equals("@")) {
@@ -918,8 +926,6 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 				if (gui.fishingBot == null && gui.fishingThread == null) {
 					gui.fishingBot = new FishingBot(gui);
 					gui.add(gui.fishingBot, Utils.getprefc("wndc-fishingBotWindow", new Coord(gui.sz.x/2 - gui.fishingBot.sz.x/2, gui.sz.y/2 - gui.fishingBot.sz.y/2 - 200)));
-					gui.fishingThread = new Thread(gui.fishingBot, "FishingBot");
-					gui.fishingThread.start();
 				} else {
 					if (gui.fishingBot != null) {
 						gui.fishingBot.stop();

@@ -42,6 +42,7 @@ import haven.MapFile.SMarker;
 import haven.MiniMap.*;
 import haven.BuddyWnd.GroupSelector;
 import haven.automated.mapper.MappingClient;
+import haven.fishing.FishingMapMarker;
 
 import haven.MiniMap.Location;
 import static haven.MCache.tilesz;
@@ -416,6 +417,11 @@ public class MapWnd extends Window implements Console.Directory {
 	}
 
 	public boolean clickmarker(DisplayMarker mark, Location loc, int button, boolean press) {
+	    if(mark.m instanceof FishingMapMarker && button == 1) {
+		if(!press)
+		    ui.gui.openFishingSpot((FishingMapMarker)mark.m);
+		return(true);
+	    }
 	    if(button == 1) {
 		if(!compact() && !press) {
 		    focus(mark.m);

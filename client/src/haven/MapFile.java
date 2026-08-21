@@ -45,6 +45,7 @@ public class MapFile {
     public final String filename;
     public final Collection<Long> knownsegs = new HashSet<>();
     public final Collection<Marker> markers = new ArrayList<>();
+    private final Collection<Marker> ephemeralMarkers = new ArrayList<>();
     public volatile int markerseq = 0;
     public final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Random rnd = new Random();
@@ -434,6 +435,34 @@ public class MapFile {
 	} finally {
 	    lock.readLock().unlock();
 	}
+    }
+
+    /** Replaces derived, display-only markers without writing them to the map index. */
+    public void replaceEphemeralMarkers(Collection<? extends Marker> replacement) {
+	lock.writeLock().lock();
+	try {
+	    ephemeralMarkers.clear();
+	    if(replacement != null) {
+		for(Marker marker : replacement) {
+		    if(marker != null && marker.file == this)
+			ephemeralMarkers.add(marker);
+		}
+	    }
+	    markerseq++;
+	} finally {
+	    lock.writeLock().unlock();
+	}
+    }
+
+    /** Must be called while holding this map file's read or write lock. */
+    public Collection<Marker> displayMarkers() {
+	checklock();
+	if(ephemeralMarkers.isEmpty())
+	    return(new ArrayList<>(markers));
+	ArrayList<Marker> all = new ArrayList<>(markers.size() + ephemeralMarkers.size());
+	all.addAll(markers);
+	all.addAll(ephemeralMarkers);
+	return(all);
     }
 
     public SMarker smarker(String resnm, long seg, Coord tc) {

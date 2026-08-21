@@ -81,71 +81,125 @@ public class FoodInfo extends ItemInfo.Tip {
 	public Effect(List<ItemInfo> info, double p) {this.info = info; this.p = p;}
     }
 
+    /** Snapshot of the character-dependent multipliers used by this tooltip. */
+    public static class Efficiency {
+	public final boolean available;
+	public final double fepPercent, hungerPercent;
+	public final double satiation, saltSatiation, tableFoodEventBonus;
+	public final boolean salted, deepWorm;
+	private final Window feastingWindow;
+
+	private Efficiency(boolean available, double fepPercent, double hungerPercent,
+			   double satiation, double saltSatiation, double tableFoodEventBonus,
+			   boolean salted, boolean deepWorm, Window feastingWindow) {
+	    this.available = available;
+	    this.fepPercent = fepPercent;
+	    this.hungerPercent = hungerPercent;
+	    this.satiation = satiation;
+	    this.saltSatiation = saltSatiation;
+	    this.tableFoodEventBonus = tableFoodEventBonus;
+	    this.salted = salted;
+	    this.deepWorm = deepWorm;
+	    this.feastingWindow = feastingWindow;
+	}
+    }
+
+    /** Returns the same live multipliers used when rendering this food tooltip. */
+    public Efficiency currentEfficiency() {
+	return(currentEfficiency(owner instanceof GItem && ((GItem)owner).isSalted()));
+    }
+
+    /** Variant for local parsers that already resolved the Salted tooltip flag. */
+    public Efficiency currentEfficiency(boolean salted) {
+	double hungerEfficiency = 100;
+	double fepEfficiency = 100;
+	double satiation = 1;
+	double tableFoodEventBonus = 1.0;
+	double saltSatiation = 1;
+	Window feastingWindow = null;
+	boolean deepWorm = false;
+	boolean available = ui != null && ui.gui != null && ui.gui.chrwdg != null &&
+		ui.gui.chrwdg.battr != null && ui.gui.chrwdg.battr.cons != null &&
+		ui.gui.chrwdg.battr.glut != null;
+	if(available) {
+	    for(int i = 0; i < ui.gui.chrwdg.battr.cons.els.size(); i++) {
+		BAttrWnd.Constipations.El el = ui.gui.chrwdg.battr.cons.els.get(i);
+		for(int type : types) {
+		    if(type == i) {
+			satiation = (1.0 - el.a);
+			hungerEfficiency = fepEfficiency *= satiation;
+			break;
+		    }
+		}
+		if(salted && el.t.res.get().basename().equals("salt")) {
+		    saltSatiation = (1.0 - el.a);
+		    hungerEfficiency = fepEfficiency *= saltSatiation;
+		}
+	    }
+	    fepEfficiency *= ui.gui.chrwdg.battr.glut.gmod;
+	    if(GameUI.subscribedAccount && GameUI.verifiedAccount)
+		fepEfficiency *= 1.5;
+	    else if(GameUI.subscribedAccount)
+		fepEfficiency *= 1.3;
+	    else if(GameUI.verifiedAccount)
+		fepEfficiency *= 1.2;
+	    outerLoop:
+	    for(Window wnd : ui.gui.getAllWindows()) {
+		if(wnd.cap.equals("Table")) {
+		    for(Widget wdg : wnd.children()) {
+			if(wdg instanceof Button) {
+			    feastingWindow = wnd;
+			    break outerLoop;
+			}
+		    }
+		}
+	    }
+	    if(feastingWindow != null) {
+		for(Widget wdg : feastingWindow.children()) {
+		    if(wdg instanceof Label) {
+			String labelString = ((Label)wdg).texts;
+			if(labelString.startsWith("Food event bonus")) {
+			    tableFoodEventBonus = (extractNumber(labelString) > 0.0) ?
+				    1.0 + (extractNumber(labelString) / 100) : 1.0;
+			    fepEfficiency *= tableFoodEventBonus;
+			} else if(labelString.startsWith("Hunger modifier")) {
+			    hungerEfficiency *= (extractNumber(labelString) < 100 &&
+				    extractNumber(labelString) > 0.0) ?
+				    (extractNumber(labelString) / 100) : 1.0;
+			}
+		    }
+		}
+	    }
+	    if(ui.gui.chrwdg.wound != null && ui.gui.chrwdg.wound.wounds != null &&
+		    ui.gui.chrwdg.wound.wounds.wounds != null) {
+		for(WoundWnd.Wound wound : ui.gui.chrwdg.wound.wounds.wounds) {
+		    if(wound != null && wound.res != null && wound.res.get() != null &&
+			    wound.res.get().name != null &&
+			    wound.res.get().name.equals("paginae/wound/deepworm")) {
+			deepWorm = true;
+			break;
+		    }
+		}
+	    }
+	}
+	return(new Efficiency(available, fepEfficiency, hungerEfficiency, satiation,
+		saltSatiation, tableFoodEventBonus, salted, deepWorm, feastingWindow));
+    }
+
 	// TODO: ND: This method needs to be cleaned up
     public BufferedImage tipimg() {
 		String head = null;
-		double hungerEfficiency = 100;
-		double fepEfficiency = 100;
-		double satiation = 1;
-		boolean calculateEfficiency = ui != null && !ui.modshift;
-		double tableFoodEventBonus = 1.0;
-		boolean isSalted = (owner instanceof GItem && ((GItem) owner).isSalted());
-		double saltSatiation = 1;
-		Window feastingWindow = null;
-		if (ui != null && ui.gui != null && ui.gui.chrwdg != null && ui.gui.chrwdg.battr != null && ui.gui.chrwdg.battr.cons != null && ui.gui.chrwdg.battr.glut != null) {
-			for(int i = 0; i < ui.gui.chrwdg.battr.cons.els.size(); i++) {
-				BAttrWnd.Constipations.El el = ui.gui.chrwdg.battr.cons.els.get(i);
-				for (int type : types) {
-					if (type == i) {
-						satiation = (1.0 - el.a);
-						hungerEfficiency = fepEfficiency *= satiation;
-						break;
-					}
-				}
-				if (isSalted && el.t.res.get().basename().equals("salt")) {
-					saltSatiation = (1.0 - el.a);
-					hungerEfficiency = fepEfficiency *= saltSatiation;
-				}
-			}
-			fepEfficiency *= ui.gui.chrwdg.battr.glut.gmod;
-			if (GameUI.subscribedAccount && GameUI.verifiedAccount) fepEfficiency *= 1.5;
-			else if (GameUI.subscribedAccount) fepEfficiency *= 1.3;
-			else if (GameUI.verifiedAccount) fepEfficiency *= 1.2;
-			outerLoop:
-			for (Window wnd : ui.gui.getAllWindows()) {
-				if (wnd.cap.equals("Table")) {
-					for (Widget wdg : wnd.children()) {
-						if (wdg instanceof Button) {
-							feastingWindow = wnd;
-							break outerLoop; // Break out of both loops
-						}
-					}
-				}
-			}
-			if (feastingWindow != null) {
-				for(Widget wdg : feastingWindow.children()) {
-					if (wdg instanceof Label) {
-						String labelString = ((Label)wdg).texts;
-						if (labelString.startsWith("Food event bonus")){
-							tableFoodEventBonus = (extractNumber(labelString) > 0.0) ? 1.0 + (extractNumber(labelString)/100) : 1.0;
-							fepEfficiency *= tableFoodEventBonus;
-						}
-						else if (labelString.startsWith("Hunger modifier")) {
-							hungerEfficiency *= (extractNumber(labelString) < 100 && extractNumber(labelString) > 0.0) ? (extractNumber(labelString)/100) : 1.0;
-						}
-					}
-				}
-			}
-			boolean deepWorm = false;
-			if (ui != null && ui.gui != null && ui.gui.chrwdg != null && ui.gui.chrwdg.wound != null && ui.gui.chrwdg.wound.wounds != null && ui.gui.chrwdg.wound.wounds.wounds != null) {
-				for (WoundWnd.Wound wound : ui.gui.chrwdg.wound.wounds.wounds) {
-					if (wound != null && wound.res != null && wound.res.get() != null && wound.res.get().name != null && wound.res.get().name.equals("paginae/wound/deepworm")) {
-						deepWorm = true;
-						break;
-					}
-				}
-			}
-			if (deepWorm) {
+		Efficiency efficiency = currentEfficiency();
+		double hungerEfficiency = efficiency.hungerPercent;
+		double fepEfficiency = efficiency.fepPercent;
+		double satiation = efficiency.satiation;
+		boolean calculateEfficiency = efficiency.available && ui != null && !ui.modshift;
+		double tableFoodEventBonus = efficiency.tableFoodEventBonus;
+		boolean isSalted = efficiency.salted;
+		double saltSatiation = efficiency.saltSatiation;
+		Window feastingWindow = efficiency.feastingWindow;
+		if(efficiency.available) {
+			if(efficiency.deepWorm) {
 				head = "\n$col[255,25,25]{HEY! You have a Deep Worm Wound!" +
 						"\nYour food efficiency will be reduced!" +
 						"\nThe following values are inaccurate!}" +

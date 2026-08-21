@@ -40,6 +40,7 @@ import haven.MapFile.Segment;
 import haven.MapFile.DataGrid;
 import haven.MapFile.Grid;
 import haven.MapFile.GridInfo;
+import haven.fishing.FishingMapMarker;
 import haven.MapFile.Marker;
 import haven.MapFile.PMarker;
 import haven.MapFile.SMarker;
@@ -327,7 +328,7 @@ public class MiniMap extends Widget {
 	    boolean loading = false;
 	    try(Locked lk = new Locked(mm.file.lock.readLock())) {
 		int nseq = mm.file.markerseq;
-		Set<Marker> current = new HashSet<>(mm.file.markers);
+		Set<Marker> current = new HashSet<>(mm.file.displayMarkers());
 		synchronized(this) {
 		    for(Iterator<Map.Entry<Marker, MarkerIcon>> i = icons.entrySet().iterator(); i.hasNext();) {
 			Map.Entry<Marker, MarkerIcon> ent = i.next();
@@ -649,6 +650,13 @@ public class MiniMap extends Widget {
 	}
 
 	public void draw(GOut g, Coord c) {
+	    if(m instanceof FishingMapMarker) {
+		g.chcolor(25, 205, 235, 105);
+		g.fellipse(c, UI.scale(Coord.of(14, 14)));
+		g.chcolor(5, 25, 35, 205);
+		g.fellipse(c, UI.scale(Coord.of(10, 10)));
+		g.chcolor();
+	    }
 	    try {
 		icon().draw(g, c);
 	    } catch(Loading l) {}
@@ -797,7 +805,7 @@ public class MiniMap extends Widget {
 		if(file.lock.readLock().tryLock()) {
 		    try {
 			ArrayList<DisplayMarker> marks = new ArrayList<>();
-			for(Marker mark : file.markers) {
+			for(Marker mark : file.displayMarkers()) {
 			    if((mark.seg == this.seg.id) && mapext.contains(mark.tc))
 				marks.add(new DisplayMarker(mm, mark));
 			}
@@ -1234,11 +1242,14 @@ public class MiniMap extends Widget {
 	return(null);
     }
 
-    public DisplayMarker markerat(Coord tc) {
+	public DisplayMarker markerat(Coord tc) {
 	for(DisplayGrid dgrid : display) {
 	    if(dgrid == null)
 		continue;
 	    for(DisplayMarker mark : dgrid.markers(false)) {
+		if(mark.m instanceof FishingMapMarker &&
+			tc.sub(mark.m.tc).div(scalef()).dist(Coord.z) <= UI.scale(14))
+		    return(mark);
         try {
 		if(mark.icon().checkhit(tc.sub(mark.m.tc).div(scalef())) && !filter(mark))
 		    return(mark);
