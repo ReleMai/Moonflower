@@ -20,6 +20,16 @@ Rule to remember next time:
 ## Entries
 
 ```text
+Date: 2026-08-21
+Task: Recover and port the custom client from Hurricane v1.59b to v1.69.
+What worked: Reconstructing an exact upstream base from hashes made the local patch small enough to review and apply semantically.
+What was confusing: Build output, mutable SQLite data, and historical runtime evidence were mixed into the source tree without provenance.
+What broke or almost broke: Upstream removed MainFrame, Ant clean could erase working-directory databases, and the MJPEG endpoint inherited a 30-second async timeout.
+What I learned: Preserve a baseline first, treat toolkit seams as semantic ports, and resolve every mutable data path before clean builds or live login.
+Rule to remember next time: Record base and target commits, back up runtime data, then port and verify each layer separately before an online smoke test.
+```
+
+```text
 Date: 2026-06-21
 Task: Reconstruct workflow documentation from the provided instruction bundle.
 What worked: Converting the loose templates into a real docs structure made the workflow immediately usable.

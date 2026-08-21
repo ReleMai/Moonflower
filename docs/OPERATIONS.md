@@ -1,56 +1,82 @@
 # Operations Guide
 
-## Start The Platform
+## Build
+
+From the repository root:
 
 ```powershell
-.\scripts\start-platform.ps1
+.\scripts\build-all.ps1
 ```
 
-This builds the workspace, launches the packaged Spring Boot server in the background, waits for `/api/health`, and opens the dashboard at [http://127.0.0.1:8080/](http://127.0.0.1:8080/).
+This runs the React lint/build gates, packages and tests the Maven reactor,
+packages the Hurricane client with Ant, and prepares the Python media gateway.
 
-Use `-SkipBuild` if you already built the workspace:
+## Start And Stop
+
+Set non-default local operator credentials in the same PowerShell session, then
+start the packaged platform:
 
 ```powershell
+$env:HAVEN_OPERATOR_USERNAME = "myadmin"
+$env:HAVEN_OPERATOR_PASSWORD = "use-a-long-unique-password"
 .\scripts\start-platform.ps1 -SkipBuild
 ```
 
-## Stop The Platform
+The dashboard is at [http://127.0.0.1:8080/](http://127.0.0.1:8080/). Both the
+server and media gateway bind to loopback by default. `-NoBrowser` suppresses
+opening the dashboard automatically.
 
 ```powershell
 .\scripts\stop-platform.ps1
 ```
 
-## Default Operator Login
+## Run The Visible Client
 
-- Username: `admin`
-- Password: `changeme`
-
-Override with environment variables before launch:
+First make a data backup:
 
 ```powershell
-$env:HAVEN_OPERATOR_USERNAME = "myadmin"
-$env:HAVEN_OPERATOR_PASSWORD = "strong-password"
-.\scripts\start-platform.ps1
+.\scripts\backup-client-data.ps1
 ```
+
+Then launch `client\bin\Play.bat`. The first real-account login after an
+upstream port should be watched directly. Verify login, character selection,
+world entry, resources, map data, and clean logout before enabling control
+actions.
 
 ## Runtime Data
 
-- SQLite database: [..\server-data\haven-bot.db](</D:/Codex Project/server-data/haven-bot.db>)
-- Screenshots: [..\server-data\screenshots](</D:/Codex Project/server-data/screenshots>)
-- Per-bot process logs: [..\server-data\logs\bots](</D:/Codex Project/server-data/logs/bots>)
-- Packaged server logs: [server-run.log](</D:/Codex Project/Haven and Hearth Custom Client/server-run.log>) and [server-run.err.log](</D:/Codex Project/Haven and Hearth Custom Client/server-run.err.log>)
+- Control database: `..\server-data\haven-bot.db`
+- Bot logs: `..\server-data\logs\bots\`
+- Screenshots: `..\server-data\screenshots\`
+- Clips: `..\server-data\clips\`
+- Server logs: repository-root `server-run.log` and `server-run.err.log`
+- Gateway logs: `artifacts\runtime\media-gateway*.log`
+- Client settings/maps: `%APPDATA%\Haven and Hearth\`
+- Custom client databases: `%APPDATA%\Haven and Hearth\Hurricane\`
+
+The default server database path is a sibling of this repository. Do not delete
+or relocate it casually; back it up before migrations or destructive tests.
 
 ## Bot Launch Flow
 
 1. Create an account in the dashboard.
-2. Create a bot profile and point `client install path` at the built [client\bin](</D:/Codex Project/Haven and Hearth Custom Client/client/bin>) folder or the source [client](</D:/Codex Project/Haven and Hearth Custom Client/client>) folder.
+2. Create a bot and set its client install path to the `client` source folder or
+   packaged `client\bin` folder.
 3. Launch the bot from the fleet screen.
-4. The server injects:
-   - `HAVEN_ACCOUNT_USERNAME`
-   - `HAVEN_ACCOUNT_SECRET`
-   - `HAVEN_BOT_CHARACTER`
-   - `HAVEN_BOT_WORLD`
-   - `HAVEN_BOT_ID`
-   - `HAVEN_BOT_TOKEN`
-   - `HAVEN_BOT_SERVER_URL`
-5. The client now uses those values to auto-login and auto-select the preferred character when available.
+4. The server launches the packaged `Play.bat` from its own directory and passes
+   account/session values through the child-process environment.
+5. The client connects to the loopback bot WebSocket, logs in, and selects the
+   preferred character when available.
+
+Never print the child environment, credentials, or registration token in logs.
+
+## Health And Troubleshooting
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8080/api/health
+Invoke-RestMethod http://127.0.0.1:8091/health
+```
+
+If startup fails, stop stale processes first and inspect the four runtime logs.
+If the dashboard fails after a source update, rerun `build-all.ps1` so
+`web\dist` and the packaged server are synchronized.

@@ -6,15 +6,15 @@ Audit date: 2026-08-21
 
 | Area | Implemented | Current evidence | Remaining boundary |
 | --- | --- | --- | --- |
-| Hurricane client | Full visible client plus local bot-control integration | Ant `deftgt` builds on Java 23 | Source is based on Hurricane `v1.59b`; live-game compatibility is not current or proven |
-| Bot control | Environment-driven login/character selection, WebSocket runtime, state collection, actions, screenshots, and remote input | Nine local `haven.botcontrol` classes and six patched client seams compile | All seams must be ported across upstream API/toolkit changes and runtime-tested |
+| Hurricane client | Full visible client plus local bot-control integration, ported to `v1.69` | Ant package and fetched-resource check pass | Live-game compatibility still requires supervised login |
+| Bot control | Environment-driven login/character selection, WebSocket runtime, state collection, actions, screenshots, and remote input | Nine local `haven.botcontrol` classes and their upstream seams compile on `v1.69` | Online telemetry/control needs a real connected bot |
 | Shared protocol | Commands, events, state snapshots, task status, screenshots, and remote input models | Maven compilation passes | No protocol version/capability handshake exists |
-| Spring server | Accounts, bots, tasks, routes, presets, audit, screenshots, clips, wiki lookup, WebSockets, process supervision | 11 tests pass; May 2026 log shows successful port-8080 startup | Current packaged startup and bot launch are not yet reverified; test coverage is narrow |
-| React dashboard | Fleet controls, tasks, activity, live feed, screenshots, clips, wiki/detail views | Production build passes | ESLint reports 6 errors and 5 warnings; `App.tsx` is oversized |
-| Media gateway | WebRTC stream bridge and an in-memory JPEG rolling replay buffer with MP4 clip export | Implementation exists in `media-gateway/app.py` | Python checks and current health/startup remain to be rerun; research doc is stale |
-| Scripts | Build/start/stop helpers for Windows | Commands and paths are present | Ant path is hard-coded; start flow currently rebuilds every layer and needs clean verification |
-| Documentation | README, operations guide, media notes, and recovery prompt | Basic paths and commands exist | Client/updater/Java details and media status are stale; provenance was absent |
-| Source control | Newly initialized local repository | Pre-update baseline is being captured | No remote publication is authorized; upstream tracking must remain explicit |
+| Spring server | Accounts, bots, tasks, routes, presets, audit, screenshots, clips, wiki lookup, WebSockets, process supervision | 13 tests and current loopback health/auth smoke pass | Test coverage remains narrower than the feature surface |
+| React dashboard | Fleet controls, tasks, activity, live feed, screenshots, clips, wiki/detail views | Production build/lint pass; npm audit reports 0 vulnerabilities | `App.tsx` remains oversized |
+| Media gateway | WebRTC bridge and bounded in-memory JPEG replay with MP4 export | Python compile/import/pip checks and loopback health pass | Live video quality and multi-bot load need online verification |
+| Scripts | Build/start/stop and client backup helpers for Windows | Full build and start/stop smoke pass; Ant resolution is portable | Scripts are Windows-first |
+| Documentation | README, operations, data backup, media, architecture, verification, and provenance | Updated to the recovered architecture and current commands | Keep verification/provenance current on each port |
+| Source control | Local Git repository with recoverable pre-port baseline | Tag `pre-revival-v1.59b-local`; port commit `a1bfde0`; upstream remotes recorded | No remote publication is authorized |
 | Legacy artifacts | Preserved launcher/runtime evidence | Stored under `artifacts/` and ignored by Git | `autohaven-socrates556.jar` is compromised and must never be operationally reused |
 
 ## Reconstructed Client Boundary
@@ -33,8 +33,9 @@ to:
 - `Play_Linux.sh`
 
 All six modified Java touchpoints changed again between Hurricane `v1.59b` and
-`v1.69`. They must be ported semantically rather than copied over the newer
-files.
+`v1.69`. The local patch was therefore applied semantically on the new target;
+the toolkit-based remote-input code was adapted to the upstream removal of
+`MainFrame`.
 
 ## Verified Baseline
 
@@ -61,15 +62,15 @@ these build results.
   and logs must not print their values.
 - Generated outputs, dependencies, runtime logs, and all `artifacts/` content are
   excluded from the new Git baseline.
-- Exact live map/preference paths have not been resolved. Real login is blocked
-  on that discovery and a backup.
+- Preferences and hash-addressed map/cache data live under
+  `%APPDATA%\Haven and Hearth`; custom SQLite data now lives in its `Hurricane`
+  subfolder rather than a rebuildable package directory.
+- Client and server data snapshots were copied and verified by file count and
+  byte count before runtime smoke testing.
 
-## Immediate Priorities
+## Remaining Verification Boundary
 
-1. Capture the exact pre-port source in local Git.
-2. Port the reconstructed local patch from Hurricane `v1.59b` to the latest
-   verified stable Hurricane release.
-3. Repair compilation/API conflicts without weakening error handling.
-4. Fix React lint, verify Python, and synchronize documentation.
-5. Prove packaged loopback startup and clean shutdown.
-6. Ask the user to supervise the first live login and control-path smoke test.
+With the user present, launch one visible client and verify real-account login,
+character selection, world entry, resource loading, map continuity, telemetry,
+screenshot/live feed, a harmless takeover input, pause/resume, and clean logout.
+No build-only result is represented as proof of that online behavior.

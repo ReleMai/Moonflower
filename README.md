@@ -1,86 +1,81 @@
-# Haven Multi-Bot Control Platform
+# Haven & Hearth Custom Client Platform
 
-This workspace is now a source monorepo for a visible-client Haven bot platform. It is ready to build and run locally on Windows as a single-operator control plane for multiple Hurricane-based client bots.
+This repository contains a source-built Hurricane client plus a local,
+single-operator control platform. The client integration has been ported from
+Hurricane `v1.59b` to `v1.69` (upstream commit `045b1f598a...`). The Java
+client, Spring server, React dashboard, and Python media gateway build and pass
+their current automated checks.
 
-- `client/` - Hurricane-based visible client fork with bot-control integration hooks.
-- `shared-protocol/` - Shared Java protocol models used by the server.
-- `server/` - Spring Boot control server for bots, accounts, tasks, screenshots, audit logs, and WebSockets.
-- `web/` - React operator UI.
-- `artifacts/legacy-launcher/` - Preserved original launcher bundle and related artifacts.
-- `references/webhaven/` - Reference implementation used for protocol and product-shape research.
+The first real Haven account login is intentionally left as a supervised manual
+verification step. Build and local-platform health do not prove live game
+protocol compatibility.
 
-## Important Security Note
+## Layout
 
-`artifacts/legacy-launcher/autohaven-socrates556.jar` contains embedded login material and should be treated as compromised. Do not reuse it as an operational client artifact.
+- `client/` - Hurricane visible client with local bot-control integration.
+- `shared-protocol/` - Java command, event, state, and task models.
+- `server/` - loopback Spring Boot control server and SQLite persistence.
+- `web/` - React operator dashboard.
+- `media-gateway/` - WebRTC bridge and rolling replay/MP4 capture.
+- `scripts/` - Windows build, backup, start, and stop helpers.
+- `docs/` - provenance, architecture, operations, verification, and roadmap.
+- `artifacts/` - ignored historical evidence; never an operational dependency.
 
-## Quick Start
+## Security Boundary
 
-### Full Platform
+`artifacts/legacy-launcher/autohaven-socrates556.jar` contains embedded login
+material and is treated as compromised. It is ignored by Git and must never be
+executed, copied into a release, or used as a credential source.
+
+The server and media gateway bind to `127.0.0.1` by default. Keep that boundary
+unless remote exposure is deliberately designed and secured. Override the
+development operator credentials before startup:
 
 ```powershell
-.\scripts\start-platform.ps1
+$env:HAVEN_OPERATOR_USERNAME = "myadmin"
+$env:HAVEN_OPERATOR_PASSWORD = "use-a-long-unique-password"
 ```
 
-The packaged dashboard is served from [http://127.0.0.1:8080/](http://127.0.0.1:8080/).
+## Build And Start
 
-The platform writes runtime state to `../server-data/`.
+Prerequisites are Java 21 or newer, Maven, Node/npm, Python, and Apache Ant.
+Ant is resolved from `PATH`, with `C:\apache-ant\bin\ant.bat` as a compatibility
+fallback.
 
-Default operator credentials:
+```powershell
+.\scripts\build-all.ps1
+.\scripts\start-platform.ps1 -SkipBuild
+```
 
-- username: `admin`
-- password: `changeme`
+The dashboard is served at [http://127.0.0.1:8080/](http://127.0.0.1:8080/)
+and the WebRTC gateway health endpoint at
+[http://127.0.0.1:8091/health](http://127.0.0.1:8091/health).
 
-Override with:
-
-- `HAVEN_OPERATOR_USERNAME`
-- `HAVEN_OPERATOR_PASSWORD`
-
-To stop the packaged platform:
+Stop both services with:
 
 ```powershell
 .\scripts\stop-platform.ps1
 ```
 
-### Development Server
+Build outputs:
 
-```powershell
-.\scripts\start-web.ps1
-```
-
-### Packaged Server Only
-
-```powershell
-.\scripts\start-server.ps1
-```
-
-### Client
-
-The `client/` folder is a Hurricane source fork with bot-control scaffolding added on top. It still uses its own build/runtime flow.
-
-To package all three layers in one pass:
-
-```powershell
-.\scripts\build-all.ps1
-```
-
-Key build outputs:
-
+- `client/bin/hafen.jar` and the runnable `client/bin/Play.bat`
 - `server/target/server-0.1.0-SNAPSHOT.jar`
 - `web/dist/`
-- `client/build/hafen.jar`
-- `client/bin/`
 
-## Included Features
+## Client Data Safety
 
-- Multi-bot fleet dashboard with create/update/delete for bots and accounts
-- Launch, stop, pause, resume, abort, queue-clear, and takeover controls
-- High-level task execution, route presets, and task presets
-- Screenshot capture and low-FPS screenshot streaming
-- Read-only live state snapshots for stats, skills, inventory, equipment, and task status
-- Operator WebSocket updates, audit trail, and SQLite-backed persistence
-- Server-managed bot launch tokens and encrypted account secret storage
-- Per-bot process logs in `../server-data/logs/bots/`
+Back up preferences, maps/caches, and legacy client databases before the first
+live login:
 
-## Operations
+```powershell
+.\scripts\backup-client-data.ps1
+```
 
-Detailed run and troubleshooting notes live in [docs/OPERATIONS.md](</D:/Codex Project/Haven and Hearth Custom Client/docs/OPERATIONS.md>).
+Hurricane preferences/maps remain under `%APPDATA%\Haven and Hearth`. Mutable
+custom databases now live under `%APPDATA%\Haven and Hearth\Hurricane`, so an
+Ant clean cannot delete them. Packaged seed databases are migrated there on
+first use.
+
+See `docs/OPERATIONS.md`, `docs/DATA_BACKUP.md`, and
+`docs/UPSTREAM_PROVENANCE.md` for the repeatable operating and update process.

@@ -45,4 +45,6 @@ custom patch.
 - Base: Hurricane `v1.59b` (`ef9fe0dd8`)
 - Target: Hurricane `v1.69` (`045b1f598a9009b279b778eeb2256c651baf88f8`)
 - Upstream range: 533 commits and 982 changed files
-- Status: in progress
+- Local port commit: `a1bfde0`
+- Status: source port complete; builds, fetched-resource check, and local
+  platform smoke test pass. Real-game login remains supervised and unverified.

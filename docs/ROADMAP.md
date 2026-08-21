@@ -13,11 +13,13 @@ The roadmap should describe the project in small milestones. Each milestone shou
 
 ## Current Focus
 
-Milestone 1 is active: restore source provenance and current-game compatibility.
+Milestone 1 is complete. Milestone 2 is active: supervised live compatibility.
 
 ## Milestones
 
 ### Milestone 1: Recoverable Current Client
+
+Status: complete on 2026-08-21; online game compatibility is Milestone 2.
 
 Goal: Preserve the custom control platform while updating the client to the
 latest verified compatible Hurricane/official-client source.
@@ -29,6 +31,8 @@ Acceptance criteria:
 - Packaged local services report healthy.
 
 ### Milestone 2: Supervised Live Compatibility
+
+Status: active; requires the user present for real-account login.
 
 Goal: Prove a visible client can safely log into the current game and exercise
 the existing control/telemetry path.
