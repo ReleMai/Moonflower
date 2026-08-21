@@ -1,0 +1,33 @@
+server:
+  port: 8080
+  address: ${HAVEN_SERVER_ADDRESS:127.0.0.1}
+
+spring:
+  application:
+    name: haven-bot-server
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  web:
+    resources:
+      static-locations: classpath:/static/,file:web/dist/,file:../web/dist/
+  datasource:
+    driver-class-name: org.sqlite.JDBC
+    url: jdbc:sqlite:../server-data/haven-bot.db
+
+havenbot:
+  operator:
+    username: ${HAVEN_OPERATOR_USERNAME:admin}
+    password: ${HAVEN_OPERATOR_PASSWORD:changeme}
+  runtime:
+    bot-server-url: ${HAVEN_BOT_SERVER_URL:ws://127.0.0.1:8080/ws/bot}
+    operator-web-url: ${HAVEN_OPERATOR_WEB_URL:http://127.0.0.1:5173}
+  replay:
+    default-seconds: ${HAVENBOT_REPLAY_DEFAULT_SECONDS:300}
+    damage-drop-threshold: ${HAVENBOT_REPLAY_DAMAGE_DROP_THRESHOLD:0.20}
+    low-health-threshold: ${HAVENBOT_REPLAY_LOW_HEALTH_THRESHOLD:0.40}
+    critical-health-threshold: ${HAVENBOT_REPLAY_CRITICAL_HEALTH_THRESHOLD:0.15}
+    cooldown-seconds: ${HAVENBOT_REPLAY_COOLDOWN_SECONDS:60}
+    rare-item-keywords: ${HAVENBOT_REPLAY_RARE_ITEM_KEYWORDS:pearl,mandrake,black truffle,glimmermoss}
+  webrtc:
+    gateway-url: ${HAVENBOT_WEBRTC_GATEWAY_URL:http://127.0.0.1:8091}

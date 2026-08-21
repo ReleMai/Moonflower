@@ -1,0 +1,24 @@
+.idea/
+*.iml
+*.log
+*.class
+node_modules/
+web/dist/
+web/.vite/
+server/target/
+shared-protocol/target/
+client/build/
+client/bin/
+client/out/
+server-data/
+media-gateway/.venv/
+client/lib/ext/
+
+# Preserved evidence, runtime output, and compromised legacy bundles are not
+# operational source. Keep them on disk, but outside version control.
+artifacts/
+
+# Local comparison, backup, and migration material must stay off commits.
+.recovery/
+*.bak
+*.backup

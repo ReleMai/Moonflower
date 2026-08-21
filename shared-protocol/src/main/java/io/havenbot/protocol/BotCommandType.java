@@ -1,0 +1,19 @@
+package io.havenbot.protocol;
+
+public enum BotCommandType {
+    LAUNCH_BOT,
+    STOP_BOT,
+    PAUSE_BOT,
+    RESUME_BOT,
+    ABORT_TASK,
+    RUN_ACTION,
+    BEGIN_TAKEOVER,
+    END_TAKEOVER,
+    REQUEST_SCREENSHOT,
+    START_LIVE_FEED,
+    STOP_LIVE_FEED,
+    START_SCREENSHOT_STREAM,
+    STOP_SCREENSHOT_STREAM,
+    FOCUS_CLIENT,
+    REMOTE_INPUT
+}

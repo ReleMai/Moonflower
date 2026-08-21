@@ -1,0 +1,68 @@
+# Roadmap
+
+## Purpose
+This file prevents the project from becoming overwhelming.
+
+The roadmap should describe the project in small milestones. Each milestone should create a working improvement, not a giant unfinished system.
+
+## Roadmap Rules
+- Keep milestones small.
+- Each milestone should be testable.
+- Do not work on future milestones until the current one is stable.
+- Ideas belong in `FEATURE_BACKLOG.md`, not directly in the roadmap.
+
+## Current Focus
+
+Milestone 1 is active: restore source provenance and current-game compatibility.
+
+## Milestones
+
+### Milestone 1: Recoverable Current Client
+
+Goal: Preserve the custom control platform while updating the client to the
+latest verified compatible Hurricane/official-client source.
+
+Acceptance criteria:
+- Pre-update source is recoverable locally.
+- Upstream provenance and the custom patch boundary are documented.
+- Clean builds and static checks pass.
+- Packaged local services report healthy.
+
+### Milestone 2: Supervised Live Compatibility
+
+Goal: Prove a visible client can safely log into the current game and exercise
+the existing control/telemetry path.
+
+Acceptance criteria:
+- Map/preferences data is backed up before migration.
+- Login, character selection, world entry, resources, and telemetry work.
+- Screenshot, takeover, remote input, pause/resume/abort, and safe logout work.
+
+### Milestone 3: Reliability And Recovery
+
+Goal: Harden reconnection, process supervision, persistence, backup, and error
+reporting based on observed live failures.
+
+Acceptance criteria:
+- Data is stored clearly.
+- Data can be loaded or reused.
+- Failure cases are documented.
+
+### Milestone 4: Maintainability
+
+Goal: Reduce oversized UI/service seams and expand focused integration tests
+without changing behavior.
+
+Acceptance criteria:
+- Interactions are understandable.
+- Logic is separated from presentation where possible.
+
+### Milestone 5: Controlled Expansion
+
+Goal: Consider new operator features only after compatibility and reliability
+are stable.
+
+Acceptance criteria:
+- New systems fit the architecture.
+- No major god files are created.
+- Technical debt is recorded.
