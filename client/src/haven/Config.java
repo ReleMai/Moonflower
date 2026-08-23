@@ -26,8 +26,6 @@
 
 package haven;
 
-import haven.automated.mapper.MappingClient;
-
 import java.util.*;
 import java.util.function.*;
 import java.io.*;
@@ -45,7 +43,6 @@ public class Config {
     public static final boolean windows = System.getProperty("os.name", "").startsWith("Windows");
     public final Properties localprops = getlocalprops(), userprops = getuserprops();
 	public static final String clientVersion = "v1.0.0";
-	public static String githubLatestVersion = "Loading...";
 
     private static Config global = null;
     public static Config get() {
@@ -1174,18 +1171,6 @@ public class Config {
 
 	public static void setPlayerName(String playername) {
 		Config.playername = playername;
-	}
-
-	public static void initAutomapper(UI ui) {
-		if (MappingClient.initialized()) {
-			MappingClient.destroy();
-		}
-        if (!OptWnd.webmapEndpointTextEntry.text().isEmpty() && ui.sess != null && ui.sess.glob != null) {
-            MappingClient.init(ui.sess.glob);
-            MappingClient automapper = MappingClient.getInstance();
-            if (automapper != null)
-                automapper.SetPlayerName(OptWnd.liveLocationNameTextEntry.buf.line() + " (" + playername + ")");
-        }
 	}
 
 	public static final Map<String, String> ORE_FULL_NAMES = new HashMap<>();

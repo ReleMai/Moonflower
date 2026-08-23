@@ -459,6 +459,33 @@ public final class CookbookWindow extends Window {
         ingredientDetails.settext(text.toString());
     }
 
+    private void showIngredientRecipeDetails(CookbookIngredientEntry ingredient,
+                                             CookbookIngredientEntry.RecipeHighlight recipe) {
+        if(recipe == null) {
+            showIngredientDetails(ingredient);
+            return;
+        }
+        CookbookAttribute strongest = CookbookAttribute.forEvent(recipe.attribute);
+        Color foodColor = strongest == null ? Color.WHITE : strongest.color;
+        StringBuilder text = new StringBuilder();
+        text.append(color(foodColor, recipe.foodName));
+        if(ingredient != null)
+            text.append("  •  contains ").append(color(NOTE_COLOR, ingredient.name));
+        text.append("\n$b{Ingredients:} ")
+                .append(recipe.ingredients.isBlank() ? "None recorded" : recipe.ingredients)
+                .append("\n$b{Modifiers:} ")
+                .append(recipe.modifiers.isBlank() ? "None" : recipe.modifiers)
+                .append(String.format(Locale.ROOT,
+                        "\n$b{Q10 baseline:} Hunger %.2f‰  Energy %.2f%%",
+                        recipe.hungerPermille, recipe.energyPercent))
+                .append("\n$b{Q10 FEPs:} ").append(ingredientFepSummary(recipe.feps));
+        if(recipe.quality > 0d)
+            text.append("\n$b{Latest observed quality:} ")
+                    .append(color(QUALITY_COLOR,
+                            String.format(Locale.ROOT, "Q%.1f", recipe.quality)));
+        ingredientDetails.settext(text.toString());
+    }
+
     private String fepSummary(List<CookbookEntry.FepValue> feps, boolean normalized) {
         return(fepSummary(feps, normalized, 1d));
     }
@@ -960,6 +987,12 @@ public final class CookbookWindow extends Window {
                     Coord.of(size.x - UI.scale(35), UI.scale(21)), valueFont,
                     () -> valueLabel), UI.scale(32, 25));
             return(row);
+        }
+
+        @Override
+        public void change(CookbookIngredientEntry.RecipeHighlight recipe) {
+            super.change(recipe);
+            showIngredientRecipeDetails(ingredientList.sel, recipe);
         }
     }
 }

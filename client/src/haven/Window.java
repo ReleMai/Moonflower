@@ -29,7 +29,6 @@ package haven;
 import haven.automated.InventorySorter;
 import haven.automated.StackAllItems;
 import haven.automated.UnstackAllItems;
-import haven.automated.mapper.MappingClient;
 import haven.render.*;
 
 import java.awt.Color;

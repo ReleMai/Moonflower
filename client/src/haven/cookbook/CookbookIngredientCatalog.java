@@ -42,6 +42,19 @@ final class CookbookIngredientCatalog {
         resources.put(normalize("Stinging Nettle"), "gfx/invobjs/herbs/stingingnettle");
         resources.put(normalize("Pepper"), "gfx/invobjs/pepper");
         resources.put(normalize("Black Pepper"), "gfx/invobjs/pepper");
+        resources.put(normalize("Bee"), "gfx/invobjs/meat");
+        resources.put(normalize("Boar"), "gfx/invobjs/meat");
+        resources.put(normalize("Corn Grass Flour"), "gfx/invobjs/flour");
+        resources.put(normalize("Domestic Honey"), "gfx/invobjs/honey");
+        resources.put(normalize("Ide Roe"), "gfx/invobjs/roe");
+        resources.put(normalize("Nectar"), "gfx/invobjs/nectar");
+        resources.put(normalize("Perch Roe"), "gfx/invobjs/roe");
+        resources.put(normalize("Red Apple"), "gfx/invobjs/apple");
+        resources.put(normalize("Roach Roe"), "gfx/invobjs/roe");
+        resources.put(normalize("Seaberries"), "gfx/terobjs/items/seaberry");
+        resources.put(normalize("Sloan Berries"), "gfx/invobjs/berry");
+        resources.put(normalize("Wild Onion"), "gfx/invobjs/onion");
+        resources.put(normalize("Zander Roe"), "gfx/invobjs/roe");
         KNOWN_RESOURCES = Collections.unmodifiableMap(resources);
     }
 
@@ -59,18 +72,19 @@ final class CookbookIngredientCatalog {
             normalizedResource = normalize(KNOWN_RESOURCES.get(normalizedName));
         if(SPICES.contains(normalizedName))
             return(CookbookIngredientCategory.SPICE);
-        if(FISH.contains(normalizedName) || normalizedResource.contains("/fish-"))
+        if(FISH.contains(normalizedName) || normalizedName.endsWith(" roe") ||
+                normalizedResource.contains("/fish-") || normalizedResource.endsWith("/roe"))
             return(CookbookIngredientCategory.FISH);
         if(isGenericMeatResource(normalizedResource) ||
                 normalizedResource.contains("/meat-") || containsAny(normalizedName,
-                        " meat", "beef", "mutton", "pork", "venison", "poultry"))
+                        " meat", "beef", "boar", "mutton", "pork", "venison", "poultry"))
             return(CookbookIngredientCategory.MEAT);
         if(VEGETABLES.contains(normalizedName) || containsAny(normalizedName,
                 "beetroot", "cabbage", "carrot", "cucumber", "leek", "lettuce",
                 "onion", "peas", "pumpkin", "turnip"))
             return(CookbookIngredientCategory.VEGETABLE);
         if(normalizedResource.contains("/seed-") || CROPS.contains(normalizedName) ||
-                containsAny(normalizedName, "barley", "beans", "flax", "hemp", "hops",
+                containsAny(normalizedName, "barley", "beans", "flax", "flour", "hemp", "hops",
                         "millet", "oats", "pipeweed", "poppy", "rye", "tea", "wheat"))
             return(CookbookIngredientCategory.CROP);
         if(normalizedResource.contains("/herbs/"))
@@ -94,6 +108,14 @@ final class CookbookIngredientCatalog {
         String known = KNOWN_RESOURCES.get(normalized);
         if(known != null)
             return(known);
+        if(normalized.endsWith(" roe"))
+            return("gfx/invobjs/roe");
+        if(normalized.endsWith(" flour"))
+            return("gfx/invobjs/flour");
+        if(normalized.contains("honey"))
+            return("gfx/invobjs/honey");
+        if(normalized.endsWith(" berry") || normalized.endsWith(" berries"))
+            return("gfx/invobjs/berry");
         if(FISH.contains(normalized))
             return("gfx/invobjs/fish-" + resourceSlug(name));
         return(switch(category(name, "")) {

@@ -29,7 +29,6 @@ package haven;
 import java.util.*;
 import java.util.function.*;
 
-import haven.automated.cookbook.FoodService;
 import haven.feasting.FeastingActionContext;
 import haven.feasting.FeastingSnapshot;
 import haven.feasting.TablewareProtection;
@@ -246,9 +245,6 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 		if(!externalFoodChecked) {
 			externalFoodChecked = true;
 			try {
-				if (FoodService.isValidEndpoint() && !checkForHempBuff()) {
-					FoodService.checkFood(result, getres(), ui.gui.genus);
-				}
 			} catch (Exception ignored) {}
 		}
 		return(result);

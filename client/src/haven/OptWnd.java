@@ -26,7 +26,6 @@
 
 package haven;
 
-import haven.automated.mapper.MappingClient;
 import haven.render.*;
 import haven.res.sfx.ambient.weather.wsound.WeatherSound;
 import haven.res.ui.pag.toggle.Toggle;
@@ -4775,80 +4774,6 @@ public class OptWnd extends Window {
 
 	}
 
-	public static TextEntry webmapEndpointTextEntry;
-	public static CheckBox uploadMapTilesCheckBox;
-	public static CheckBox sendLiveLocationCheckBox;
-	public static TextEntry liveLocationNameTextEntry;
-//	public static TextEntry webmapTokenTextEntry;
-
-	public static TextEntry cookBookEndpointTextEntry;
-	public static TextEntry cookBookTokenTextEntry;
-
-
-
-	public class ServerIntegrationSettingsPanel extends Panel {
-
-		public ServerIntegrationSettingsPanel(Panel back) {
-			Widget prev;
-			prev = add(new Label("Web Map Integration"), 110, 8);
-			prev = add(new Label("Web Map Endpoint:"), prev.pos("bl").adds(0, 16).x(0));
-			prev = add(webmapEndpointTextEntry = new TextEntry(UI.scale(220), Utils.getpref("webMapEndpoint", "")){
-				protected void changed() {
-					Utils.setpref("webMapEndpoint", this.buf.line());
-                    MappingClient.destroy();
-					super.changed();
-				}
-			}, prev.pos("ur").adds(6, 0));
-			prev = add(uploadMapTilesCheckBox = new CheckBox("Upload Map Tiles to your Web Map Server"){
-				{a = Utils.getprefb("uploadMapTiles", false);}
-				public void changed(boolean val) {
-					Utils.setprefb("uploadMapTiles", val);
-				}
-			}, prev.pos("bl").adds(0, 8).x(12));
-			uploadMapTilesCheckBox.tooltip = uploadMapTilesTooltip;
-
-			prev = add(sendLiveLocationCheckBox = new CheckBox("Send Live Location to your Web Map Server"){
-				{a = Utils.getprefb("enableLocationTracking", false);}
-				public void changed(boolean val) {
-					Utils.setprefb("enableLocationTracking", val);
-				}
-			}, prev.pos("bl").adds(0, 12));
-			sendLiveLocationCheckBox.tooltip = sendLiveLocationTooltip;
-
-			prev = add(new Label("Your Live Location Name (Req. Relog):"), prev.pos("bl").adds(20, 4));
-			prev.tooltip = liveLocationNameTooltip;
-			prev = add(liveLocationNameTextEntry = new TextEntry(UI.scale(96), Utils.getpref("liveLocationName", "")){
-				protected void changed() {
-					Utils.setpref("liveLocationName", this.buf.line());
-					super.changed();
-				}
-			}, prev.pos("ur").adds(6, 0));
-			liveLocationNameTextEntry.tooltip = liveLocationNameTooltip;
-
-            prev = add(new Label("Cookbook Integration"), prev.pos("bl").adds(0, 26).x(110));
-			prev = add(new Label("Cookbook Endpoint:"), prev.pos("bl").adds(0, 16).x(0));
-			prev = add(cookBookEndpointTextEntry = new TextEntry(UI.scale(220), Utils.getpref("cookBookEndpoint", "")){
-				protected void changed() {
-					Utils.setpref("cookBookEndpoint", this.buf.line());
-					super.changed();
-				}
-			}, prev.pos("ur").adds(6, 0));
-			prev = add(new Label("Cookbook Token:"), prev.pos("bl").adds(0, 8).x(0));
-			prev = add(cookBookTokenTextEntry = new TextEntry(UI.scale(220), Utils.getpref("cookBookToken", "")){
-				protected void changed() {
-					Utils.setpref("cookBookToken", this.buf.line());
-					super.changed();
-				}
-			}, prev.pos("ur").adds(20, 0));
-
-			Widget backButton;
-			add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Advanced Settings"), prev.pos("bl").adds(0, 26).x(0));
-			pack();
-			centerBackButton(backButton, this);
-		}
-
-	}
-
     public static CheckBox autoLootHeadgearCheckBox;
     public static CheckBox autoLootNecklaceCheckBox;
     public static CheckBox autoLootShouldersCheckBox;
@@ -5169,7 +5094,6 @@ public class OptWnd extends Window {
 		Panel alarmsettings = add(new AlarmsAndSoundsSettingsPanel(advancedSettings));
 		Panel combatsettings = add(new CombatSettingsPanel(advancedSettings));
 		Panel combataggrosettings = add(new AggroExclusionSettingsPanel(advancedSettings));
-		Panel serverintegrationsettings = add(new ServerIntegrationSettingsPanel(advancedSettings));
 		Panel autolootsettings = add(new AutoLootSettingsPanel(advancedSettings));
 
 		int leftY = UI.scale(6);
@@ -5198,7 +5122,6 @@ public class OptWnd extends Window {
 
 		int middleX = UI.scale(110);
 		int middleY = leftY + UI.scale(20);
-		middleY = advancedSettings.add(new PButton(UI.scale(200), "Server Integration Settings", -1, serverintegrationsettings, "Server Integration Settings"), middleX, middleY).pos("bl").adds(0, 5).y;
 		middleY += UI.scale(20);
 		middleY = advancedSettings.add(new PButton(UI.scale(200), "Back", 27, main, "Options            "), middleX, middleY).pos("bl").adds(0, 5).y;
 	this.advancedSettings.pack();
@@ -5448,7 +5371,7 @@ public class OptWnd extends Window {
 			"\n" +
 			"\n$col[218,163,0]{Keybind:} $col[185,185,185]{This can also be toggled using a keybind.}", UI.scale(300));
     private static final Object partyChatPingColorOptionTooltip = RichText.render("$col[218,163,0]{Note:} $col[185,185,185]{If you ping players for your party, you will instead set a Party Mark on them.}", UI.scale(300));
-    private static final Object removeMapTileBordersTooltip = RichText.render("$col[200,0,0]{WARNING: This setting might not work with your Web Map Integration!}", UI.scale(300));
+    private static final Object removeMapTileBordersTooltip = RichText.render("Removes borders between adjacent map tiles.", UI.scale(300));
 
 	// Quality Display Settings Tooltips
 	private static final Object customQualityColorsTooltip = RichText.render("These numbers and colors are completely arbitrary, and you can change them to whatever you like." +
@@ -5626,14 +5549,6 @@ public class OptWnd extends Window {
     private static final Object onlyRenderCameraVisibleObjectsTooltip = RichText.render("Render only objects within the camera’s view frustum. Objects behind the camera are not rendered, reducing GPU load and potentially improving performance." +
             "\n" +
             "\n$col[218,163,0]{This is an experimental feature. It should work fine, but I wouldn't trust it with my life.}", UI.scale(300));
-
-	// Server Integration Settings Tooltips
-	private static final Object uploadMapTilesTooltip = RichText.render("Enable this to upload your map tiles to your web map server.", UI.scale(300));
-	private static final Object sendLiveLocationTooltip = RichText.render("Enable this to show your current location on your web map server.", UI.scale(320));
-	private static final Object liveLocationNameTooltip = RichText.render("If you send your location to the server, your name will appear as whatever you set in this text entry + your current character name." +
-			"\n" +
-			"\n$col[218,163,0]{For example:} Homestead (VillageCrafter)$col[185,185,185]{, where }\"Homestead\" $col[185,185,185]{is the name set in this text entry, and} \"VillageCrafter\" $col[185,185,185]{is the character's original name." +
-			"\nThe character's original name is the one you see in the character selection screen, NOT the presentation name.}", UI.scale(320));
 
 	// Misc/Other
 	private static final Object resetButtonTooltip = RichText.render("Reset to default value.", UI.scale(300));

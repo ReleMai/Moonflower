@@ -49,13 +49,9 @@ public final class ClientData {
 
     private static Path packagedSibling(String filename) {
 	try {
-	    Path location = Utils.srcpath(ClientData.class);
-	    Path directory = Files.isDirectory(location) ? location : location.getParent();
-	    if(directory != null) {
-		Path candidate = directory.resolve(filename).toAbsolutePath().normalize();
-		if(Files.isRegularFile(candidate))
-		    return(candidate);
-	    }
+	    Path candidate = ClientInstall.directory().resolve(filename).toAbsolutePath().normalize();
+	    if(Files.isRegularFile(candidate))
+		return(candidate);
 	} catch(RuntimeException ignored) {
 	}
 	Path working = Utils.path(System.getProperty("user.dir", "."))

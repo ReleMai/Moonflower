@@ -44,9 +44,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import haven.automated.*;
-import haven.automated.mapper.MappingClient;
 import haven.automated.pathfinder.Pathfinder;
-import haven.botcontrol.BotAgentRuntime;
 import haven.cookbook.CookbookService;
 import haven.cookbook.CookbookWindow;
 import haven.fishing.FishingJournalService;
@@ -160,8 +158,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public String myLastHealthBarText = "";
     public Tex myStaminaBarTex = null;
 	public String myLastStaminaBarText = "";
-    private static final Tex mapperWarning = PUtils.strokeTex(Text.renderstroked("You need to relog for the Webmap Integration to send data!", Color.RED, Color.BLACK, Text.num12boldFnd));
-    private static final Tex mapperWarning2 = PUtils.strokeTex(Text.renderstroked("(This happens on newly created characters, or if you changed your endpoint)", Color.RED, Color.BLACK, Text.num12boldFnd));
     public static float gameTimeSpeedMultiplier = 3.29f;
     private static final Map<String, Float> GAMETIME_SPEEDS = new HashMap<>() {{ // ND: Game speeds differ. Default worlds were always 3.29, but W16.1 is faster
         put("b7c199a4557503a8", 4.93f); // W16.1
@@ -206,7 +202,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public Thread roastingSpitThread;
 	public FishingBot fishingBot;
 	public Thread fishingThread;
-    public BotAgentRuntime botAgentRuntime;
 
     public static abstract class BeltSlot {
 	public final int idx;
@@ -599,12 +594,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	iconconf = loadiconconf();
 	TileHighlight.toggle(this);
 	tileHighlight.hide();
-    if (Config.playername != null && ui != null && ui.sess != null && ui.sess.glob != null) {
-        Config.initAutomapper(ui);
-    }
-    if (botAgentRuntime == null) {
-        botAgentRuntime = BotAgentRuntime.attachIfConfigured(this);
-    }
 	super.attached();
     }
 
@@ -615,10 +604,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 	@Override
 	public void destroy() {
-        if (botAgentRuntime != null) {
-            botAgentRuntime.detachGui(this);
-            botAgentRuntime = null;
-        }
 		cookbookService.close();
 		fishingMapMarkers.close();
 		fishingJournalService.close();
@@ -1505,10 +1490,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    chat.drawsmall(g, new Coord(chatWnd.c.x + UI.scale(10), by), UI.scale(100));
 	}
 
-    if (statusWdg != null && !OptWnd.webmapEndpointTextEntry.text().isEmpty() && !MappingClient.initialized()) {
-        g.image(mapperWarning, new Coord(statusWdg.c.x - statusWdg.sz.x / 2 - mapperWarning.sz().x / 2, statusWdg.c.y + statusWdg.sz.y + mapperWarning.sz().y));
-        g.image(mapperWarning2, new Coord(statusWdg.c.x - statusWdg.sz.x / 2 - mapperWarning2.sz().x / 2, statusWdg.c.y + statusWdg.sz.y + mapperWarning.sz().y + mapperWarning2.sz().y));
-    }
     }
 
     private String iconconfname() {

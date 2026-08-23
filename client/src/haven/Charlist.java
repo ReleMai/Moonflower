@@ -26,19 +26,16 @@
 
 package haven;
 
-import haven.botcontrol.BotLaunchConfig;
-
 import java.awt.Color;
 import java.util.*;
 
-import static haven.Audio.fromres;
 import static haven.LoginScreen.*;
 
 public class Charlist extends Widget {
-    public static final Coord bsz = UI.scale(364, 96);
-    public static final Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.fraktur, 20).aa(true), Window.ctex), UI.scale(2), UI.scale(2), Color.BLACK);
+    public static final Coord bsz = UI.scale(340, 78);
+    public static final Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.serif, 20).aa(true), Window.ctex), UI.scale(2), UI.scale(2), Color.BLACK);
     public static final Text.Furnace df = new PUtils.BlurFurn(Button.tf, UI.scale(2), UI.scale(2), Color.BLACK);
-    public static final int margin = UI.scale(0);
+    public static final int margin = UI.scale(6);
     public static final int btnw = UI.scale(100);
     public final int height;
     public final IButton sau, sad;
@@ -102,13 +99,12 @@ public class Charlist extends Widget {
 	public Charbox(Char chr) {
 	    super(bsz);
 	    this.chr = chr;
-	    Widget avaf = adda(Frame.with(this.ava = new Avaview(Avaview.dasz, -1, "avacam"), false), Coord.of(sz.y / 2), 0.5, 0.5);
-	    name = add(new ILabel(chr.name, nf), avaf.pos("ur").adds(5, 0));
-	    disc = add(new ILabel("", df), name.pos("bl").adds(2, -6));
-        add(new Button(UI.scale(60), "Play"), pos("cbl").adds(100, -36)).action(() -> {
+	    Widget avaf = adda(Frame.with(this.ava = new Avaview(Avaview.dasz, -1, "avacam"), false), UI.scale(40, 39), 0.5, 0.5);
+	    name = add(new ILabel(chr.name, nf), UI.scale(82, 12));
+	    disc = add(new ILabel("", df), UI.scale(82, 40));
+        add(new Button(UI.scale(72), "Play"), UI.scale(248, 24)).action(() -> {
             Charlist.this.wdgmsg("play", chr.name);
             Config.setPlayerName(chr.name);
-            Config.initAutomapper(ui);
         });
 	}
 
@@ -122,10 +118,14 @@ public class Charlist extends Widget {
 	}
 
 	public void draw(GOut g) {
-//	    if(list.sel == chr)
-//		g.chcolor(255, 195, 0, 255); // ND: Character selection overlay
+	    g.chcolor((list.sel == chr) ? MoonFlowerScreenTheme.PANEL : MoonFlowerScreenTheme.PANEL_SOFT);
+	    g.frect(Coord.z, sz);
+	    g.chcolor((list.sel == chr) ? MoonFlowerScreenTheme.ACCENT : MoonFlowerScreenTheme.BORDER);
+	    g.rect(Coord.z, sz);
+	    if(list.sel == chr)
+		g.frect(Coord.z, UI.scale(4, sz.y));
+	    g.chcolor();
 	    ISBox.boxinvisible.draw(g, Coord.z, sz); // ND: The avaviews bug out if the box is not drawn. God knows why. So I'm drawing an invisible one
-//	    g.chcolor();
 	    super.draw(g);
 	}
 
@@ -162,6 +162,22 @@ public class Charlist extends Widget {
 
     protected void added() {
 	parent.setfocus(this);
+	parent.resize(MoonFlowerScreenTheme.CHAR_PARENT);
+	if(parent.parent != null)
+	    parent.c = parent.parent.sz.div(2).sub(parent.sz.div(2));
+	for(Widget wdg : parent.children(Widget.class)) {
+	    if((wdg instanceof Img) && (wdg.sz.x >= UI.scale(800)) && (wdg.sz.y >= UI.scale(450)))
+		wdg.hide();
+	}
+	Img moonflowerBackground = parent.add(new Img(LoginScreen.bg(MoonFlowerScreenTheme.CHARACTER_BACKGROUND)), Coord.z);
+	MoonFlowerScreenTheme.Panel avatarPanel = parent.add(new MoonFlowerScreenTheme.Panel(MoonFlowerScreenTheme.CHAR_PREVIEW_SZ, true),
+		MoonFlowerScreenTheme.CHAR_PREVIEW_POS);
+	avatarPanel.lower();
+	moonflowerBackground.lower();
+	parent.add(MoonFlowerScreenTheme.title("Choose your Hearthling", 34), UI.scale(48, 28));
+	parent.add(MoonFlowerScreenTheme.subtitle("Select a character and return to the Hearthlands"), UI.scale(50, 70));
+	parent.add(MoonFlowerScreenTheme.subtitle("Selected character"),
+		MoonFlowerScreenTheme.CHAR_PREVIEW_POS.add(UI.scale(18, 12)));
 	parent.add(new Button(UI.scale(120), "Log out") {
 		@Override
 		public void click() {
@@ -170,10 +186,8 @@ public class Charlist extends Widget {
 				sess.close();
 			}
 		}
-	}, UI.scale(20, 560));
-	this.c = new Coord(this.c.x, this.c.y - UI.scale(110));
-	parent.c = new Coord(parent.c.x - (UI.scale(267)/2), parent.c.y);
-	parent.resize(UI.scale(new Coord(1067, 600)));
+	}, UI.scale(48, parent.sz.y - UI.scale(52)));
+	this.c = MoonFlowerScreenTheme.CHAR_LIST_POS;
 	charSelectThemeStopped = false;
 	playCharSelectTheme();
 	parent.add(charSelectionScreenVolumeSlider = new HSlider(UI.scale(220), 0, 100, Utils.getprefi("charSelectionScreenVolume", 40)) {
@@ -184,8 +198,8 @@ public class Charlist extends Widget {
             if (LoginScreen.charSelectThemeClip != null) ((Audio.VolAdjust) LoginScreen.charSelectThemeClip).vol = val/100d;
             Utils.setprefi("charSelectionScreenVolume", val);
 		}
-	}, parent.sz.x - UI.scale(230) , parent.sz.y - UI.scale(20));
-	parent.add(new Label("Character Screen Music Volume"), parent.sz.x - UI.scale(200) , parent.sz.y - UI.scale(36));
+	}, parent.sz.x - UI.scale(240), parent.sz.y - UI.scale(24));
+	parent.add(MoonFlowerScreenTheme.subtitle("Music"), parent.sz.x - UI.scale(285), parent.sz.y - UI.scale(27));
 	for(Widget wdg : parent.children(Widget.class)) {
 		if (wdg instanceof Img) {
 			if (wdg.tooltip instanceof KeyboundTip) {
@@ -244,9 +258,9 @@ public class Charlist extends Widget {
 	    dirty = false;
 	}
 	if (avalink != null && !movedAvalink) {
-		avalink.parent.c = new Coord(avalink.parent.c.x + UI.scale(267), avalink.parent.c.y - UI.scale(50));
-		avalink.parent.sz = new Coord(avalink.parent.sz.x + UI.scale(50), avalink.parent.sz.y + UI.scale(50));
-		avalink.sz = new Coord(avalink.sz.x + UI.scale(30), avalink.sz.y + UI.scale(50));
+		avalink.parent.c = MoonFlowerScreenTheme.CHAR_AVA_POS;
+		avalink.parent.sz = new Coord(avalink.parent.sz.x + UI.scale(80), avalink.parent.sz.y + UI.scale(80));
+		avalink.sz = new Coord(avalink.sz.x + UI.scale(50), avalink.sz.y + UI.scale(80));
 		movedAvalink = true;
 	}
 	super.tick(dt);
@@ -285,7 +299,6 @@ public class Charlist extends Widget {
 		if(list.sel == null)
 		    list.change(c);
 	    }
-        tryAutoSelect();
 	    dirty = true;
 	} else if(msg == "ava") {
 	    String cnm = (String)args[0];
@@ -352,28 +365,9 @@ public class Charlist extends Widget {
 	return(super.keydown(ev));
     }
 
-    private void tryAutoSelect() {
-        String autoSelectCharacter = BotLaunchConfig.desiredCharacter();
-        if(autoSelectAttempted || !BotLaunchConfig.shouldAutoSelectCharacter() || (autoSelectCharacter == null))
-            return;
-        synchronized(chars) {
-            for(Char chr : chars) {
-                if(chr.name.equals(autoSelectCharacter)) {
-                    autoSelectAttempted = true;
-                    Config.setPlayerName(chr.name);
-                    Config.initAutomapper(ui);
-                    wdgmsg("play", chr.name);
-                    return;
-                }
-            }
-        }
-    }
-
 	public void playCharSelectTheme() {
 		if (!charSelectThemeStopped &&(charSelectThemeClip == null || !ui.globalSfxIsPlaying(charSelectThemeClip))) {
-			Audio.CS klippi = fromres(charSelectTheme);
-			if (Utils.getprefi("backgroundMusicTheme", 0) == 0) klippi = fromres(charSelectTheme);
-			else if (Utils.getprefi("backgroundMusicTheme", 0) == 1) klippi = fromres(charSelectThemeLegacy);
+			Audio.CS klippi = MoonFlowerAudio.loop(MoonFlowerScreenTheme.CHARACTER_MUSIC);
 			charSelectThemeClip = new Audio.VolAdjust(klippi, Utils.getprefi("charSelectionScreenVolume", 40)/100d);
             ui.globalSfxPlay(charSelectThemeClip);
 		}

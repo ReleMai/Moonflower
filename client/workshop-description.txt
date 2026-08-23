@@ -1,0 +1,18 @@
+[h1]MoonFlower[/h1]
+
+MoonFlower is a private, client-only Haven & Hearth build focused on practical play tools, clear information, and a quieter interface.
+
+[h2]Highlights[/h2]
+[list]
+[*][b]Local Cookbook[/b] — searchable recipes, ingredient comparisons, quality-aware values, and character-specific food planning.
+[*][b]Fishing Tools[/b] — a fishing journal, catch history, map markers, and an explicit preparation helper for tackle changes.
+[*][b]Feasting Tools[/b] — meal previews and tableware safety checks before eating.
+[*][b]Combat Readability[/b] — combat-assist information and optional estimated animal-health bars.
+[*][b]Interface Quality of Life[/b] — configurable alarms, map-icon presets, improved windows, and focused helper controls.
+[*][b]Local Account Switching[/b] — optionally save accounts in the current Windows user's preferences for quick switching on that PC.
+[/list]
+
+[h2]Private Package[/h2]
+This owner-only upload contains the desktop client and its local features. Optional saved accounts remain in each user's local Windows preferences and are never copied into Workshop updates. The upload does not include MoonFlower web bridges, operator services, remote cookbook uploaders, saved account data, passwords, session tokens, personal IP logs, or account identifiers.
+
+[i]Haven & Hearth is required. MoonFlower does not include a game account or grant access to the game service.[/i]

@@ -50,14 +50,8 @@ public class Client implements Console.Directory {
 
     static {
         try {
-            if (gameDir == null) {
-                if((SteamStore.steamsvc.get() != null) && (Steam.get() != null)) {
-                    gameDir = System.getProperty("user.dir") + File.separator + ".." + File.separator + ".." + File.separator + "workshop" + File.separator + "content" + File.separator + "3051280" + File.separator + "3423755273" + File.separator;
-                }
-                else {
-                    gameDir = "";
-                }
-            }
+            if (gameDir == null)
+                gameDir = ClientInstall.directoryString();
             FlowerMenu.createDatabaseIfNotExist();
             FlowerMenu.fillAutoChooseMap();
             HitBoxes.createDatabaseIfNotExist();
@@ -357,34 +351,7 @@ public class Client implements Console.Directory {
 	    acct = new Session.User(Bootstrap.authuser.get());
 	    cookie = Bootstrap.authck.get();
 	} else {
-	    String username;
-	    if(Bootstrap.authuser.get() != null) {
-		username = Bootstrap.authuser.get();
-	    } else {
-		if((username = Utils.getpref("tokenname@" + Bootstrap.authserv.get().host, null)) == null)
-		    throw(new ConnectionError("no explicit or saved username for host: " + Bootstrap.authserv.get().host));
-	    }
-	    String token = Utils.getpref("savedtoken-" + username + "@" + Bootstrap.authserv.get().host, null);
-	    if(token == null)
-		throw(new ConnectionError("no saved token for user: " + username));
-	    try {
-		AuthClient cl = new AuthClient(Bootstrap.authserv.get());
-		try {
-		    try {
-			acct = new AuthClient.TokenCred(username, Utils.hex.dec(token)).tryauth(cl);
-		    } catch(AuthClient.Credentials.AuthException e) {
-			throw(new ConnectionError("authentication with saved token failed"));
-		    }
-		    cookie = cl.getcookie();
-		    List<NamedSocketAddress> hosts = cl.gethosts(gameserv);
-		    if(!hosts.isEmpty())
-			gameserv = hosts.get(0);
-		} finally {
-		    cl.close();
-		}
-	    } catch(IOException e) {
-		throw(new RuntimeException(e));
-	    }
+	    throw(new ConnectionError("explicit authentication is required; MoonFlower does not read saved account tokens"));
 	}
 	try {
 	    return(Session.connect(new java.net.InetSocketAddress(java.net.InetAddress.getByName(gameserv.host), gameserv.port), acct, Connection.encrypt.get(), cookie, args));

@@ -104,7 +104,8 @@
     </condition>
     <javac srcdir="src" destdir="build/classes" debug="on"
 	   source="17" target="17" includeantruntime="no"
-	   bootclasspath="${boot-classpath}">
+	   bootclasspath="${boot-classpath}"
+	   excludes="haven/botcontrol/**,haven/automated/mapper/**,haven/automated/cookbook/**,haven/GitHubVersionFetcher.java">
       <classpath>
 	<pathelement path="lib/ext/jogl/jogl-all.jar" />
 	<pathelement path="lib/ext/jogl/gluegen-rt.jar" />
@@ -123,7 +124,7 @@
       <!-- <compilerarg value="-Xbarda" /> -->
     </javac>
     <copy todir="build/classes">
-      <fileset dir="src" excludes="**/*.java" />
+      <fileset dir="src" excludes="**/*.java,haven/botcontrol/**,haven/automated/mapper/**,haven/automated/cookbook/**" />
     </copy>
     <copy todir="build/classes/haven" file="etc/ressrv.crt" />
     <copy todir="build/classes/haven" file="etc/authsrv.crt" />
@@ -214,7 +215,8 @@
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
     </copy>
     <copy todir="bin/res" >
-      <fileset dir="res" includes="**"/>
+      <fileset dir="res" includes="**"
+               excludes="customclient/*Screen.png,customclient/sfx/*Theme.res,customclient/sfx/charselecttheme*.res"/>
     </copy>
     <copy todir="bin/AlarmSounds" >
       <fileset dir="AlarmSounds" includes="**"/>
@@ -232,7 +234,9 @@
     <copy file="Play_Linux.sh" todir="bin"/>
     <copy file="Play_WithSteam.bat" todir="bin"/>
     <copy file="workshop-client.properties" todir="bin"/>
-    <copy file="steamicon.gif" todir="bin"/>
+    <copy file="steam-client-image.jpg" todir="bin"/>
+    <copy file="steam-banner.jpg" todir="bin"/>
+    <copy file="workshop-description.txt" todir="bin"/>
     <copy file="steam_appid.txt" todir="bin"/>
     <copy file="hafen.hl" todir="bin"/>
     <copy file="launcher.hl" todir="bin"/>
@@ -291,14 +295,8 @@
     </exec>
   </target>
 
-  <target name="Util: Upload to steam workshop" depends="bin">
-    <exec executable="cmd" spawn="true">
-      <arg value="/c" />
-      <arg value="start" />
-      <arg value="cmd" />
-      <arg value="/k" />
-      <arg value="java -cp bin/hafen.jar haven.SteamWorkshop upload bin" />
-    </exec>
+  <target name="Util: Upload to steam workshop">
+    <fail message="Direct Workshop upload is disabled. Prepare and audit the private package with scripts/prepare-private-steam-workshop.ps1, then use scripts/publish-private-steam-workshop.ps1 only after explicit approval." />
   </target>
 
   <target name="clean" depends="assert-no-live-client">

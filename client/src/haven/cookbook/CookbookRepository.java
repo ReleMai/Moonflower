@@ -222,7 +222,9 @@ final class CookbookRepository {
                 "  SELECT o2.id FROM cookbook_observations o2 WHERE o2.recipe_id = o.recipe_id" +
                 "  ORDER BY o2.last_seen DESC, o2.id DESC LIMIT 1))" +
                 " SELECT r.id recipe_id, r.item_name, r.resource_name, r.modifiers," +
+                " o.quality, o.energy_percent, o.normalized_hunger_permille," +
                 " i.kind ingredient_kind, i.name ingredient_name, i.percentage ingredient_percentage," +
+                " i.position ingredient_position," +
                 " f.attribute fep_attribute, f.normalized_amount fep_amount" +
                 " FROM cookbook_recipes r JOIN latest o ON o.recipe_id = r.id" +
                 " LEFT JOIN cookbook_ingredients i ON i.recipe_id = r.id" +
@@ -239,13 +241,16 @@ final class CookbookRepository {
                     RecipeProfile profile = profiles.get(recipeId);
                     if(profile == null) {
                         profile = new RecipeProfile(recipeId, result.getString("item_name"),
-                                result.getString("resource_name"), result.getString("modifiers"));
+                                result.getString("resource_name"), result.getString("modifiers"),
+                                result.getDouble("quality"), result.getDouble("energy_percent"),
+                                result.getDouble("normalized_hunger_permille"));
                         profiles.put(recipeId, profile);
                     }
                     String ingredientName = result.getString("ingredient_name");
                     if(ingredientName != null) {
                         profile.addIngredient(result.getString("ingredient_kind"), ingredientName,
-                                result.getDouble("ingredient_percentage"));
+                                result.getDouble("ingredient_percentage"),
+                                nullableInt(result, "ingredient_position"));
                     }
                     String attribute = result.getString("fep_attribute");
                     if(attribute != null)
@@ -495,19 +500,30 @@ final class CookbookRepository {
         final String itemName;
         final String resourceName;
         final String modifiers;
+        final double quality;
+        final double energyPercent;
+        final double hungerPermille;
         final Map<String, IngredientSample> ingredients = new LinkedHashMap<>();
         final Map<String, Double> feps = new LinkedHashMap<>();
 
-        RecipeProfile(long recipeId, String itemName, String resourceName, String modifiers) {
+        RecipeProfile(long recipeId, String itemName, String resourceName, String modifiers,
+                      double quality, double energyPercent, double hungerPermille) {
             this.recipeId = recipeId;
             this.itemName = itemName;
             this.resourceName = resourceName;
             this.modifiers = modifiers;
+            this.quality = quality;
+            this.energyPercent = energyPercent;
+            this.hungerPermille = hungerPermille;
+        }
+
+        void addIngredient(String kind, String name, double percentage, int position) {
+            IngredientSample value = new IngredientSample(kind, name, percentage, position);
+            ingredients.putIfAbsent(value.key(), value);
         }
 
         void addIngredient(String kind, String name, double percentage) {
-            IngredientSample value = new IngredientSample(kind, name, percentage);
-            ingredients.putIfAbsent(value.key(), value);
+            addIngredient(kind, name, percentage, Integer.MAX_VALUE);
         }
 
         void addModifierIngredients() {
@@ -536,6 +552,33 @@ final class CookbookRepository {
             values.sort(String.CASE_INSENSITIVE_ORDER);
             return(CookbookIngredientCatalog.normalize(resourceName) + "|" +
                     CookbookIngredientCatalog.normalize(itemName) + "|" + String.join(";", values));
+        }
+
+        String displayIngredients() {
+            List<IngredientSample> ordered = new ArrayList<>(ingredients.values());
+            ordered.sort(Comparator
+                    .comparingInt((IngredientSample ingredient) ->
+                            CookbookIngredientOrder.mainPriority(itemName, ingredient.name))
+                    .thenComparingInt(ingredient -> ingredient.position)
+                    .thenComparing(ingredient -> ingredient.name, String.CASE_INSENSITIVE_ORDER));
+            List<String> values = new ArrayList<>();
+            for(IngredientSample ingredient : ordered) {
+                if(CookbookIngredientCatalog.isSpice(ingredient.name))
+                    continue;
+                String prefix = ingredient.kind.equals("smoke") ? "Smoke: " : "";
+                values.add(prefix + String.format(Locale.ROOT, "%s %.2f%%",
+                        ingredient.name, ingredient.percentage));
+            }
+            return(String.join("  •  ", values));
+        }
+
+        String displayModifiers() {
+            List<String> values = splitModifiers(modifiers);
+            for(IngredientSample ingredient : spices()) {
+                values.add(String.format(Locale.ROOT, "%s %.2f%%",
+                        ingredient.name, ingredient.percentage));
+            }
+            return(String.join(", ", distinctSorted(values)));
         }
     }
 
@@ -566,9 +609,17 @@ final class CookbookRepository {
                 fepTotals.merge(fep.getKey(), fep.getValue(), Double::sum);
             CookbookRecipeStat strongest = CookbookRecipeStat.strongest(profile.feps);
             if(strongest.attribute != null) {
+                List<CookbookIngredientEntry.AttributeValue> feps = new ArrayList<>();
+                for(Map.Entry<String, Double> fep : profile.feps.entrySet())
+                    feps.add(new CookbookIngredientEntry.AttributeValue(fep.getKey(), fep.getValue()));
+                feps.sort(Comparator.comparingDouble(
+                                (CookbookIngredientEntry.AttributeValue value) -> value.amount).reversed()
+                        .thenComparing(value -> value.attribute, String.CASE_INSENSITIVE_ORDER));
                 recipeHighlights.add(new CookbookIngredientEntry.RecipeHighlight(
                         profile.recipeId, profile.itemName, profile.resourceName,
-                        strongest.attribute.label, strongest.amount));
+                        strongest.attribute.label, strongest.amount,
+                        profile.displayIngredients(), profile.displayModifiers(),
+                        profile.quality, profile.energyPercent, profile.hungerPermille, feps));
             }
         }
 
@@ -783,6 +834,11 @@ final class CookbookRepository {
     }
 
     private static int nullableInt(ResultSet result, int column) throws SQLException {
+        int value = result.getInt(column);
+        return(result.wasNull() ? Integer.MAX_VALUE : value);
+    }
+
+    private static int nullableInt(ResultSet result, String column) throws SQLException {
         int value = result.getInt(column);
         return(result.wasNull() ? Integer.MAX_VALUE : value);
     }

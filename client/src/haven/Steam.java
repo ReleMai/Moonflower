@@ -427,11 +427,14 @@ public class Steam {
 	public class Details {
 	    public final String title, description;
 	    public final SteamID owner;
+	    public final int timeUpdated, fileSize;
 
 	    public Details(SteamUGCDetails info) {
 		this.title = info.getTitle();
 		this.description = info.getDescription();
 		this.owner = info.getOwnerID();
+		this.timeUpdated = info.getTimeUpdated();
+		this.fileSize = info.getFileSize();
 	    }
 	}
 

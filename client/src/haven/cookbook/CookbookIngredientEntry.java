@@ -76,14 +76,28 @@ public final class CookbookIngredientEntry {
         public final String resourceName;
         public final String attribute;
         public final double amount;
+        public final String ingredients;
+        public final String modifiers;
+        public final double quality;
+        public final double energyPercent;
+        public final double hungerPermille;
+        public final List<AttributeValue> feps;
 
         RecipeHighlight(long recipeId, String foodName, String resourceName,
-                        String attribute, double amount) {
+                        String attribute, double amount, String ingredients,
+                        String modifiers, double quality, double energyPercent,
+                        double hungerPermille, List<AttributeValue> feps) {
             this.recipeId = recipeId;
             this.foodName = foodName;
             this.resourceName = resourceName;
             this.attribute = attribute;
             this.amount = amount;
+            this.ingredients = ingredients;
+            this.modifiers = modifiers;
+            this.quality = quality;
+            this.energyPercent = energyPercent;
+            this.hungerPermille = hungerPermille;
+            this.feps = immutableCopy(feps);
         }
     }
 }

@@ -62,6 +62,7 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     public Bootstrap(NamedSocketAddress server) {
 	this.server = server;
 	this.confname = server.host;
+	clearStoredSensitiveData(confname, null);
     }
 
     public Bootstrap() {
@@ -114,25 +115,36 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     }
 
     public static byte[] gettoken(String user, String confname) {
-	return(getprefb("savedtoken-" + mangleuser(user), confname, null, false));
+	return(null);
     }
 
     public static void rottokens(String user, String confname, boolean creat, boolean rm) {
-	List<String> names = new ArrayList<>(Utils.getprefsl("saved-tokens@" + confname, new String[] {}));
-	creat = creat || (!rm && names.contains(user));
-	if(rm || creat)
-	    names.remove(user);
-	if(creat)
-	    names.add(0, user);
-	Utils.setprefsl("saved-tokens@" + confname, names);
+	clearStoredSensitiveData(confname, user);
     }
 
     public static void settoken(String user, String confname, byte[] token) {
-	if(user == null)
-	    return;
-	String prefnm = user;
-	Utils.setpref("savedtoken-" + mangleuser(user) + "@" + confname, (token == null) ? null : Utils.hex.enc(token));
-	rottokens(user, confname, token != null, true);
+	clearStoredSensitiveData(confname, user);
+    }
+
+    private static void clearStoredSensitiveData(String confname, String extraUser) {
+	List<String> names = new ArrayList<>(Utils.getprefsl("saved-tokens@" + confname, new String[] {}));
+	if((extraUser != null) && !names.contains(extraUser))
+	    names.add(extraUser);
+	for(String name : names) {
+	    Utils.setpref("savedtoken-" + mangleuser(name) + "@" + confname, null);
+	    Utils.setpref("lasttoken-" + mangleuser(name) + "@" + confname, null);
+	}
+	Utils.setpref("saved-tokens@" + confname, null);
+	Utils.setpref("loginname@" + confname, null);
+	Utils.setpref("tokenname@" + confname, null);
+	Utils.setpref("webMapEndpoint", null);
+	Utils.setpref("uploadMapTiles", null);
+	Utils.setpref("enableLocationTracking", null);
+	Utils.setpref("liveLocationName", null);
+	Utils.setpref("cookBookEndpoint", null);
+	Utils.setpref("cookBookToken", null);
+	Utils.setpref("token-id", null);
+	Utils.setpref("token-desc", null);
     }
 
     private Message getmsg() throws InterruptedException {
@@ -183,36 +195,20 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 		this.inittoken = null;
 		authed: try(AuthClient auth = new AuthClient(server)) {
 		    authaddr = auth.address();
-		    if(!Arrays.equals(inittoken, getprefb("lasttoken-" + mangleuser(inituser), confname, null, false))) {
-			AuthClient.Credentials creds = new AuthClient.TokenCred(inituser, inittoken);
-			Session.User authed = null;
-			try {
-			    authed = creds.tryauth(auth);
-			} catch(AuthClient.Credentials.AuthException e) {
-			}
-			setpref("lasttoken-" + mangleuser(inituser), Utils.hex.enc(inittoken));
-			if(authed != null) {
-			    acct = authed;
-			    cookie = auth.getcookie();
-			    if(Connection.encrypt.get())
-				acct.alias(auth.getalias());
-			    hosts = auth.gethosts(defserv);
-			    settoken(creds.authname(), confname, auth.gettoken());
-			    break authed;
-			}
+		    clearStoredSensitiveData(confname, inituser);
+		    AuthClient.Credentials creds = new AuthClient.TokenCred(inituser, inittoken);
+		    Session.User authed = null;
+		    try {
+			authed = creds.tryauth(auth);
+		    } catch(AuthClient.Credentials.AuthException e) {
 		    }
-		    if((token = gettoken(inituser, confname)) != null) {
-			AuthClient.Credentials creds = new AuthClient.TokenCred(inituser, token);
-			try {
-			    acct = creds.tryauth(auth);
-			    cookie = auth.getcookie();
-			    if(Connection.encrypt.get())
-				acct.alias(auth.getalias());
-			    hosts = auth.gethosts(defserv);
-			    break authed;
-			} catch(AuthClient.Credentials.AuthException e) {
-			    settoken(creds.authname(), confname, null);
-			}
+		    if(authed != null) {
+			acct = authed;
+			cookie = auth.getcookie();
+			if(Connection.encrypt.get())
+			    acct.alias(auth.getalias());
+			hosts = auth.gethosts(defserv);
+			break authed;
 		    }
 		    ui.uimsg(1, "error", "Launcher login expired");
 		    continue retry;
@@ -306,14 +302,11 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
 		ui.uimsg(1, "error", "Could not locate server");
 		continue retry;
 	    }
-	    if(loginname != null) {
-		setpref("loginname", loginname);
-		rottokens(loginname, confname, false, false);
-	    }
+	    if(loginname != null)
+		clearStoredSensitiveData(confname, loginname);
 	    break retry;
 	} while(true);
 	ui.destroy(1);
-	haven.error.ErrorHandler.setprop("usr", sess.user.name);
 	return(new RemoteUI(sess));
     }
 

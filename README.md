@@ -67,3 +67,16 @@ clean source builds cannot remove cookbook, fishing, route, or static data.
 
 See `docs/OPERATIONS.md`, `docs/DATA_BACKUP.md`, and `docs/VERIFICATION.md` for
 the repeatable operating and validation process.
+
+## Private Steam Workshop Package
+
+MoonFlower's Steam path uses an owner-only Haven & Hearth Workshop item. Local
+preparation and external publishing are separate commands, and the uploader
+refuses public visibility and the inherited Hurricane item ID. See
+`docs/STEAM_PRIVATE_PUBLISHING.md` before preparing or publishing a package.
+
+The Steam client-only build excludes the operator bridge, map/cookbook web
+uploaders, and external update checker. MoonFlower no longer saves plaintext
+accounts, Haven login tokens, host token identifiers, or account names in error
+metadata. Use `scripts/clear-local-sensitive-client-data.ps1` with the client
+closed to remove legacy sensitive preference keys without printing their values.

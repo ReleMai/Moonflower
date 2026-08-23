@@ -38,7 +38,6 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 
 import haven.automated.helpers.HitBoxes;
-import haven.automated.mapper.MappingClient;
 import haven.combat.CombatDamageEvent;
 import haven.combat.CombatDamageTracker;
 import haven.render.*;
@@ -770,12 +769,6 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	if(m != null)
 		m.move(c);
 	this.gobSpeed = m != null ? m.getv() : 0;
-		if(isMe != null && isMe && MappingClient.getInstance() != null) {
-			if (OptWnd.uploadMapTilesCheckBox.a)
-				MappingClient.getInstance().CheckGridCoord(c);
-			if (OptWnd.sendLiveLocationCheckBox.a)
-				MappingClient.getInstance().Track(id, c);
-		}
 	this.rc = c;
 	this.a = a;
     }

@@ -235,18 +235,9 @@ public class AuthClient implements Closeable {
 
 	public static TokenInfo forhost() {
 	    TokenInfo ret = new TokenInfo();
-	    if((ret.id = Utils.getprefb("token-id", ret.id)).length == 0) {
-		ret.id = new byte[16];
-		new SecureRandom().nextBytes(ret.id);
-		Utils.setprefb("token-id", ret.id);
-	    }
-	    if((ret.desc = Utils.getpref("token-desc", null)) == null) {
-		try {
-		    ret.desc = InetAddress.getLocalHost().getHostName();
-		} catch(UnknownHostException e) {
-		    ret.desc = "";
-		}
-	    }
+	    ret.id = new byte[16];
+	    new SecureRandom().nextBytes(ret.id);
+	    ret.desc = "MoonFlower private session";
 	    return(ret);
 	}
     }

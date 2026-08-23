@@ -26,19 +26,15 @@
 
 package haven;
 
-import haven.botcontrol.BotLaunchConfig;
-
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.net.URI;
-
-import static haven.Audio.fromres;
 
 public class LoginScreen extends Widget {
     public static final Config.Variable<String> authmech = Config.Variable.prop("haven.authmech", "native");
@@ -46,128 +42,52 @@ public class LoginScreen extends Widget {
 	textf = new Text.Foundry(Text.sans, 18).aa(true),
 	textfs = new Text.Foundry(Text.sans, 15).aa(true);
     public static final Tex bg = Resource.loadtex("gfx/loginscr");
-    public static final Position bgc = new Position(UI.scale(533, 250)); // ND: This affects only the login screen username/password location
+	public static final Position bgc = new Position(UI.scale(780, 185));
     public final Widget login;
     public final String confname;
     public Widget loginSteam = null;
-    private Text error, progress;
-    private Button optbtn;
+	private Text error, progress;
+	private Button optbtn;
 	private OptWnd opts;
 	AccountList accounts;
 	private String lastUser = "";
 	private String lastPass = "";
 	public static HSlider loginScreenMusicVolumeSlider;
-	static public final List<Resource> themes = new ArrayList<>() {{
-		add(Resource.local().loadwait("customclient/sfx/rogueTheme"));
-		add(Resource.local().loadwait("customclient/sfx/knightTheme"));
-		add(Resource.local().loadwait("customclient/sfx/vikingTheme"));
-		add(Resource.local().loadwait("customclient/sfx/sorceressTheme"));
-		add(Resource.local().loadwait("customclient/sfx/huntressTheme"));
-		add(Resource.local().loadwait("customclient/sfx/alchemistTheme"));
-		add(Resource.local().loadwait("customclient/sfx/valkyrieTheme"));
-		add(Resource.local().loadwait("customclient/sfx/berserkerTheme"));
-		add(Resource.local().loadwait("customclient/sfx/beastmasterTheme"));
-		add(Resource.local().loadwait("customclient/sfx/dryadTheme"));
-        add(Resource.local().loadwait("customclient/sfx/druidTheme"));
-        add(Resource.local().loadwait("customclient/sfx/nomadTheme"));
-        add(Resource.local().loadwait("customclient/sfx/sageTheme"));
-	}};
-	private static final List<String> backgrounds = new ArrayList<>() {{
-		add(haven.Client.gameDir + "res/customclient/rogueScreen.png");
-		add(haven.Client.gameDir + "res/customclient/knightScreen.png");
-		add(haven.Client.gameDir + "res/customclient/vikingScreen.png");
-		add(haven.Client.gameDir + "res/customclient/sorceressScreen.png");
-		add(haven.Client.gameDir + "res/customclient/huntressScreen.png");
-		add(haven.Client.gameDir + "res/customclient/alchemistScreen.png");
-		add(haven.Client.gameDir + "res/customclient/valkyrieScreen.png");
-		add(haven.Client.gameDir + "res/customclient/berserkerScreen.png");
-		add(haven.Client.gameDir + "res/customclient/beastmasterScreen.png");
-		add(haven.Client.gameDir + "res/customclient/dryadScreen.png");
-        add(haven.Client.gameDir + "res/customclient/druidScreen.png");
-        add(haven.Client.gameDir + "res/customclient/nomadScreen.png");
-        add(haven.Client.gameDir + "res/customclient/sageScreen.png");
-	}};
-	final List<String> keys = new ArrayList<>(){{
-		add("Random!");
-		add("Rogue");
-		add("Knight");
-		add("Viking");
-		add("Sorceress");
-		add("Huntress");
-		add("Alchemist");
-		add("Valkyrie");
-		add("Berserker");
-		add("Beastmaster");
-		add("Dryad");
-        add("Druid");
-        add("Nomad");
-        add("Sage");
-	}};
-	private OldDropBox backgroundDropBox;
-	static public int bgIndex = 1;
 	public Img backgroundImg;
 	static public Audio.CS mainThemeClip = null;
 	static public boolean mainThemeStopped = false;
-	static public final Resource charSelectTheme = Resource.local().loadwait("customclient/sfx/charselecttheme");
-	static public final Resource charSelectThemeLegacy = Resource.local().loadwait("customclient/sfx/charselecttheme_legacy");
 	static public Audio.CS charSelectThemeClip = null;
 	static public boolean charSelectThemeStopped = false;
 	private Window firstTimeUseWindow = null;
 	private Window firstTimeUseExtraBackgroundWindow = null; // ND: Do an extra window to have a solid background, no transparency.
 	private boolean firstTimeWindowCreated = false;
-    private boolean autologinAttempted = false;
-	private final Window updateWindow;
-	private boolean githubVersionChecked = false;
+	private Coord rightPanelPos = MoonFlowerScreenTheme.LOGIN_RIGHT_POS;
 
     private String getpref(String name, String def) {
 	return(Utils.getpref(name + "@" + confname, def));
     }
 
     public LoginScreen(String confname) {
-	super(bg(haven.Client.gameDir + "res/customclient/bgsizer.png").sz());
-    if (Utils.getprefi("loginBgIndex", 0) == 0) {
-        Random rand = new Random();
-        bgIndex = rand.nextInt(keys.size()-1) + 1; // Generates 0–2, then add 1
-    } else {
-        bgIndex = Utils.getprefi("loginBgIndex", 0);
-    }
-    Tex bg = bg(backgrounds.get(bgIndex-1));
+	super(bg(MoonFlowerScreenTheme.LOGIN_BACKGROUND).sz());
+	Tex loginBackground = bg(MoonFlowerScreenTheme.LOGIN_BACKGROUND);
 	this.confname = confname;
 	setfocustab(true);
-	add(backgroundImg = new Img(bg), Coord.z);
-	backgroundDropBox = new OldDropBox<String>(UI.scale(76), 4, UI.scale(17)) {
-		{
-			super.change(Utils.getprefi("loginBgIndex", 0));
-		}
-		@Override
-		protected String listitem(int i) {
-			if (!keys.isEmpty())
-				return keys.get(i);
-			else return "???";
-		}
-		@Override
-		protected int listitems() {
-			return keys.size();
-		}
-		@Override
-		protected void drawitem(GOut g, String item, int i) {
-			g.aimage(Text.renderstroked(item).tex(), Coord.of(UI.scale(3), g.sz().y / 2), 0.0, 0.5);
-		}
-		@Override
-		public void change(String item) {
-			super.change(item);
-			Utils.setprefi("loginBgIndex", selindex);
-			if (selindex == 0) {
-				Random rand = new Random();
-				bgIndex = rand.nextInt(keys.size()-1) + 1;
-			} else {
-				bgIndex = selindex;
-			}
-			changeLoginScreen(backgrounds.get(bgIndex-1));
-		}
-	};
+	add(backgroundImg = new Img(loginBackground), Coord.z);
+	MoonFlowerScreenTheme.Panel left = add(new MoonFlowerScreenTheme.Panel(MoonFlowerScreenTheme.LOGIN_LEFT_SZ),
+		MoonFlowerScreenTheme.LOGIN_LEFT_POS);
+	MoonFlowerScreenTheme.Panel right = add(new MoonFlowerScreenTheme.Panel(MoonFlowerScreenTheme.LOGIN_RIGHT_SZ),
+		MoonFlowerScreenTheme.LOGIN_RIGHT_POS);
+	rightPanelPos = right.c;
+	left.lower();
+	right.lower();
+	backgroundImg.lower();
+	adda(MoonFlowerScreenTheme.title("MoonFlower", 46), sz.x / 2, UI.scale(28), 0.5, 0.0);
+	adda(MoonFlowerScreenTheme.subtitle("A quieter path into the Hearthlands"), sz.x / 2, UI.scale(84), 0.5, 0.0);
+	add(MoonFlowerScreenTheme.title("Saved Hearthlings", 22), left.c.add(UI.scale(16, 14)));
+	add(MoonFlowerScreenTheme.subtitle("Stored only on this Windows account"), left.c.add(UI.scale(16, 44)));
+	add(MoonFlowerScreenTheme.title("Enter the Hearthlands", 22), right.c.add(UI.scale(16, 14)));
 	add(new CircleFadein(0.5));
-	optbtn = adda(new Button(UI.scale(100), "Options"), pos("cbl").add(10, -26), 0, 1);
+	optbtn = adda(new Button(UI.scale(110), "Options"), pos("cbl").add(UI.scale(20, -20)), 0, 1);
 	optbtn.setgkey(GameUI.kb_opt);
 //	if(HttpStatus.mond.get() != null)
 //	    adda(new StatusLabel(HttpStatus.mond.get(), 1.0), sz.x - UI.scale(10), UI.scale(10), 1.0, 0.0);
@@ -182,12 +102,12 @@ public class LoginScreen extends Widget {
 //	    throw(new RuntimeException("Unknown authmech: " + authmech.get()));
 //	}
 	login = new Credbox();
-	adda(login, bgc.adds(0, 10), 0.5, 0.0).hide();
+	add(login, right.c.add(UI.scale(50, 72))).hide();
 	loginSteam = new Steambox();
-	adda(loginSteam, bgc.adds(0, 10), -1.0, 0.0).hide();
-	accounts = add(new AccountList(8));
+	add(loginSteam, login.c.add(UI.scale(0, login.sz.y + UI.scale(12)))).hide();
+	accounts = add(new AccountList(6), left.c.add(UI.scale(16, 78)));
 	try {
-		adda(new StatusLabel(new URI("http", confname, "/mt/srv-mon", null), 0.5), bgc.x, bg.sz().y, 0.5, 1.4); // ND: This adds the server status and player count
+		adda(new StatusLabel(new URI("http", confname, "/mt/srv-mon", null), 0.5), sz.x / 2, sz.y - UI.scale(16), 0.5, 1.0);
 	} catch(URISyntaxException e) {
 		throw(new RuntimeException(e));
 	}
@@ -200,10 +120,8 @@ public class LoginScreen extends Widget {
             if (LoginScreen.mainThemeClip != null) ((Audio.VolAdjust) LoginScreen.mainThemeClip).vol = val/100d;
             Utils.setprefi("loginScreenMusicVolume", val);
 		}
-	}, bg.sz().x - UI.scale(230) , bg.sz().y - UI.scale(28));
-	add(new Label("Login Screen Music Volume"), bg.sz().x - UI.scale(190) , bg.sz().y - UI.scale(44));
-	add(new Label("Login Screen Style:"), bg.sz().x - UI.scale(200) , bg.sz().y - UI.scale(60));
-	add(backgroundDropBox, bg.sz().x - UI.scale(100) , bg.sz().y - UI.scale(60));
+	}, sz.x - UI.scale(240), sz.y - UI.scale(24));
+	add(MoonFlowerScreenTheme.subtitle("Music"), sz.x - UI.scale(285), sz.y - UI.scale(27));
 	GameUI.swimmingToggled = false;
 	GameUI.trackingToggled = false;
 	GameUI.crimesToggled = false;
@@ -212,34 +130,6 @@ public class LoginScreen extends Widget {
 	Gob.nightQueenDefeated = false;
     Gob.caveHermitAcquired = false;
 	Gob.alarmPlayed.clear();
-	updateWindow = new Window(Coord.z, "Update Available!", true) {
-		{
-			Widget prev;
-			prev = add(new Label("A new client version is available!"), UI.scale(new Coord(74, 3)));
-			prev = add(new Label("Please remember to update your client to avoid bugs & crashes!"), prev.pos("bl").adds(0, 8).x(0));
-			Button close = new Button(UI.scale(120), "Close", false) {
-				@Override
-				public void click() {
-					parent.reqdestroy();
-				}
-			};
-			add(close, prev.pos("bl").adds(0, 10).adds(92, 10));
-			pack();
-		}
-
-		@Override
-		public void drag(Coord off) {
-			// ND: Don't do anything
-		}
-		@Override
-		public void wdgmsg(Widget sender, String msg, Object... args) {
-			if (msg.equals("close"))
-				reqdestroy();
-			else
-				super.wdgmsg(sender, msg, args);
-		}
-	};
-	Config.githubLatestVersion = Config.clientVersion;
 	GameUI.verifiedAccount = false;
 	GameUI.subscribedAccount = false;
     Config.setPlayerName(null);
@@ -254,7 +144,7 @@ public class LoginScreen extends Widget {
 	private final CheckBox saveaccount;
 //	private final CheckBox savetoken;
 	private final Button fbtn;
-	private final IButton exec;
+	private final Button exec;
 	private final Widget pwbox, tkbox;
 	private byte[] token = null;
 	private boolean inited = false;
@@ -306,7 +196,7 @@ public class LoginScreen extends Widget {
 	}
 
 	private Credbox() {
-	    super(UI.scale(200, 150));
+	    super(UI.scale(280, 210));
 	    setfocustab(true);
 		Widget prev = add(new Label("Username", textf){{setstroked(Color.BLACK);}}, 0, 0);
 	    add(user = new UserEntry(this.sz.x), prev.pos("bl").adds(0, 1));
@@ -315,8 +205,9 @@ public class LoginScreen extends Widget {
 	    add(pwbox = new Widget(Coord.z), user.pos("bl").adds(0, 10));
 		pwbox.add(prev = new Label("Password", textf){{setstroked(Color.BLACK);}}, Coord.z);
 	    pwbox.add(pass = new TextEntry(this.sz.x, ""), prev.pos("bl").adds(0, 1)).pw = true;
-		pwbox.add(saveaccount = new CheckBox("Save Account", true), pass.pos("bl").adds(0, 10));
-		saveaccount.set(true); // ND: Set this to true from the beginning. If users don't want to save the account, they will untick it
+		pwbox.add(saveaccount = new CheckBox("Save on this PC", true), pass.pos("bl").adds(0, 10));
+		saveaccount.set(true);
+		saveaccount.settip("Saved accounts stay in your Windows user preferences and are never included in MoonFlower updates.", true);
 //	    pwbox.add(savetoken = new CheckBox("Remember me", true), pass.pos("bl").adds(0, 10));
 //	    savetoken.setgkey(kb_savtoken); // ND: Stupid keybind
 //	    savetoken.settip("Saving your login does not save your password, but rather " +
@@ -330,21 +221,16 @@ public class LoginScreen extends Widget {
 		tkbox.add(prev = new Label("Login saved", textfs){{setstroked(Color.BLACK);}}, UI.scale(0, 25));
 		tkbox.adda(fbtn = new Button(UI.scale(100), "Forget me"), prev.pos("mid").x(this.sz.x), 1.0, 0.5).action(() -> {
 //			forget();
-			if (accounts.getAccountFromName(user.text()) != null) {
+			if(accounts.getAccountFromName(user.text()) != null)
 				accounts.remove(accounts.getAccountFromName(user.text()));
-			}
 			user.rsettext("");
 		});
 //	    fbtn.setgkey(kb_deltoken); // ND: Stupid keybind
 	    tkbox.pack();
 	    tkbox.hide();
 
-	    adda(exec = new IButton("gfx/hud/buttons/login", "u", "d", "o") {
-		    protected void depress() {ui.sfx(Button.clbtdown.stream());}
-		    protected void unpress() {ui.sfx(Button.clbtup.stream());}
-		    public void click() {enter();}
-		},
-		pos("cmid").y(Math.max(pwbox.pos("bl").y, tkbox.pos("bl").y)).adds(0, 35), 0.5, 0.0);
+	    adda(exec = new Button(this.sz.x, "Enter with this account").action(this::enter),
+		pos("cmid").y(Math.max(pwbox.pos("bl").y, tkbox.pos("bl").y)).adds(0, 18), 0.5, 0.0);
 	    pack();
 	}
 
@@ -385,11 +271,11 @@ public class LoginScreen extends Widget {
         } else if(pwbox.visible && pass.text().equals("")) {
             setfocus(pass);
         } else {
-            if(saveaccount.state()) {
-                lastUser = user.text();
-                lastPass = pass.text();
-            }
-            LoginScreen.this.wdgmsg("login", creds(), pwbox.visible && saveaccount.state());
+			if(saveaccount.state()) {
+				lastUser = user.text();
+				lastPass = pass.text();
+			}
+			LoginScreen.this.wdgmsg("login", creds(), pwbox.visible && saveaccount.state());
         }
     }
 
@@ -442,7 +328,6 @@ public class LoginScreen extends Widget {
 //	    checktoken();
 	    if(pwbox.visible && !user.text().equals(""))
 		setfocus(pass);
-        attemptServerAutologin();
 	}
     }
 
@@ -450,14 +335,10 @@ public class LoginScreen extends Widget {
     public class Steambox extends Widget {
 
 	private Steambox() {
-	    super(UI.scale(200, 150));
-	    Widget prev = adda(new Label("Login through Steam", textf), sz.x / 2, 0, 0.5, 0);
-	    adda(new IButton("gfx/hud/buttons/login", "u", "d", "o") {
-		    protected void depress() {ui.sfx(Button.clbtdown.stream());}
-		    protected void unpress() {ui.sfx(Button.clbtup.stream());}
-		    public void click() {enter();}
-		},
-		prev.pos("bl").adds(0, 10).x(sz.x / 2), 0.5, 0.0)
+	    super(UI.scale(280, 64));
+	    Widget prev = adda(MoonFlowerScreenTheme.subtitle("Or continue with Steam"), sz.x / 2, 0, 0.5, 0);
+	    adda(new Button(this.sz.x, "Continue with Steam").action(this::enter),
+		prev.pos("bl").adds(0, 8).x(sz.x / 2), 0.5, 0.0)
 		.setgkey(key_act);
 	}
 
@@ -556,8 +437,8 @@ public class LoginScreen extends Widget {
     public void wdgmsg(Widget sender, String msg, Object... args) {
 	if(sender == accounts) {
 		if("account".equals(msg)) {
-			String name = (String) args[0];
-			String pass = (String) args[1];
+			String name = (String)args[0];
+			String pass = (String)args[1];
 			((Credbox)login).user.settext2(name);
 			((Credbox)login).pass.settext(pass);
 			((Credbox)login).enter2();
@@ -577,15 +458,9 @@ public class LoginScreen extends Widget {
     }
 
 	public void tick(double dt) {
-		playMainTheme(themes.get(bgIndex-1));
+		playMainTheme();
 		if (!firstTimeWindowCreated && Utils.getprefb("firstTimeOpeningClient", true)){
 			createFirstTimeUseWindow();
-		}
-		if (!githubVersionChecked && !Config.githubLatestVersion.equals("Loading...") && !Config.githubLatestVersion.equals("Failed")){
-			if (!Config.clientVersion.equals(Config.githubLatestVersion)) {
-				adda(updateWindow, 0.5, 0);
-			}
-			githubVersionChecked = true;
 		}
 		super.tick(dt);
 	}
@@ -608,12 +483,12 @@ public class LoginScreen extends Widget {
 	    error(null);
 	    clear();
 	    progress((String)args[0]);
-		if (((String)args[0]).equals("Connecting...")){
-			if(((Credbox)login).saveaccount.state() && !lastUser.equals("") && !lastPass.equals("")) {
-				AccountList.storeAccount(lastUser, lastPass);
-				lastUser = "";
-				lastPass = "";
-			}
+		if(((String)args[0]).equals("Connecting...") &&
+		   ((Credbox)login).saveaccount.state() &&
+		   !lastUser.equals("") && !lastPass.equals("")) {
+			AccountList.storeAccount(lastUser, lastPass);
+			lastUser = "";
+			lastPass = "";
 		}
 	} else {
 	    super.uimsg(msg, args);
@@ -628,7 +503,7 @@ public class LoginScreen extends Widget {
 	presize();
 	parent.setfocus(this);
     opts = new OptWnd(false); // ND: This needs to be created when the login screen is created, to prevent options nullpointers once we log into a character
-    playMainTheme(themes.get(bgIndex-1));
+	playMainTheme();
     if (ui != null) {
 		GameUI.stopAllThemes(ui);
 		ui.root.adda(opts, 0.5, 0.5);
@@ -642,32 +517,16 @@ public class LoginScreen extends Widget {
 
     public void draw(GOut g) {
 	super.draw(g);
+	Coord msgc = rightPanelPos.add(MoonFlowerScreenTheme.LOGIN_RIGHT_SZ.x / 2, UI.scale(56));
 	if(error != null)
-		g.aimage(PUtils.strokeTex(error), bgc.adds(0, -20), 0.5, 0.0);
+		g.aimage(PUtils.strokeTex(error), msgc, 0.5, 0.0);
 	if(progress != null)
-		g.aimage(PUtils.strokeTex(progress), bgc.adds(0, 50), 0.5, 0.0);
+		g.aimage(PUtils.strokeTex(progress), msgc.add(0, UI.scale(22)), 0.5, 0.0);
     }
 
-    private void attemptServerAutologin() {
-        if (autologinAttempted || !(login instanceof Credbox) || !BotLaunchConfig.shouldAutoLogin()) {
-            return;
-        }
-        autologinAttempted = true;
-        Credbox credbox = (Credbox) login;
-        credbox.user.settext2(BotLaunchConfig.accountUsername());
-        credbox.pass.settext(BotLaunchConfig.accountSecret());
-        credbox.saveaccount.set(false);
-        credbox.enter2();
-    }
-
-    public void requestServerAutologin() {
-        autologinAttempted = false;
-        attemptServerAutologin();
-    }
-
-	private void playMainTheme(Resource theme) {
+	private void playMainTheme() {
 		if (!mainThemeStopped &&(mainThemeClip == null || !ui.globalSfxIsPlaying(mainThemeClip))) {
-				Audio.CS klippi = fromres(theme);
+				Audio.CS klippi = MoonFlowerAudio.loop(MoonFlowerScreenTheme.LOGIN_MUSIC);
 				mainThemeClip = new Audio.VolAdjust(klippi, Utils.getprefi("loginScreenMusicVolume", 40)/100d);
                 ui.globalSfxPlay(mainThemeClip);
 		}
@@ -679,13 +538,6 @@ public class LoginScreen extends Widget {
 			mainThemeStopped = true;
 		}
 	}
-	private void changeLoginScreen(String imgPath){
-		stopMainTheme();
-		mainThemeStopped = false;
-		backgroundImg.setimg(bg(imgPath));
-		add(new CircleFadein(0.5));
-	}
-
 	private void createFirstTimeUseWindow(){
 		firstTimeUseWindow = new Window(Coord.z, "Hey!", true) {
 			{

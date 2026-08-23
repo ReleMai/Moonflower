@@ -127,6 +127,15 @@ public final class CookbookChecks {
                             tansy.recipeHighlights.get(0).attribute.startsWith("Strength") &&
                             close(tansy.recipeHighlights.get(0).amount, 4),
                     "ingredient planner should retain each recipe's strongest Q10 FEP");
+            CookbookIngredientEntry.RecipeHighlight tansyFood = tansy.recipeHighlights.get(0);
+            check(tansyFood.ingredients.startsWith("Zander 100.00%") &&
+                            tansyFood.ingredients.contains("Stinging Nettle 100.00%"),
+                    "ingredient food details should retain ordered recipe ingredients");
+            check(tansyFood.modifiers.equals("Tansy 100.00%"),
+                    "ingredient food details should retain spice modifiers");
+            check(tansyFood.feps.stream().anyMatch(value ->
+                            value.attribute.startsWith("Strength") && close(value.amount, 4)),
+                    "ingredient food details should retain all normalized FEPs");
             CookbookIngredientEntry.SpiceBoost agilityBoost = tansy.spiceBoosts.stream()
                     .filter(value -> value.attribute.startsWith("Agility"))
                     .findFirst().orElseThrow();
@@ -159,6 +168,35 @@ public final class CookbookChecks {
             check(CookbookIngredientCatalog.meatIconOverlay(
                             "Opened Oyster", "gfx/invobjs/oyster-opened") == null,
                     "non-meat foods should retain their existing icon");
+            check("gfx/invobjs/meat".equals(CookbookIngredientCatalog.iconResource("Boar", "")) &&
+                            "gfx/invobjs/meat-boar".equals(
+                                    CookbookIngredientCatalog.meatIconOverlay("Boar",
+                                            CookbookIngredientCatalog.iconResource("Boar", ""))),
+                    "Boar ingredient should use its native meat sprite and species badge");
+            check("gfx/invobjs/meat-bee".equals(CookbookIngredientCatalog.meatIconOverlay(
+                            "Bee", CookbookIngredientCatalog.iconResource("Bee", ""))),
+                    "Bee meat ingredient should use its native species badge");
+            check("gfx/invobjs/flour".equals(
+                            CookbookIngredientCatalog.iconResource("Corn Grass Flour", "")),
+                    "Corn Grass Flour should use the native flour icon");
+            check("gfx/invobjs/honey".equals(
+                            CookbookIngredientCatalog.iconResource("Domestic Honey", "")),
+                    "Domestic Honey should use the native honey icon");
+            check("gfx/invobjs/roe".equals(
+                            CookbookIngredientCatalog.iconResource("Perch Roe", "")),
+                    "fish roe should use the native roe icon");
+            check("gfx/invobjs/nectar".equals(
+                            CookbookIngredientCatalog.iconResource("Nectar", "")),
+                    "Nectar should use the native nectar icon");
+            check("gfx/terobjs/items/seaberry".equals(
+                            CookbookIngredientCatalog.iconResource("Seaberries", "")),
+                    "Seaberries should use their native item icon");
+            check("gfx/invobjs/berry".equals(
+                            CookbookIngredientCatalog.iconResource("Sloan Berries", "")),
+                    "unmapped berry ingredients should use the native berry icon");
+            check("gfx/invobjs/roe".equals(
+                            CookbookIngredientCatalog.iconResource("Zander Roe", "")),
+                    "unmapped fish roe ingredients should use the native roe icon");
             check(CookbookIngredientCatalog.category("Carrot", "gfx/invobjs/carrot") ==
                             CookbookIngredientCategory.VEGETABLE,
                     "vegetable name should classify as a vegetable");
