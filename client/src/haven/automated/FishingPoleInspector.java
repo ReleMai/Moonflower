@@ -1,0 +1,111 @@
+package haven.automated;
+
+import haven.GItem;
+import haven.Inventory;
+import haven.ItemInfo;
+import haven.Loading;
+import haven.WItem;
+import haven.Widget;
+import haven.automated.helpers.FishingAtlas;
+import haven.res.ui.stackinv.ItemStack;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Set;
+
+/** Converts every supported fishing-pole contents representation into one verified state. */
+final class FishingPoleInspector {
+    private static final long VERIFY_TIMEOUT_MS = 4000;
+
+    State inspect(WItem pole) {
+        State state = new State();
+        if(pole == null || pole.item == null) {
+            state.loading = true;
+            return(state);
+        }
+        try {
+            for(ItemInfo info : pole.item.info()) {
+                if(info instanceof ItemInfo.Contents)
+                    state.add(FishingItemMetadata.describe((ItemInfo.Contents)info));
+            }
+            addWidgetContents(state, pole.item.contents,
+                    Collections.newSetFromMap(new IdentityHashMap<>()));
+        } catch(Loading loading) {
+            state.loading = true;
+        }
+        return(state);
+    }
+
+    State awaitReady(WItem pole, Kind consumable) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + VERIFY_TIMEOUT_MS;
+        while(System.currentTimeMillis() < deadline) {
+            State state = inspect(pole);
+            if(!state.loading && state.ready(consumable))
+                return(state);
+            Thread.sleep(50);
+        }
+        State state = inspect(pole);
+        return(!state.loading && state.ready(consumable) ? state : null);
+    }
+
+    private void addWidgetContents(State state, Widget widget, Set<Widget> seen) {
+        if(widget == null || !seen.add(widget))
+            return;
+        Inventory inventory = Inventory.fromWidget(widget);
+        if(inventory != null) {
+            for(WItem item : inventory.getAllItems())
+                state.add(FishingItemMetadata.describe(item));
+        } else if(widget instanceof ItemStack) {
+            for(WItem item : ((ItemStack)widget).wmap.values())
+                state.add(FishingItemMetadata.describe(item));
+        } else if(widget instanceof WItem) {
+            state.add(FishingItemMetadata.describe((WItem)widget));
+        } else if(widget instanceof GItem) {
+            state.add(FishingItemMetadata.describe((GItem)widget));
+        }
+        for(Widget child : widget.children())
+            addWidgetContents(state, child, seen);
+    }
+
+    enum Kind { LINE, HOOK, BAIT, LURE }
+
+    static final class State {
+        FishingEquipment.ItemData line;
+        FishingEquipment.ItemData hook;
+        FishingEquipment.ItemData bait;
+        FishingEquipment.ItemData lure;
+        boolean loading;
+        final Set<String> unknown = new HashSet<>();
+
+        void add(FishingEquipment.ItemData item) {
+            if(item == null || item.displayName.isEmpty())
+                return;
+            switch(FishingAtlas.classify(item.displayName, item.resourceName)) {
+            case LINE: line = item; break;
+            case HOOK: hook = item; break;
+            case BAIT: bait = item; break;
+            case LURE: lure = item; break;
+            default: unknown.add(item.displayName);
+            }
+        }
+
+        FishingEquipment.ItemData consumable(Kind kind) {
+            return(kind == Kind.LURE ? lure : bait);
+        }
+
+        boolean has(Kind kind) {
+            switch(kind) {
+            case LINE: return(line != null);
+            case HOOK: return(hook != null);
+            case BAIT: return(bait != null);
+            case LURE: return(lure != null);
+            default: return(false);
+            }
+        }
+
+        boolean ready(Kind consumable) {
+            return(line != null && hook != null && consumable(consumable) != null && unknown.isEmpty());
+        }
+    }
+}

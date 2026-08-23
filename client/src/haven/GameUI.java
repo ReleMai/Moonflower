@@ -1857,7 +1857,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		fishingBot.show();
 		fishingBot.raise();
 		fitwdg(fishingBot);
-		fishingBot.startAutomation();
+		fishingBot.openedFromFishingAction();
 	}
 
     public static class MenuButton extends IButton {

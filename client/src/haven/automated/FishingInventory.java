@@ -55,6 +55,13 @@ final class FishingInventory {
             if(names.containsKey(part) && !name.isBlank())
                 names.get(part).add(name);
         }
+        // Keep a pole or tackle choice stable during the short cursor-held phase.
+        if(gui != null && gui.vhand != null && gui.vhand.item != null) {
+            String name = safeName(gui.vhand.item);
+            FishingAtlas.Part part = FishingAtlas.classify(name, safeResource(gui.vhand.item));
+            if(names.containsKey(part) && !name.isBlank())
+                names.get(part).add(name);
+        }
         EnumMap<FishingAtlas.Part, List<String>> choices = new EnumMap<>(FishingAtlas.Part.class);
         for(java.util.Map.Entry<FishingAtlas.Part, Set<String>> entry : names.entrySet()) {
             List<String> sorted = new ArrayList<>(entry.getValue());
@@ -150,6 +157,14 @@ final class FishingInventory {
             if(item == null || item.item == null || !seenItems.add(item.item))
                 return;
             if(item.item.contents instanceof ItemStack) {
+                /*
+                 * A configured fishing pole exposes its tackle as an ItemStack. Keep the
+                 * parent pole selectable while also walking that stack; ordinary stacks
+                 * are containers only and must not become fishing-equipment candidates.
+                 */
+                if(FishingAtlas.classify(safeName(item.item), safeResource(item.item)) ==
+                        FishingAtlas.Part.POLE)
+                    items.add(item);
                 if(recurse)
                     addWidget(item.item.contents, true);
                 return;

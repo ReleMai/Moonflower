@@ -50,6 +50,7 @@ public class FishingBot extends Window implements Runnable {
 
     private volatile boolean closed;
     private volatile boolean active;
+    private volatile boolean prepareOnly;
     private volatile Thread runner;
     private Integer fishActionId;
     private State state = State.IDLE;
@@ -117,6 +118,15 @@ public class FishingBot extends Window implements Runnable {
         lureChoice.hide();
 
         startCheckBox = add(new CheckBox("Auto cast") {{ a = true; }}, UI.scale(70, 177));
+        add(new Button(UI.scale(70), "Prepare") {
+            @Override
+            public void click() {
+                if(active)
+                    setStatus("Stop the current fishing run before preparing again.");
+                else
+                    startPreparation();
+            }
+        }, UI.scale(165, 175));
         startButton = add(new Button(UI.scale(60), "Start") {
             @Override
             public void click() {
@@ -125,13 +135,13 @@ public class FishingBot extends Window implements Runnable {
                 else
                     startAutomation();
             }
-        }, UI.scale(180, 175));
+        }, UI.scale(240, 175));
         add(new Button(UI.scale(75), "Journal") {
             @Override
             public void click() {
                 gui.toggleFishingJournal();
             }
-        }, UI.scale(250, 175));
+        }, UI.scale(305, 175));
         statusLabel = add(new Label("Highlighted inventory items are allowed for fishing."),
                 UI.scale(10, 204));
 
@@ -167,6 +177,14 @@ public class FishingBot extends Window implements Runnable {
     }
 
     public synchronized void startAutomation() {
+        beginPreparation(false);
+    }
+
+    private synchronized void startPreparation() {
+        beginPreparation(true);
+    }
+
+    private void beginPreparation(boolean prepareOnly) {
         if(closed || active)
             return;
         refreshInventoryChoices();
@@ -181,6 +199,7 @@ public class FishingBot extends Window implements Runnable {
             thread.start();
         }
         active = true;
+        this.prepareOnly = prepareOnly;
         state = State.PREPARING;
         stateChangedAt = System.currentTimeMillis();
         timeoutCount = 0;
@@ -190,12 +209,20 @@ public class FishingBot extends Window implements Runnable {
         setStatus("Preparing selected fishing equipment...");
     }
 
+    /** The normal Fishing action opens the helper but never moves equipment by itself. */
+    public synchronized void openedFromFishingAction() {
+        refreshInventoryChoices();
+        if(!active)
+            setStatus("Choose tackle, then click Prepare or Start.");
+    }
+
     public void stopAutomation() {
         stopAutomation("Stopped.");
     }
 
     private synchronized void stopAutomation(String reason) {
         active = false;
+        prepareOnly = false;
         clearAttempt();
         state = State.IDLE;
         setStartButton("Start");
@@ -320,11 +347,14 @@ public class FishingBot extends Window implements Runnable {
             return;
         }
         tackle = result.snapshot;
-        if(!startCheckBox.a) {
+        boolean preparationOnly = prepareOnly;
+        prepareOnly = false;
+        if(preparationOnly || !startCheckBox.a) {
             active = false;
             state = State.IDLE;
             setStartButton("Start");
-            setStatus("Fishing pole is equipped and prepared. Auto cast is disabled.");
+            setStatus("Fishing pole is equipped and prepared." +
+                    (preparationOnly ? "" : " Auto cast is disabled."));
             return;
         }
         FishingEnvironment.Target water = FishingEnvironment.findNearbyWater(gui, WATER_SEARCH_RADIUS,
