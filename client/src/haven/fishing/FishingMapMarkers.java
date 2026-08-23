@@ -6,6 +6,7 @@ import haven.MapFile;
 import haven.MapWnd;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,8 @@ import static haven.MCache.tilesz;
 /** Projects journal observations onto the map as transient, clickable fish icons. */
 public final class FishingMapMarkers {
     private static final int MAP_OBSERVATION_LIMIT = 2000;
+    /* Three Haven tiles (33 world units) keep one shoreline fishing area readable. */
+    private static final int NEARBY_CLUSTER_RADIUS_TILES = 3;
     private static final long RETRY_INTERVAL_MS = 10_000;
 
     private final FishingJournalService service;
@@ -101,7 +104,7 @@ public final class FishingMapMarkers {
     }
 
     private static BuildResult build(MapFile file, List<FishingObservation> observations) {
-        Map<SpotKey, Spot> spots = new LinkedHashMap<>();
+        Map<Long, List<Spot>> spotsBySegment = new LinkedHashMap<>();
         int unresolved = 0;
         try(Locked ignored = new Locked(file.lock.readLock())) {
             for(FishingObservation observation : observations) {
@@ -117,24 +120,29 @@ public final class FishingMapMarkers {
                 int tileX = (int)Math.floor(observation.gridOffsetX / tilesz.x);
                 int tileY = (int)Math.floor(observation.gridOffsetY / tilesz.y);
                 Coord mapTile = info.sc.mul(cmaps).add(tileX, tileY);
-                SpotKey key = new SpotKey(observation.gridId, tileX, tileY);
-                Spot spot = spots.get(key);
-                if(spot == null)
-                    spots.put(key, new Spot(info.seg, mapTile, observation));
-                else
-                    spot.count++;
+                List<Spot> segmentSpots = spotsBySegment.computeIfAbsent(info.seg,
+                        ignoredKey -> new ArrayList<>());
+                Spot spot = nearestSpot(segmentSpots, mapTile);
+                if(spot == null) {
+                    spot = new Spot(info.seg, mapTile, tileX, tileY, observation);
+                    segmentSpots.add(spot);
+                } else {
+                    spot.add(mapTile, observation);
+                }
             }
         }
 
         List<FishingMapMarker> markers = new ArrayList<>();
-        for(Map.Entry<SpotKey, Spot> entry : spots.entrySet()) {
-            SpotKey key = entry.getKey();
-            Spot spot = entry.getValue();
-            String fish = spot.latest.fishName.isBlank() ? "Fish" : spot.latest.fishName;
-            String name = "Fishing spot: " + fish + (spot.count > 1 ? " +" + (spot.count - 1) : "");
-            markers.add(new FishingMapMarker(file, spot.segmentId, spot.mapTile, name,
-                    spot.latest.fishResource, key.gridId, key.tileX, key.tileY,
-                    spot.latest.id, spot.count));
+        for(List<Spot> segmentSpots : spotsBySegment.values()) {
+            for(Spot spot : segmentSpots) {
+                String fish = spot.latest.fishName.isBlank() ? "Fish" : spot.latest.fishName;
+                String name = "Fishing spot: " + fish +
+                        (spot.observations.size() > 1 ? " +" + (spot.observations.size() - 1) : "");
+                markers.add(new FishingMapMarker(file, spot.segmentId, spot.mapTile(), name,
+                        spot.latest.fishResource, spot.latest.gridId, spot.representativeTileX,
+                        spot.representativeTileY, spot.latest.id, spot.observations.size(),
+                        spot.observationIds()));
+            }
         }
         return(new BuildResult(markers, unresolved));
     }
@@ -153,41 +161,68 @@ public final class FishingMapMarkers {
         }
     }
 
-    private static final class SpotKey {
-        final long gridId;
-        final int tileX;
-        final int tileY;
-
-        SpotKey(long gridId, int tileX, int tileY) {
-            this.gridId = gridId;
-            this.tileX = tileX;
-            this.tileY = tileY;
+    private static Spot nearestSpot(List<Spot> spots, Coord mapTile) {
+        Spot nearest = null;
+        long nearestDistance = Long.MAX_VALUE;
+        for(Spot spot : spots) {
+            long distance = spot.distanceSquared(mapTile);
+            if(distance <= NEARBY_CLUSTER_RADIUS_TILES * NEARBY_CLUSTER_RADIUS_TILES &&
+                    distance < nearestDistance) {
+                nearest = spot;
+                nearestDistance = distance;
+            }
         }
-
-        @Override
-        public boolean equals(Object other) {
-            if(!(other instanceof SpotKey))
-                return(false);
-            SpotKey key = (SpotKey)other;
-            return(gridId == key.gridId && tileX == key.tileX && tileY == key.tileY);
-        }
-
-        @Override
-        public int hashCode() {
-            return(java.util.Objects.hash(gridId, tileX, tileY));
-        }
+        return(nearest);
     }
 
     private static final class Spot {
         final long segmentId;
-        final Coord mapTile;
-        final FishingObservation latest;
-        int count = 1;
+        final List<FishingObservation> observations = new ArrayList<>();
+        long mapTileX;
+        long mapTileY;
+        int representativeTileX;
+        int representativeTileY;
+        FishingObservation latest;
 
-        Spot(long segmentId, Coord mapTile, FishingObservation latest) {
+        Spot(long segmentId, Coord mapTile, int tileX, int tileY, FishingObservation observation) {
             this.segmentId = segmentId;
-            this.mapTile = mapTile;
-            this.latest = latest;
+            representativeTileX = tileX;
+            representativeTileY = tileY;
+            add(mapTile, observation);
+        }
+
+        void add(Coord mapTile, FishingObservation observation) {
+            observations.add(observation);
+            mapTileX += mapTile.x;
+            mapTileY += mapTile.y;
+            if(latest == null || observation.observedAt > latest.observedAt ||
+                    observation.observedAt == latest.observedAt && observation.id > latest.id) {
+                latest = observation;
+                representativeTileX = (int)Math.floor(observation.gridOffsetX / tilesz.x);
+                representativeTileY = (int)Math.floor(observation.gridOffsetY / tilesz.y);
+            }
+        }
+
+        Coord mapTile() {
+            return(Coord.of((int)Math.round(mapTileX / (double)observations.size()),
+                    (int)Math.round(mapTileY / (double)observations.size())));
+        }
+
+        long distanceSquared(Coord candidate) {
+            Coord center = mapTile();
+            long dx = candidate.x - center.x;
+            long dy = candidate.y - center.y;
+            return(dx * dx + dy * dy);
+        }
+
+        List<Long> observationIds() {
+            List<Long> ids = new ArrayList<>();
+            for(FishingObservation observation : observations) {
+                if(observation.id > 0)
+                    ids.add(observation.id);
+            }
+            ids.sort(Comparator.reverseOrder());
+            return(ids);
         }
     }
 }

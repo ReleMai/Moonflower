@@ -64,6 +64,7 @@ public final class FishingJournalWindow extends Window {
     private Long spotGridId;
     private int spotTileX;
     private int spotTileY;
+    private List<Long> spotObservationIds = Collections.emptyList();
 
     public FishingJournalWindow(FishingJournalService service, FishingMapMarkers mapMarkers) {
         super(UI.scale(780, 520), "Fishing Journal");
@@ -108,6 +109,7 @@ public final class FishingJournalWindow extends Window {
         spotGridId = marker.gridId;
         spotTileX = marker.gridTileX;
         spotTileY = marker.gridTileY;
+        spotObservationIds = marker.observationIds;
         allCatches.show();
         clearSelection();
         queryDirty = true;
@@ -117,6 +119,7 @@ public final class FishingJournalWindow extends Window {
 
     private void clearSpot() {
         spotGridId = null;
+        spotObservationIds = Collections.emptyList();
         allCatches.hide();
         clearSelection();
         queryDirty = true;
@@ -137,7 +140,8 @@ public final class FishingJournalWindow extends Window {
             finishQuery();
         if(queryDirty && query == null) {
             queryDirty = false;
-            query = spotGridId == null ? service.recent(100) :
+            query = spotGridId == null ? service.recent(100) : !spotObservationIds.isEmpty() ?
+                    service.observations(spotObservationIds) :
                     service.spot(spotGridId, spotTileX, spotTileY);
             status.settext(spotGridId == null ? "Loading recent catches..." :
                     "Loading catches at this map spot...");

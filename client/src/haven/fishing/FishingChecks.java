@@ -46,6 +46,10 @@ public final class FishingChecks {
             check(repository.spot("world-b", 11, 11 * 11.0, 12 * 11.0,
                     19 * 11.0, 20 * 11.0).size() == 1,
                     "map-tile fishing spot query should remain world scoped");
+            List<FishingObservation> selected = repository.observations("world-a",
+                    List.of(firstId, secondId));
+            check(selected.size() == 2 && selected.get(0).id == secondId,
+                    "cluster observation IDs should retrieve the newest matching catches first");
 
             MapFile map = new MapFile(new ResCache.TestCache(), "fishing-check");
             try(Locked ignored = new Locked(map.lock.writeLock())) {
@@ -57,6 +61,25 @@ public final class FishingChecks {
             check(markers.get(0).tc.equals(Coord.of(211, 319)) &&
                             markers.get(0).gridTileX == 11 && markers.get(0).gridTileY == 19,
                     "fishing marker should resolve grid offsets into segment tile coordinates");
+            check(markers.get(0).observationIds.size() == 2 &&
+                            markers.get(0).observationIds.contains(firstId) &&
+                            markers.get(0).observationIds.contains(secondId),
+                    "fishing marker should retain the exact journal rows it represents");
+
+            FishingObservation nearby = recent.get(0).copy().id(9001)
+                    .location(7, 11, 13 * 11.0, 21 * 11.0, 3421.5, 5212.25, 3400, 5200,
+                            "gfx/tiles/water").build();
+            List<FishingMapMarker> nearbyMarkers = FishingMapMarkers.projectForChecks(map,
+                    List.of(recent.get(0), recent.get(1), nearby));
+            check(nearbyMarkers.size() == 1 && nearbyMarkers.get(0).observationCount == 3 &&
+                            nearbyMarkers.get(0).observationIds.contains(9001L),
+                    "nearby fishing tiles should merge into one clickable map spot");
+            FishingObservation distant = nearby.copy().id(9002)
+                    .location(7, 11, 19 * 11.0, 19 * 11.0, 3421.5, 5212.25, 3400, 5200,
+                            "gfx/tiles/water").build();
+            check(FishingMapMarkers.projectForChecks(map,
+                    List.of(recent.get(0), recent.get(1), nearby, distant)).size() == 2,
+                    "distant fishing areas must remain separate map spots");
             map.replaceEphemeralMarkers(markers);
             try(Locked ignored = new Locked(map.lock.readLock())) {
                 check(map.displayMarkers().size() == 1 && map.markers.isEmpty(),

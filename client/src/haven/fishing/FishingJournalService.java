@@ -5,6 +5,7 @@ import haven.MCache;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -117,6 +118,27 @@ public final class FishingJournalService implements AutoCloseable {
         } catch(RejectedExecutionException e) {
             if(!closed)
                 recordFailure("Could not queue fishing spot read", e);
+            return(CompletableFuture.completedFuture(Collections.emptyList()));
+        }
+    }
+
+    /** Loads the precise observation set represented by one transient map cluster. */
+    public Future<List<FishingObservation>> observations(List<Long> ids) {
+        if(closed || repository == null || ids == null || ids.isEmpty())
+            return(CompletableFuture.completedFuture(Collections.emptyList()));
+        List<Long> requested = new ArrayList<>(ids);
+        try {
+            return(databaseExecutor.submit(() -> {
+                try {
+                    return(repository.observations(worldId, requested));
+                } catch(SQLException e) {
+                    recordFailure("Could not read clustered fishing spot", e);
+                    return(Collections.emptyList());
+                }
+            }));
+        } catch(RejectedExecutionException e) {
+            if(!closed)
+                recordFailure("Could not queue clustered fishing spot read", e);
             return(CompletableFuture.completedFuture(Collections.emptyList()));
         }
     }

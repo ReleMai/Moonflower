@@ -8,7 +8,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Owns the append-only local fishing observation schema. */
 final class FishingRepository {
@@ -152,6 +155,46 @@ final class FishingRepository {
                     observations.add(read(result));
             }
         }
+        return(observations);
+    }
+
+    List<FishingObservation> observations(String worldId, List<Long> ids) throws SQLException {
+        Set<Long> unique = new LinkedHashSet<>();
+        if(ids != null) {
+            for(Long id : ids) {
+                if(id != null && id > 0)
+                    unique.add(id);
+            }
+        }
+        if(unique.isEmpty())
+            return(new ArrayList<>());
+
+        List<Long> requested = new ArrayList<>(unique);
+        List<FishingObservation> observations = new ArrayList<>();
+        // SQLite commonly limits a statement to 999 parameters; leave room for world_id.
+        for(int from = 0; from < requested.size(); from += 500) {
+            List<Long> batch = requested.subList(from, Math.min(from + 500, requested.size()));
+            StringBuilder placeholders = new StringBuilder();
+            for(int index = 0; index < batch.size(); index++) {
+                if(index > 0)
+                    placeholders.append(',');
+                placeholders.append('?');
+            }
+            String sql = "SELECT * FROM fishing_observations WHERE world_id = ? AND id IN (" +
+                    placeholders + ')';
+            try(Connection connection = connect(); PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, worldId == null ? "" : worldId);
+                for(int index = 0; index < batch.size(); index++)
+                    statement.setLong(index + 2, batch.get(index));
+                try(ResultSet result = statement.executeQuery()) {
+                    while(result.next())
+                        observations.add(read(result));
+                }
+            }
+        }
+        observations.sort(Comparator.comparingLong((FishingObservation observation) -> observation.observedAt)
+                .reversed().thenComparing(Comparator.comparingLong(
+                        (FishingObservation observation) -> observation.id).reversed()));
         return(observations);
     }
 
