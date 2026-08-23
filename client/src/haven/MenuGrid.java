@@ -29,7 +29,6 @@ package haven;
 import java.util.*;
 
 import haven.automated.*;
-import haven.automated.helpers.FishingAtlas;
 import haven.render.*;
 import java.awt.Color;
 import java.awt.Font;
@@ -579,14 +578,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	if(sub.size() > 0) {
 	    change(r.pag);
 	} else {
-	    if((ui.gui != null) && FishingAtlas.isFishingAction(r.res.name)) {
-		ui.gui.startFishingHelperFromAction();
-		r.pag.anew = r.pag.tnew = 0;
-		if(reset)
-		    change(null);
-		return;
-	    }
-		try {
+	    try {
 			String[] ad = r.act().ad;
 			if (ad[0].equals("@")) {
 				useCustom(ad);
@@ -923,17 +915,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 					}
 				}
 			} else if (ad[2].equals("FishingBot")) {
-				if (gui.fishingBot == null && gui.fishingThread == null) {
-					gui.fishingBot = new FishingBot(gui);
-					gui.add(gui.fishingBot, Utils.getprefc("wndc-fishingBotWindow", new Coord(gui.sz.x/2 - gui.fishingBot.sz.x/2, gui.sz.y/2 - gui.fishingBot.sz.y/2 - 200)));
-				} else {
-					if (gui.fishingBot != null) {
-						gui.fishingBot.stop();
-						gui.fishingBot.reqdestroy();
-						gui.fishingBot = null;
-						gui.fishingThread = null;
-					}
-				}
+				gui.openFishingHelper();
 			} else if (ad[2].equals("CleanupBot")) {
 				if (gui.cleanupBot == null && gui.cleanupThread == null) {
 					gui.cleanupBot = new CleanupBot(gui);

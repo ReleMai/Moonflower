@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
 
 import haven.automated.helpers.HitBoxes;
 import haven.automated.mapper.MappingClient;
+import haven.combat.CombatDamageEvent;
+import haven.combat.CombatDamageTracker;
 import haven.render.*;
 import haven.render.gl.GLObject;
 import haven.res.lib.svaj.GobSvaj;
@@ -533,9 +535,6 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	this.id = id;
 	if(id < 0)
 	    virtual = true;
-	if(GobDamageInfo.has(this)) {
-		addDmg();
-	}
 	setupmods.add(customSizeAndRotation);
 	updwait(this::updateDrawableStuff, waiting -> {});
     }
@@ -636,6 +635,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     void removed() {
+	CombatDamageTracker.forGlob(glob).removeGob(id);
 	removed = true;
 	culled = false;
 	culledSlots = null;
@@ -719,7 +719,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 			if(res != null) {
 				MessageBuf sdt = spr.sdt;
 				if(sdt != null && res.name.equals("gfx/fx/floatimg")) {
-					processDmg(sdt.clone());
+					processDmg(sdt.clone(), damageEventKey(ol));
 				}
 			}
 		}
@@ -760,6 +760,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     public void dispose() {
+	CombatDamageTracker.forGlob(glob).removeGob(id);
 	for(GAttrib a : attr.values())
 	    a.dispose();
     }
@@ -2447,20 +2448,25 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		}
 	}
 
-	private void processDmg(MessageBuf msg) {
+	private void processDmg(MessageBuf msg, long eventKey) {
 		try {
 			msg.rewind();
-			int v = msg.int32();
-			msg.uint8();
-			int c = msg.uint16();
-
-			if(damage == null) {
+			int value = msg.int32();
+			int flags = msg.uint8();
+			int color = msg.uint16();
+			Optional<CombatDamageEvent> event = CombatDamageEvent.fromFloatImage(value, flags, color);
+			if(event.isEmpty())
+				return;
+			if(damage == null)
 				addDmg();
-			}
-			damage.update(c, v);
+			damage.update(event.get(), eventKey);
 		} catch (Exception ignored) {
 			ignored.printStackTrace();
 		}
+	}
+
+	private static long damageEventKey(Overlay overlay) {
+		return(((long)overlay.id << 32) ^ Integer.toUnsignedLong(System.identityHashCode(overlay)));
 	}
 
 	private void addDmg() {

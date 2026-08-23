@@ -92,4 +92,18 @@ Shortcut taken: The display-only map layer projects the 2,000 most recent world-
 Why it is acceptable now: It bounds UI/database work while retaining a large local history and never mutates or uploads normal map markers.
 Better long-term approach: Add paged spatial queries keyed by visible segment bounds if real journals grow beyond this limit.
 Where it lives: client/src/haven/fishing/FishingMapMarkers.java
+
+Date: 2026-08-23
+Area: Animal health estimates
+Shortcut taken: Maximum and fleeing HP evidence is a checked-in snapshot of a player-maintained Creatures table last edited in 2024; current health is derived from visible integer SHP-damage overlays and cannot account authoritatively for missed damage, healing, regeneration, or every resource variant.
+Why it is acceptable now: The feature is combat-relation-only, experimental, disabled by default, expires stale observations, and never gives approximate/ranged/unknown/contradicted data a precise percentage.
+Better long-term approach: Capture supervised current-world resource and damage-event evidence, establish whether any explicit server vitality signal exists, version catalog updates by verified world, and add proven healing/invalidation adapters without promoting community data to server authority.
+Where it lives: client/src/haven/combat, client/src/haven/Gob.java, client/src/haven/Fightview.java, and docs/COMBAT_RESEARCH.md
+
+Date: 2026-08-23
+Area: Client external-resource build integrity
+Shortcut taken: Ant's external-resource download targets trust timestamps/existence and do not validate the advertised length, archive structure, or a checksum before packaging.
+Why it is acceptable now: The truncated `hafen-res.jar` discovered during this gate was re-downloaded from the official URL, length-checked, opened with `jar tf`, and repackaged before verification continued.
+Better long-term approach: Download to a temporary file, validate length plus a trusted digest or archive structure, then atomically replace the cached dependency; fail the build before `bin` when validation fails.
+Where it lives: client/build.xml external resource and `res-jar` targets
 ```

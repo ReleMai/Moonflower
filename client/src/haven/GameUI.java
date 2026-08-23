@@ -102,6 +102,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public final CookbookService cookbookService;
 	public final CookbookWindow cookbookWindow;
 	public final FishingJournalService fishingJournalService;
+	private final FishingCatchTracker fishingCatchTracker;
 	public final FishingJournalWindow fishingJournalWindow;
 	public final FishingMapMarkers fishingMapMarkers;
 	public TileHighlight.TileHighlightCFG tileHighlight;
@@ -400,6 +401,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	this.genus = genus;
 	cookbookService = new CookbookService(genus, chrid);
 	fishingJournalService = new FishingJournalService(genus);
+	fishingCatchTracker = new FishingCatchTracker(this, fishingJournalService);
 	fishingMapMarkers = new FishingMapMarkers(fishingJournalService);
 	setcanfocus(true);
 	setfocusctl(true);
@@ -1643,6 +1645,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    afk = false;
 	}
 	mapfiletick();
+	fishingCatchTracker.tick();
 	fishingMapMarkers.tick(mapfile);
 	if(OptWnd.autoDrinkingCheckBox.a && getmeter("stam", 0) != null){
 		float meterFullness = OptWnd.autoDrinkingThresholdTextEntry.text().isEmpty() ? 0.75f : Integer.parseInt(OptWnd.autoDrinkingThresholdTextEntry.text())/100f;
@@ -1848,7 +1851,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		setfocus(fishingJournalWindow);
 	}
 
-	public void startFishingHelperFromAction() {
+	public void openFishingHelper() {
 		if(fishingBot == null) {
 			fishingBot = new FishingBot(this);
 			add(fishingBot, Utils.getprefc("wndc-fishingBotWindow",
@@ -1857,7 +1860,15 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		fishingBot.show();
 		fishingBot.raise();
 		fitwdg(fishingBot);
-		fishingBot.openedFromFishingAction();
+		fishingBot.opened();
+	}
+
+	public void toggleFishingHelper() {
+		if(fishingBot == null || !fishingBot.visible()) {
+			openFishingHelper();
+			return;
+		}
+		fishingBot.hide();
 	}
 
     public static class MenuButton extends IButton {
@@ -1883,7 +1894,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public static final KeyBinding kb_opt = KeyBinding.get("opt", KeyMatch.forchar('O', KeyMatch.C));
     private static final int customMenuSlotWidth = UI.scale(34);
     private static final int customMenuButtonWidth = UI.scale(47);
-    private static final int customMenuFeatureWidth = customMenuSlotWidth * 2;
+    private static final int customMenuFeatureWidth = customMenuSlotWidth * 3;
     private static final int customMenuToggleWidth = customMenuSlotWidth;
     private static final int customMenuExtensionWidth = customMenuFeatureWidth + customMenuToggleWidth;
     private static final BufferedImage baseMenuBackground = Resource.loadsimg("gfx/hud/rbtn-bg");
@@ -1891,6 +1902,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private static final BufferedImage cookbookMenuIcon = PUtils.convolvedown(
             Resource.loadimg("gfx/hud/chr/cooking"), UI.scale(24, 24), CharWnd.iconfilter);
     private static final BufferedImage fishingJournalMenuIcon = fishingJournalMenuIcon();
+    private static final BufferedImage fishingHelperMenuIcon = fishingHelperMenuIcon();
     private static final BufferedImage featureMenuClosedIcon = featureMenuArrow(false);
     private static final BufferedImage featureMenuOpenIcon = featureMenuArrow(true);
     private static final Tex cookbookMenuUp = new TexI(customMenuImage(cookbookMenuIcon, false, false));
@@ -1901,6 +1913,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private static final Tex fishingJournalMenuDown = new TexI(customMenuImage(fishingJournalMenuIcon, true, false));
     private static final Tex fishingJournalMenuHover = new TexI(customMenuImage(fishingJournalMenuIcon, false, true));
     private static final Tex fishingJournalMenuHoverDown = new TexI(customMenuImage(fishingJournalMenuIcon, true, true));
+    private static final Tex fishingHelperMenuUp = new TexI(customMenuImage(fishingHelperMenuIcon, false, false));
+    private static final Tex fishingHelperMenuDown = new TexI(customMenuImage(fishingHelperMenuIcon, true, false));
+    private static final Tex fishingHelperMenuHover = new TexI(customMenuImage(fishingHelperMenuIcon, false, true));
+    private static final Tex fishingHelperMenuHoverDown = new TexI(customMenuImage(fishingHelperMenuIcon, true, true));
     private static final Tex featureMenuClosed = new TexI(customMenuImage(featureMenuClosedIcon, false, false));
     private static final Tex featureMenuClosedHover = new TexI(customMenuImage(featureMenuClosedIcon, false, true));
     private static final Tex featureMenuOpen = new TexI(customMenuImage(featureMenuOpenIcon, true, false));
@@ -2017,6 +2033,28 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	return(image);
     }
 
+    private static BufferedImage fishingHelperMenuIcon() {
+	int size = UI.scale(24);
+	BufferedImage image = TexI.mkbuf(Coord.of(size, size));
+	Graphics2D graphics = image.createGraphics();
+	graphics.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+		java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+	graphics.setStroke(new java.awt.BasicStroke(Math.max(1, UI.scale(2)),
+		java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+	graphics.setColor(new Color(80, 47, 22));
+	graphics.drawLine(UI.scale(5), UI.scale(3), UI.scale(14), UI.scale(18));
+	graphics.setColor(new Color(237, 202, 110));
+	graphics.drawLine(UI.scale(4), UI.scale(2), UI.scale(13), UI.scale(17));
+	graphics.setStroke(new java.awt.BasicStroke(Math.max(1, UI.scale(1))));
+	graphics.setColor(new Color(43, 160, 179));
+	graphics.drawArc(UI.scale(8), UI.scale(14), UI.scale(10), UI.scale(8), 195, 190);
+	graphics.setColor(new Color(236, 217, 158));
+	graphics.drawArc(UI.scale(14), UI.scale(15), UI.scale(6), UI.scale(6), 120, 205);
+	graphics.drawLine(UI.scale(16), UI.scale(19), UI.scale(19), UI.scale(19));
+	graphics.dispose();
+	return(image);
+    }
+
     private static class CookbookMenuCheckBox extends ICheckBox {
 	CookbookMenuCheckBox() {
 	    super(cookbookMenuUp, cookbookMenuDown, cookbookMenuHover, cookbookMenuHoverDown);
@@ -2038,6 +2076,22 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    fishingJournalMenuHover, fishingJournalMenuHoverDown);
 	    setgkey(kb_fishingJournal);
 	    settip("Fishing Journal");
+	}
+
+	@Override
+	public boolean checkhit(Coord c) {
+	    Coord center = Coord.of(UI.scale(23), baseMenuBackground.getHeight() - UI.scale(17));
+	    int radius = UI.scale(15);
+	    return(c.isect(Coord.z, sz) && c.dist(center) <= radius);
+	}
+    }
+
+    private static class FishingHelperMenuCheckBox extends ICheckBox {
+	FishingHelperMenuCheckBox() {
+	    super(fishingHelperMenuUp, fishingHelperMenuDown,
+		    fishingHelperMenuHover, fishingHelperMenuHoverDown);
+	    setgkey(kb_fishingHelper);
+	    settip("Fishing Helper");
 	}
 
 	@Override
@@ -2082,6 +2136,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    .state(() -> wndstate(cookbookWindow)).click(() -> toggleCookbook());
 	    featureTray.add(new FishingJournalMenuCheckBox(), customMenuSlotWidth, 0)
 		    .state(() -> wndstate(fishingJournalWindow)).click(() -> toggleFishingJournal());
+	    featureTray.add(new FishingHelperMenuCheckBox(), customMenuSlotWidth * 2, 0)
+		    .state(() -> wndstate(fishingBot)).click(() -> toggleFishingHelper());
 
 	    featureToggle = add(new FeatureMenuCheckBox(), 0, 0);
 	    featureToggle.state(() -> featuresExpanded).click(() -> setFeaturesExpanded(!featuresExpanded));
@@ -2215,6 +2271,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public static KeyBinding kb_cookbook = KeyBinding.get("cookbook", KeyMatch.forchar('C', KeyMatch.C | KeyMatch.M));
 	public static KeyBinding kb_fishingJournal = KeyBinding.get("fishing-journal",
 		KeyMatch.forchar('J', KeyMatch.C | KeyMatch.M));
+	public static KeyBinding kb_fishingHelper = KeyBinding.get("fishing-helper",
+		KeyMatch.forchar('F', KeyMatch.C | KeyMatch.M));
 
     public boolean globtype(GlobKeyEvent ev) {
 	if(ev.c == ':') {
@@ -2251,6 +2309,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		return(true);
 	} else if(kb_fishingJournal.key().match(ev)) {
 		toggleFishingJournal();
+		return(true);
+	} else if(kb_fishingHelper.key().match(ev)) {
+		toggleFishingHelper();
 		return(true);
 	} else if (kb_drinkButton.key().match(ev)) {
 		wdgmsg("act", "drink");

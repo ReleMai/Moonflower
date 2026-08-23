@@ -10,7 +10,7 @@ import haven.res.ui.stackinv.ItemStack;
 
 import java.util.List;
 
-/** Performs the manual tackle gesture against a stationary pole and verifies its result. */
+/** Performs Haven's native take-tackle/right-click-rod gesture without moving the rod. */
 final class FishingPoleAssembler {
     private static final long TAKE_TIMEOUT_MS = 3000;
     private static final long ATTACH_TIMEOUT_MS = 5000;
@@ -59,18 +59,22 @@ final class FishingPoleAssembler {
             return("The cursor changed before the " + label(kind) + " could be taken.");
         CursorOrigin origin = new CursorOrigin(component);
         GItem moving = component.item;
-        moving.wdgmsg("take", Coord.z);
+        // Match an ordinary left-click on the centre of the tackle item.
+        moving.wdgmsg("take", new Coord(component.sz.x / 2, component.sz.y / 2));
         if(!await(() -> gui.vhand != null && gui.vhand.item == moving, TAKE_TIMEOUT_MS))
             return("The selected " + label(kind) + " was not placed on the cursor.");
 
         WItem target = items.findPole(poleName, poleItem);
-        WItem equipped = items.findPoleInHands(poleName, poleItem);
-        if(target == null || equipped != null) {
+        if(target == null) {
             origin.returnHeld(gui);
-            return("The pole moved before the " + label(kind) + " interaction could be sent.");
+            return("The selected fishing pole disappeared before the " + label(kind) + " interaction could be sent.");
         }
 
-        // This is exactly the WItem.iteminteract gesture produced by a manual right-click.
+        /*
+         * WItem.iteminteract emits this target-only message. The Haven server
+         * takes the source item from vhand, so there is no cursor-free protocol
+         * to use here; importantly, the pole itself is never picked up or moved.
+         */
         target.item.wdgmsg("itemact", 0);
         boolean attached = await(() -> {
             WItem current = items.findPole(poleName, poleItem);
@@ -126,12 +130,20 @@ final class FishingPoleAssembler {
             }
             Inventory source = Inventory.fromWidget(parent);
             Inventory target = source == null ? gui.maininv : source;
-            Coord destination = coordinate == null ? FishingHandManager.roomFor(target, gui.vhand) : coordinate;
+            Coord destination = coordinate == null ? roomFor(target, gui.vhand) : coordinate;
             if(target != null && destination != null) {
                 target.wdgmsg("drop", destination);
                 await(() -> gui.vhand == null, 1500);
             }
         }
+    }
+
+    private static Coord roomFor(Inventory inventory, WItem item) {
+        if(inventory == null || item == null)
+            return(null);
+        int width = Math.max(1, (item.sz.x + Inventory.sqsz.x - 1) / Inventory.sqsz.x);
+        int height = Math.max(1, (item.sz.y + Inventory.sqsz.y - 1) / Inventory.sqsz.y);
+        return(inventory.isRoom(width, height));
     }
 
     static final class Outcome {

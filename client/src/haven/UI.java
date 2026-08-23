@@ -1147,7 +1147,9 @@ public class UI {
 	}
 
 	public static void initTableUi(Window pwdg, Inventory inv) {
-		TableInfo tableInfo = new TableInfo(inv.sz.x, UI.scale(20));
+		if(pwdg.getchild(TableInfo.class) != null)
+			return;
+		TableInfo tableInfo = new TableInfo(pwdg, inv.sz.x);
 		pwdg.add(tableInfo, new Coord(UI.scale(0), inv.sz.y + UI.scale(194)));
 
 		pwdg.pack();

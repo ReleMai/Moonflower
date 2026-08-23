@@ -3,7 +3,6 @@ package haven.automated;
 import haven.Button;
 import haven.CheckBox;
 import haven.Coord;
-import haven.GItem;
 import haven.GameUI;
 import haven.Gob;
 import haven.Inventory;
@@ -15,16 +14,13 @@ import haven.WItem;
 import haven.Widget;
 import haven.Window;
 import haven.automated.helpers.FishingAtlas;
-import haven.fishing.FishingJournalService;
 import haven.fishing.FishingJournalWindow;
-import haven.fishing.FishingObservation;
 import haven.widgets.MultiSelectList;
 import haven.widgets.SingleSelectList;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -37,16 +33,12 @@ import static haven.OCache.posres;
 public class FishingBot extends Window implements Runnable {
     private static final long LOOP_DELAY_MS = 250;
     private static final long ATTEMPT_TIMEOUT_MS = 180_000;
-    private static final long POSE_CORRELATION_MS = 5_000;
     private static final int WATER_SEARCH_RADIUS = 3;
     private static final double MAX_CAST_DISTANCE = 33.0;
 
     private final GameUI gui;
     private final FishingEquipment equipment;
-    private final FishingJournalService journal;
     private final FishingJournalWindow journalWindow;
-    private final Set<GItem> seenInventoryItems = Collections.newSetFromMap(new IdentityHashMap<>());
-    private final List<PendingCatch> pendingCatches = new ArrayList<>();
 
     private volatile boolean closed;
     private volatile boolean active;
@@ -87,7 +79,6 @@ public class FishingBot extends Window implements Runnable {
         super(UI.scale(460, 225), "Fishing Helper");
         this.gui = gui;
         equipment = new FishingEquipment(gui);
-        journal = gui.fishingJournalService;
         journalWindow = gui.fishingJournalWindow;
 
         addLabel("Choose Fishing Pole:", UI.scale(20, 0));
@@ -204,13 +195,12 @@ public class FishingBot extends Window implements Runnable {
         stateChangedAt = System.currentTimeMillis();
         timeoutCount = 0;
         clearAttempt();
-        baselineInventory();
         setStartButton("Stop");
         setStatus("Preparing selected fishing equipment...");
     }
 
-    /** The normal Fishing action opens the helper but never moves equipment by itself. */
-    public synchronized void openedFromFishingAction() {
+    /** Refreshes the standalone helper without starting or changing the native Fishing action. */
+    public synchronized void opened() {
         refreshInventoryChoices();
         if(!active)
             setStatus("Choose tackle, then click Prepare or Start.");
@@ -250,7 +240,6 @@ public class FishingBot extends Window implements Runnable {
             try {
                 if(active)
                     tickAutomation();
-                resolvePendingCatches();
                 Thread.sleep(LOOP_DELAY_MS);
             } catch(InterruptedException ignored) {
                 if(closed)
@@ -295,10 +284,6 @@ public class FishingBot extends Window implements Runnable {
         boolean fishingPose = isFishingPose();
         if(fishingPose)
             lastFishingPoseAt = now;
-        observeNewInventoryItems(now, fishingPose);
-        if(!active)
-            return;
-
         if(cancelCursorPending && now >= cancelCursorAt) {
             gui.map.wdgmsg("click", Coord.z, waterTarget.coordinate.floor(posres), 3, 0);
             cancelCursorPending = false;
@@ -349,11 +334,19 @@ public class FishingBot extends Window implements Runnable {
         tackle = result.snapshot;
         boolean preparationOnly = prepareOnly;
         prepareOnly = false;
+        if(!tackle.equipped && !preparationOnly) {
+            active = false;
+            state = State.IDLE;
+            setStartButton("Start");
+            setStatus("Tackle is attached. Put the selected pole in a hand, then click Start.");
+            return;
+        }
         if(preparationOnly || !startCheckBox.a) {
             active = false;
             state = State.IDLE;
             setStartButton("Start");
-            setStatus("Fishing pole is equipped and prepared." +
+            setStatus("Fishing pole tackle is prepared." +
+                    (tackle.equipped ? " Pole is equipped." : " Put the pole in a hand before fishing.") +
                     (preparationOnly ? "" : " Auto cast is disabled."));
             return;
         }
@@ -412,7 +405,6 @@ public class FishingBot extends Window implements Runnable {
             deactivate("Fishing target disappeared before casting.");
             return;
         }
-        baselineInventory();
         gui.map.wdgmsg("click", Coord.z, waterTarget.coordinate.floor(posres), 1, 0);
         state = State.FISHING;
         attemptStartedAt = now;
@@ -422,48 +414,6 @@ public class FishingBot extends Window implements Runnable {
         cancelCursorPending = true;
         cancelCursorAt = now + 500;
         setStatus("Fishing at nearby water; new fish will be journaled as candidate catches.");
-    }
-
-    private void observeNewInventoryItems(long now, boolean fishingPose) {
-        if(!active)
-            return;
-        FishingEnvironment.Target observedTarget = waterTarget;
-        FishingEquipment.Snapshot observedTackle = tackle;
-        String observedChoices = choiceRowsJson;
-        for(WItem item : FishingInventory.catchItems(gui)) {
-            if(item == null || item.item == null || !seenInventoryItems.add(item.item))
-                continue;
-            if(state != State.FISHING || observedTarget == null || observedTackle == null)
-                continue;
-            boolean correlated = fishingPose || now - lastFishingPoseAt <= POSE_CORRELATION_MS;
-            if(correlated)
-                pendingCatches.add(new PendingCatch(item.item, now,
-                        FishingEnvironment.capture(gui, observedTarget, observedTackle, observedChoices, now)));
-        }
-    }
-
-    private void resolvePendingCatches() {
-        long now = System.currentTimeMillis();
-        for(PendingCatch pending : new ArrayList<>(pendingCatches)) {
-            FishingEquipment.ItemData fish = FishingEquipment.describe(pending.item);
-            boolean fishItem = FishingAtlas.isFish(fish.displayName, fish.resourceName);
-            boolean resolvedNonFish = !fish.displayName.isEmpty() && !fishItem;
-            if(resolvedNonFish || now - pending.detectedAt > 5000 && !fishItem) {
-                pendingCatches.remove(pending);
-                continue;
-            }
-            if(!fishItem)
-                continue;
-            if(fish.quality == null && now - pending.detectedAt < 3000)
-                continue;
-            FishingObservation observation = pending.base.copy()
-                    .fish(fish.resourceName, fish.displayName, fish.quality)
-                    .build();
-            journal.record(observation);
-            pendingCatches.remove(pending);
-            setStatus("Saved candidate catch: " +
-                    (fish.displayName.isEmpty() ? fish.resourceName : fish.displayName) + ".");
-        }
     }
 
     private void selectBestFishingChoice() {
@@ -506,16 +456,6 @@ public class FishingBot extends Window implements Runnable {
             return(false);
         Set<String> poses = player.getPoses();
         return(poses.contains("fishidle") || poses.contains("napp1"));
-    }
-
-    private void baselineInventory() {
-        seenInventoryItems.clear();
-        if(gui.maininv == null)
-            return;
-        for(WItem item : FishingInventory.catchItems(gui)) {
-            if(item != null && item.item != null)
-                seenInventoryItems.add(item.item);
-        }
     }
 
     private void deactivate(String message) {
@@ -619,18 +559,6 @@ public class FishingBot extends Window implements Runnable {
 
     private enum State {
         IDLE, PREPARING, ARMING, FISHING
-    }
-
-    private static final class PendingCatch {
-        final GItem item;
-        final long detectedAt;
-        final FishingObservation base;
-
-        PendingCatch(GItem item, long detectedAt, FishingObservation base) {
-            this.item = item;
-            this.detectedAt = detectedAt;
-            this.base = base;
-        }
     }
 
     private void refreshInventoryChoices() {

@@ -2,8 +2,10 @@ package haven.cookbook;
 
 import haven.Button;
 import haven.CharWnd;
+import haven.CheckBox;
 import haven.Coord;
 import haven.GameUI;
+import haven.GItem;
 import haven.Indir;
 import haven.Label;
 import haven.Loading;
@@ -19,6 +21,7 @@ import haven.Tabs;
 import haven.Text;
 import haven.TextEntry;
 import haven.UI;
+import haven.Utils;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
@@ -27,12 +30,15 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.Future;
 
 /** Searchable recipes and an evidence-backed ingredient planning view. */
 public final class CookbookWindow extends Window {
+    private static final double INVENTORY_SCAN_INTERVAL = 1.5;
     private static final Text.Foundry ROW_TEXT =
             new Text.Foundry(Text.sans, 11, Color.WHITE).aa(true);
     private static final Text.Foundry ROW_MUTED =
@@ -49,10 +55,13 @@ public final class CookbookWindow extends Window {
     private final Tabs.Tab ingredientsTab;
 
     private final AttributeDropBox attributeDropBox;
+    private final RecipeSortDropBox recipeSortDropBox;
     private final TextEntry recipeSearchEntry;
     private final Label recipeStatus;
     private final Label targetHeader;
     private final FoodList foodList;
+    private final RecipeVariantDropBox recipeVariantDropBox;
+    private final CheckBox showUnmodifiedStats;
     private final RichTextBox recipeDetails;
     private final Button openRecipeButton;
 
@@ -61,21 +70,28 @@ public final class CookbookWindow extends Window {
     private final Label ingredientStatus;
     private final IngredientList ingredientList;
     private final RichTextBox ingredientDetails;
+    private final IngredientRecipeList ingredientRecipeList;
 
-    private List<CookbookEntry> entries = java.util.Collections.emptyList();
+    private List<CookbookRecipeGroup> recipeGroups = java.util.Collections.emptyList();
     private List<CookbookIngredientEntry> ingredientEntries = java.util.Collections.emptyList();
     private Future<List<CookbookEntry>> recipeQuery;
     private Future<List<CookbookIngredientEntry>> ingredientQuery;
     private boolean recipeQueryDirty = true;
     private boolean ingredientQueryDirty = true;
+    private boolean captureStatusShown;
+    private final Map<GItem, Integer> scannedInventoryItems = new IdentityHashMap<>();
+    private double inventoryScanElapsed;
+    private boolean inventoryScanVisible;
     private long observedGeneration = -1;
+    private CookbookRecipeGroup selectedRecipeGroup;
+    private CookbookEntry selectedRecipe;
 
     public CookbookWindow(GameUI gui, CookbookService service) {
-        super(UI.scale(780, 565), "Cookbook");
+        super(UI.scale(860, 565), "Cookbook");
         this.gui = gui;
         this.service = service;
 
-        tabs = new Tabs(UI.scale(0, 31), UI.scale(780, 534), this);
+        tabs = new Tabs(UI.scale(0, 31), UI.scale(860, 534), this);
         recipesTab = tabs.add();
         ingredientsTab = tabs.add();
         add(tabs.new TabButton(UI.scale(120), "Recipes", recipesTab), UI.scale(10, 2));
@@ -83,45 +99,57 @@ public final class CookbookWindow extends Window {
 
         recipesTab.add(new Label("View:"), UI.scale(10, 12));
         attributeDropBox = recipesTab.add(new AttributeDropBox(), UI.scale(65, 5));
-        recipesTab.add(new Label("Search:"), UI.scale(240, 12));
-        recipeSearchEntry = recipesTab.add(new TextEntry(UI.scale(250), "") {
+        recipesTab.add(new Label("Sort:"), UI.scale(235, 12));
+        recipeSortDropBox = recipesTab.add(new RecipeSortDropBox(), UI.scale(270, 5));
+        recipesTab.add(new Label("Search:"), UI.scale(440, 12));
+        recipeSearchEntry = recipesTab.add(new TextEntry(UI.scale(150), "") {
             @Override
             protected void changed() {
                 scheduleRecipeRefresh();
                 super.changed();
             }
-        }, UI.scale(290, 6));
+        }, UI.scale(490, 6));
         recipesTab.add(new Button(UI.scale(75), "Refresh") {
             @Override
             public void click() {
                 scheduleRecipeRefresh();
             }
-        }, UI.scale(550, 6));
-        recipeStatus = recipesTab.add(new Label("Loading local recipes..."), UI.scale(640, 12));
+        }, UI.scale(650, 6));
+        recipeStatus = recipesTab.add(new Label("Loading..."), UI.scale(735, 12));
 
         recipesTab.add(new Label("Food"), UI.scale(12, 45));
-        recipesTab.add(new Label("Ingredients / modifiers"), UI.scale(235, 45));
-        targetHeader = recipesTab.add(new Label("Total (Q10)"), UI.scale(430, 45));
-        recipesTab.add(new Label("FEP / hunger"), UI.scale(510, 45));
-        recipesTab.add(new Label("Hunger (Q10)"), UI.scale(610, 45));
-        recipesTab.add(new Label("Latest Q"), UI.scale(700, 45));
+        recipesTab.add(new Label("Best known recipe"), UI.scale(255, 45));
+        targetHeader = recipesTab.add(new Label("Total (Q10)"), UI.scale(500, 45));
+        recipesTab.add(new Label("FEP / hunger"), UI.scale(585, 45));
+        recipesTab.add(new Label("Hunger (Q10)"), UI.scale(690, 45));
+        recipesTab.add(new Label("Latest Q"), UI.scale(780, 45));
 
-        foodList = recipesTab.add(new FoodList(UI.scale(760, 258)), UI.scale(10, 66));
-        recipesTab.add(new Label("Recipe details"), UI.scale(12, 335));
+        foodList = recipesTab.add(new FoodList(UI.scale(840, 258)), UI.scale(10, 66));
+        recipesTab.add(new Label("Known recipes:"), UI.scale(12, 335));
+        recipeVariantDropBox = recipesTab.add(new RecipeVariantDropBox(), UI.scale(105, 327));
+        showUnmodifiedStats = recipesTab.add(new CheckBox("Show unmodified stats") {
+            {a = Utils.getprefb("cookbook-show-unmodified-stats", false);}
+
+            @Override
+            public void changed(boolean value) {
+                Utils.setprefb("cookbook-show-unmodified-stats", value);
+                showRecipeDetails(selectedRecipe);
+            }
+        }, UI.scale(565, 333));
         openRecipeButton = recipesTab.add(new Button(UI.scale(135), "Open recipe") {
             @Override
             public void click() {
                 openSelectedRecipe();
             }
-        }, UI.scale(635, 327));
+        }, UI.scale(715, 327));
         openRecipeButton.disable(true);
-        recipeDetails = recipesTab.add(new RichTextBox(UI.scale(760, 166),
+        recipeDetails = recipesTab.add(new RichTextBox(UI.scale(840, 166),
                 "Select a food to see its Q10 baseline and observed outcomes."), UI.scale(10, 357));
 
         ingredientsTab.add(new Label("Category:"), UI.scale(10, 12));
         ingredientCategoryDropBox = ingredientsTab.add(new IngredientCategoryDropBox(), UI.scale(75, 5));
         ingredientsTab.add(new Label("Search:"), UI.scale(250, 12));
-        ingredientSearchEntry = ingredientsTab.add(new TextEntry(UI.scale(250), "") {
+        ingredientSearchEntry = ingredientsTab.add(new TextEntry(UI.scale(300), "") {
             @Override
             protected void changed() {
                 scheduleIngredientRefresh();
@@ -133,18 +161,21 @@ public final class CookbookWindow extends Window {
             public void click() {
                 scheduleIngredientRefresh();
             }
-        }, UI.scale(560, 6));
-        ingredientStatus = ingredientsTab.add(new Label("Loading ingredients..."), UI.scale(645, 12));
+        }, UI.scale(610, 6));
+        ingredientStatus = ingredientsTab.add(new Label("Loading ingredients..."), UI.scale(695, 12));
 
         ingredientsTab.add(new Label("Ingredient"), UI.scale(12, 45));
-        ingredientsTab.add(new Label("Category"), UI.scale(245, 45));
-        ingredientsTab.add(new Label("Main attributes (Q10 recipe avg)"), UI.scale(345, 45));
-        ingredientsTab.add(new Label("Measured spice boost"), UI.scale(575, 45));
-        ingredientsTab.add(new Label("Recipes"), UI.scale(718, 45));
-        ingredientList = ingredientsTab.add(new IngredientList(UI.scale(760, 278)), UI.scale(10, 66));
-        ingredientsTab.add(new Label("Ingredient planning details"), UI.scale(12, 356));
-        ingredientDetails = ingredientsTab.add(new RichTextBox(UI.scale(760, 143),
-                "Select an ingredient to see its observed Q10 recipe profile."), UI.scale(10, 379));
+        ingredientsTab.add(new Label("Category"), UI.scale(265, 45));
+        ingredientsTab.add(new Label("Main attributes (Q10 recipe avg)"), UI.scale(365, 45));
+        ingredientsTab.add(new Label("Measured spice boost"), UI.scale(625, 45));
+        ingredientsTab.add(new Label("Recipes"), UI.scale(805, 45));
+        ingredientList = ingredientsTab.add(new IngredientList(UI.scale(840, 218)), UI.scale(10, 66));
+        ingredientsTab.add(new Label("Ingredient planning details"), UI.scale(12, 296));
+        ingredientsTab.add(new Label("Best crafted foods by strongest Q10 FEP"), UI.scale(440, 296));
+        ingredientDetails = ingredientsTab.add(new RichTextBox(UI.scale(415, 204),
+                "Select an ingredient to see its observed Q10 recipe profile."), UI.scale(10, 319));
+        ingredientRecipeList = ingredientsTab.add(
+                new IngredientRecipeList(UI.scale(410, 204)), UI.scale(440, 319));
 
         reqclose(this::hide);
     }
@@ -157,8 +188,20 @@ public final class CookbookWindow extends Window {
     @Override
     public void tick(double dt) {
         super.tick(dt);
-        if(!visible())
+        if(!visible()) {
+            inventoryScanVisible = false;
             return;
+        }
+        if(!inventoryScanVisible) {
+            inventoryScanVisible = true;
+            scannedInventoryItems.clear();
+            inventoryScanElapsed = INVENTORY_SCAN_INTERVAL;
+        }
+        inventoryScanElapsed += dt;
+        if(inventoryScanElapsed >= INVENTORY_SCAN_INTERVAL) {
+            inventoryScanElapsed = 0;
+            scanMainInventory();
+        }
         long generation = service.generation();
         if(observedGeneration != generation) {
             observedGeneration = generation;
@@ -171,7 +214,9 @@ public final class CookbookWindow extends Window {
             finishIngredientQuery();
         if(recipeQueryDirty && recipeQuery == null) {
             recipeQueryDirty = false;
-            recipeQuery = service.list(selectedAttribute().label, recipeSearchEntry.buf.line());
+            // Load complete food families; search decides which families are visible but the
+            // selected family's dropdown must retain every known ingredient recipe.
+            recipeQuery = service.list(selectedAttribute().label, "");
             recipeStatus.settext("Loading...");
         }
         if(ingredientQueryDirty && ingredientQuery == null) {
@@ -180,6 +225,33 @@ public final class CookbookWindow extends Window {
                     ingredientSearchEntry.buf.line());
             ingredientStatus.settext("Loading...");
         }
+        int pendingCaptures = service.pendingCaptures();
+        if(pendingCaptures > 0) {
+            captureStatusShown = true;
+            recipeStatus.settext("Capturing " + pendingCaptures +
+                    (pendingCaptures == 1 ? " food..." : " foods..."));
+        } else if(captureStatusShown) {
+            captureStatusShown = false;
+            scheduleRecipeRefresh();
+        }
+    }
+
+    private void scanMainInventory() {
+        if(gui.maininv == null)
+            return;
+        Map<GItem, Integer> present = new IdentityHashMap<>();
+        for(WItem widget : gui.maininv.getAllItems()) {
+            if(widget == null || widget.item == null)
+                continue;
+            GItem item = widget.item;
+            int sequence = item.cookbookInfoSequence();
+            present.put(item, sequence);
+            Integer scannedSequence = scannedInventoryItems.get(item);
+            if((scannedSequence == null || scannedSequence != sequence) &&
+                    item.scanForCookbook())
+                scannedInventoryItems.put(item, sequence);
+        }
+        scannedInventoryItems.keySet().retainAll(present.keySet());
     }
 
     private CookbookAttribute selectedAttribute() {
@@ -202,13 +274,18 @@ public final class CookbookWindow extends Window {
 
     private void finishRecipeQuery() {
         try {
-            long selectedId = (foodList.sel == null) ? -1 : foodList.sel.recipeId;
-            entries = new ArrayList<>(recipeQuery.get());
+            String selectedKey = foodList.sel == null ? "" : foodList.sel.key;
+            List<CookbookEntry> recipes = new ArrayList<>(recipeQuery.get());
+            recipeGroups = CookbookRecipeGroup.group(recipes);
+            String search = CookbookIngredientCatalog.normalize(recipeSearchEntry.buf.line());
+            if(!search.isEmpty())
+                recipeGroups.removeIf(group -> !recipeGroupMatches(group, search));
+            sortRecipeGroups();
             foodList.reset();
-            CookbookEntry selected = findRecipeEntry(selectedId);
+            CookbookRecipeGroup selected = findRecipeGroup(selectedKey);
             foodList.change(selected);
-            recipeStatus.settext(entries.size() + (entries.size() == 1 ?
-                    " local recipe" : " local recipes"));
+            int visibleRecipes = recipeGroups.stream().mapToInt(group -> group.recipes.size()).sum();
+            recipeStatus.settext(recipeGroups.size() + " foods / " + visibleRecipes + " recipes");
             if(!service.available() && service.lastError() != null)
                 recipeStatus.settext(service.lastError());
         } catch(Exception e) {
@@ -236,14 +313,46 @@ public final class CookbookWindow extends Window {
         }
     }
 
-    private CookbookEntry findRecipeEntry(long recipeId) {
-        if(recipeId < 0)
+    private CookbookRecipeGroup findRecipeGroup(String key) {
+        if(key == null || key.isEmpty())
             return(null);
-        for(CookbookEntry entry : entries) {
-            if(entry.recipeId == recipeId)
-                return(entry);
+        for(CookbookRecipeGroup group : recipeGroups) {
+            if(group.key.equals(key))
+                return(group);
         }
         return(null);
+    }
+
+    private void sortRecipeGroups() {
+        CookbookRecipeSort sort = selectedRecipeSort();
+        boolean allRecipes = selectedAttribute().allRecipes();
+        Comparator<CookbookRecipeGroup> comparator;
+        if(sort == CookbookRecipeSort.NAME) {
+            comparator = Comparator.comparing(group -> group.itemName,
+                    String.CASE_INSENSITIVE_ORDER);
+        } else {
+            comparator = Comparator.comparingDouble(
+                            (CookbookRecipeGroup group) -> group.sortValue(sort, allRecipes))
+                    .reversed()
+                    .thenComparing(group -> group.itemName, String.CASE_INSENSITIVE_ORDER);
+        }
+        recipeGroups.sort(comparator);
+    }
+
+    private static boolean recipeGroupMatches(CookbookRecipeGroup group, String search) {
+        if(CookbookIngredientCatalog.normalize(group.itemName).contains(search))
+            return(true);
+        for(CookbookEntry recipe : group.recipes) {
+            if(CookbookIngredientCatalog.normalize(recipe.ingredients).contains(search) ||
+                    CookbookIngredientCatalog.normalize(recipe.modifiers).contains(search))
+                return(true);
+        }
+        return(false);
+    }
+
+    private CookbookRecipeSort selectedRecipeSort() {
+        CookbookRecipeSort selected = recipeSortDropBox.sel;
+        return(selected == null ? CookbookRecipeSort.SELECTED_STAT : selected);
     }
 
     private CookbookIngredientEntry findIngredientEntry(String name) {
@@ -265,25 +374,37 @@ public final class CookbookWindow extends Window {
         String ingredients = entry.ingredients.isEmpty() ?
                 "No ingredient details supplied" : entry.ingredients;
         String modifiers = entry.modifiers.isEmpty() ? "None" : entry.modifiers;
+        int recipeNumber = selectedRecipeGroup == null ? 1 :
+                selectedRecipeGroup.recipes.indexOf(entry) + 1;
+        int recipeCount = selectedRecipeGroup == null ? 1 : selectedRecipeGroup.recipes.size();
         StringBuilder text = new StringBuilder();
-        text.append(color(selectedAttribute().color, entry.itemName)).append("\n")
-                .append("Ingredients: ").append(quote(ingredients)).append("\n")
-                .append("Modifiers: ").append(quote(modifiers)).append("\n")
-                .append("$b{Q10 baseline (unmodified):} Hunger ")
-                .append(String.format(Locale.ROOT, "%.2f‰  Energy %.2f%%", entry.hungerPermille,
-                        entry.energyPercent)).append("\n")
-                .append("$b{Unmodified FEPs:} ").append(fepSummary(entry.feps, true)).append("\n")
-                .append("$b{Observed crafted outcomes:}");
+        text.append(color(selectedAttribute().color, entry.itemName)).append("  ")
+                .append(color(NOTE_COLOR, "Recipe " + recipeNumber + " of " + recipeCount))
+                .append("\n")
+                .append("$b{Ingredients:} ").append(quote(ingredients)).append("\n")
+                .append("$b{Modifiers:} ").append(quote(modifiers)).append("\n");
+        if(showUnmodifiedStats.state()) {
+            text.append("$b{Q10 baseline (unmodified):} Hunger ")
+                    .append(String.format(Locale.ROOT, "%.2f‰  Energy %.2f%%",
+                            entry.hungerPermille, entry.energyPercent)).append("\n")
+                    .append("$b{Unmodified FEPs:} ")
+                    .append(fepSummary(entry.feps, true)).append("\n");
+        }
+        text.append(showUnmodifiedStats.state() ? "$b{Observed crafted outcomes:}" :
+                "$b{Observed character-adjusted outcomes:}");
 
         for(CookbookEntry.Observation observation : entry.observations) {
             text.append("\n")
                     .append(color(QUALITY_COLOR,
-                            String.format(Locale.ROOT, "Q%.1f", observation.quality)))
-                    .append(String.format(Locale.ROOT, " unmodified — Hunger %.2f‰  Energy %.2f%%",
-                            observation.hungerPermille, observation.energyPercent));
+                            String.format(Locale.ROOT, "Q%.1f", observation.quality)));
             if(observation.seenCount > 1)
                 text.append("  (seen ").append(observation.seenCount).append(" times)");
-            text.append("\n  ").append(fepSummary(observation.feps, false));
+            if(showUnmodifiedStats.state()) {
+                text.append(String.format(Locale.ROOT,
+                                " unmodified — Hunger %.2f‰  Energy %.2f%%",
+                                observation.hungerPermille, observation.energyPercent))
+                        .append("\n  ").append(fepSummary(observation.feps, false));
+            }
             if(Double.isFinite(observation.capturedFepEfficiencyPercent) &&
                     Double.isFinite(observation.capturedHungerEfficiencyPercent)) {
                 double capturedHunger = observation.hungerPermille *
@@ -295,12 +416,15 @@ public final class CookbookWindow extends Window {
                                 observation.capturedHungerEfficiencyPercent, capturedHunger))
                         .append("\n  ").append(fepSummary(observation.feps, false,
                                 observation.capturedFepEfficiencyPercent / 100d));
+            } else if(!showUnmodifiedStats.state()) {
+                text.append(" — Character-adjusted stats were not captured");
             }
         }
         recipeDetails.settext(text.toString());
     }
 
     private void showIngredientDetails(CookbookIngredientEntry entry) {
+        ingredientRecipeList.reset();
         if(entry == null) {
             ingredientDetails.settext("Select an ingredient to see its observed Q10 recipe profile.");
             return;
@@ -313,7 +437,7 @@ public final class CookbookWindow extends Window {
                 .append(quote(entry.category.label)).append("\n")
                 .append("$b{Observed in:} ").append(entry.recipeCount)
                 .append(entry.recipeCount == 1 ? " local recipe" : " local recipes")
-                .append(" — ").append(quote(String.join(", ", entry.recipes))).append("\n")
+                .append("\n")
                 .append("$b{Q10 recipe averages:} ")
                 .append(ingredientFepSummary(entry.averageFeps)).append("\n");
         if(entry.spice()) {
@@ -421,7 +545,7 @@ public final class CookbookWindow extends Window {
     }
 
     private void openSelectedRecipe() {
-        CookbookEntry selected = foodList.sel;
+        CookbookEntry selected = selectedRecipe;
         if(selected == null)
             return;
         MenuGrid.Pagina recipe = findCraftingRecipe(selected.itemName);
@@ -502,7 +626,95 @@ public final class CookbookWindow extends Window {
             targetHeader.settext(attribute.allRecipes() ? "Total (Q10)" : "Target (Q10)");
             scheduleRecipeRefresh();
             if(foodList != null)
-                showRecipeDetails(foodList.sel);
+                showRecipeDetails(selectedRecipe);
+        }
+    }
+
+    private final class RecipeSortDropBox extends SDropBox<CookbookRecipeSort, Widget> {
+        private RecipeSortDropBox() {
+            super(UI.scale(160), UI.scale(180), UI.scale(26));
+            super.change(CookbookRecipeSort.SELECTED_STAT);
+        }
+
+        @Override
+        protected List<CookbookRecipeSort> items() {
+            return(CookbookRecipeSort.ALL);
+        }
+
+        @Override
+        protected Widget makeitem(CookbookRecipeSort sort, int index, Coord size) {
+            return(SListWidget.TextItem.of(size, ROW_TEXT, () -> sort.label));
+        }
+
+        @Override
+        public void change(CookbookRecipeSort sort) {
+            super.change(sort);
+            scheduleRecipeRefresh();
+        }
+    }
+
+    private final class RecipeVariantDropBox extends SDropBox<CookbookEntry, Widget> {
+        private RecipeVariantDropBox() {
+            super(UI.scale(450), UI.scale(280), UI.scale(28));
+        }
+
+        @Override
+        protected List<CookbookEntry> items() {
+            return(selectedRecipeGroup == null ? java.util.Collections.emptyList() :
+                    selectedRecipeGroup.recipes);
+        }
+
+        @Override
+        protected Widget makeitem(CookbookEntry recipe, int index, Coord size) {
+            if(recipe == null)
+                return(SListWidget.TextItem.of(size, ROW_MUTED,
+                        () -> "No recipe selected"));
+            RecipeStat stat = recipeVariantStat(recipe);
+            String ingredients = recipe.ingredients.isEmpty() ? "Ingredients not captured" :
+                    recipe.ingredients;
+            String modifiers = recipe.modifiers.isEmpty() ? "" :
+                    "  [" + recipe.modifiers + "]";
+            Widget row = new Widget(size);
+            row.add(SListWidget.TextItem.of(UI.scale(150, 28), stat.font(), stat::label),
+                    Coord.z);
+            row.add(SListWidget.TextItem.of(
+                    Coord.of(Math.max(1, size.x - UI.scale(155)), size.y), ROW_TEXT,
+                    () -> ingredients + modifiers), UI.scale(155, 0));
+            return(row);
+        }
+
+        @Override
+        public void change(CookbookEntry recipe) {
+            super.change(recipe);
+            selectedRecipe = recipe;
+            showRecipeDetails(recipe);
+        }
+    }
+
+    private RecipeStat recipeVariantStat(CookbookEntry recipe) {
+        CookbookAttribute selected = selectedAttribute();
+        if(!selected.allRecipes())
+            return(new RecipeStat(selected, recipe.targetFep));
+        CookbookRecipeStat strongest = CookbookRecipeStat.strongest(recipe.feps);
+        return(new RecipeStat(strongest.attribute, strongest.amount));
+    }
+
+    private static final class RecipeStat {
+        final CookbookAttribute attribute;
+        final double amount;
+
+        RecipeStat(CookbookAttribute attribute, double amount) {
+            this.attribute = attribute;
+            this.amount = amount;
+        }
+
+        Text.Forge font() {
+            return(attribute == null ? ROW_MUTED : attribute.font());
+        }
+
+        String label() {
+            return(attribute == null ? "No FEP" : String.format(Locale.ROOT, "%.2f %s",
+                    amount, attribute.label));
         }
     }
 
@@ -629,47 +841,53 @@ public final class CookbookWindow extends Window {
         }
     }
 
-    private final class FoodList extends SListBox<CookbookEntry, Widget> {
+    private final class FoodList extends SListBox<CookbookRecipeGroup, Widget> {
         private FoodList(Coord size) {
             super(size, UI.scale(30), UI.scale(2));
         }
 
         @Override
-        protected List<? extends CookbookEntry> items() {
-            return(entries);
+        protected List<? extends CookbookRecipeGroup> items() {
+            return(recipeGroups);
         }
 
         @Override
-        protected Widget makeitem(CookbookEntry entry, int index, Coord size) {
+        protected Widget makeitem(CookbookRecipeGroup group, int index, Coord size) {
             CookbookAttribute target = selectedAttribute();
             boolean allRecipes = target.allRecipes();
+            CookbookEntry entry = group.representative(selectedRecipeSort(), allRecipes);
             double displayedFep = allRecipes ? entry.totalFep : entry.targetFep;
             double displayedEfficiency = (allRecipes && entry.hungerPermille > 0) ?
                     entry.totalFep / entry.hungerPermille : entry.targetPerHunger;
             Text.Forge nameFont = (allRecipes || entry.targetFep > 0) ? target.font() : ROW_MUTED;
             String secondary = entry.modifiers.isEmpty() ? entry.ingredients :
                     "[" + entry.modifiers + "] " + entry.ingredients;
-            Widget row = new SListWidget.ItemWidget<CookbookEntry>(this, size, entry);
-            row.add(new ResourceIconText(UI.scale(216, 30), entry.resourceName,
+            String foodName = group.itemName + (group.recipes.size() > 1 ?
+                    "  (" + group.recipes.size() + " recipes)" : "");
+            Widget row = new SListWidget.ItemWidget<CookbookRecipeGroup>(this, size, group);
+            row.add(new ResourceIconText(UI.scale(236, 30), entry.resourceName,
                     CookbookIngredientCatalog.meatIconOverlay(entry.itemName, entry.resourceName),
-                    entry.itemName, nameFont), UI.scale(3, 0));
-            row.add(SListWidget.TextItem.of(UI.scale(184, 30), ROW_MUTED,
-                    () -> secondary), UI.scale(220, 0));
+                    foodName, nameFont), UI.scale(3, 0));
+            row.add(SListWidget.TextItem.of(UI.scale(240, 30), ROW_MUTED,
+                    () -> secondary), UI.scale(245, 0));
             row.add(SListWidget.TextItem.of(UI.scale(75, 30), target.font(),
-                    () -> String.format(Locale.ROOT, "%.2f", displayedFep)), UI.scale(410, 0));
+                    () -> String.format(Locale.ROOT, "%.2f", displayedFep)), UI.scale(500, 0));
             row.add(SListWidget.TextItem.of(UI.scale(95, 30), ROW_TEXT,
-                    () -> String.format(Locale.ROOT, "%.3f", displayedEfficiency)), UI.scale(495, 0));
+                    () -> String.format(Locale.ROOT, "%.3f", displayedEfficiency)), UI.scale(585, 0));
             row.add(SListWidget.TextItem.of(UI.scale(72, 30), ROW_TEXT,
-                    () -> String.format(Locale.ROOT, "%.2f‰", entry.hungerPermille)), UI.scale(600, 0));
+                    () -> String.format(Locale.ROOT, "%.2f‰", entry.hungerPermille)), UI.scale(690, 0));
             row.add(SListWidget.TextItem.of(UI.scale(55, 30), ROW_TEXT,
-                    () -> String.format(Locale.ROOT, "Q%.1f", entry.quality)), UI.scale(680, 0));
+                    () -> String.format(Locale.ROOT, "Q%.1f", entry.quality)), UI.scale(780, 0));
             return(row);
         }
 
         @Override
-        public void change(CookbookEntry entry) {
-            super.change(entry);
-            showRecipeDetails(entry);
+        public void change(CookbookRecipeGroup group) {
+            super.change(group);
+            selectedRecipeGroup = group;
+            CookbookEntry recipe = group == null ? null :
+                    group.representative(selectedRecipeSort(), selectedAttribute().allRecipes());
+            recipeVariantDropBox.change(recipe);
         }
     }
 
@@ -690,17 +908,17 @@ public final class CookbookWindow extends Window {
                     (main == null ? ROW_TEXT : main.font());
             Text.Forge boostFont = entry.spice() ? SPICE_TEXT : ROW_MUTED;
             Widget row = new SListWidget.ItemWidget<CookbookIngredientEntry>(this, size, entry);
-            row.add(new ResourceIconText(UI.scale(220, 30), entry.resourceName,
+            row.add(new ResourceIconText(UI.scale(240, 30), entry.resourceName,
                     CookbookIngredientCatalog.meatIconOverlay(entry.name, entry.resourceName),
                     entry.name, nameFont), UI.scale(3, 0));
             row.add(SListWidget.TextItem.of(UI.scale(90, 30), ROW_MUTED,
-                    () -> entry.category.label), UI.scale(230, 0));
-            row.add(SListWidget.TextItem.of(UI.scale(220, 30), ROW_TEXT,
-                    () -> compactAttributes(entry.averageFeps)), UI.scale(330, 0));
-            row.add(SListWidget.TextItem.of(UI.scale(130, 30), boostFont,
-                    () -> compactBoosts(entry)), UI.scale(560, 0));
+                    () -> entry.category.label), UI.scale(250, 0));
+            row.add(SListWidget.TextItem.of(UI.scale(245, 30), ROW_TEXT,
+                    () -> compactAttributes(entry.averageFeps)), UI.scale(350, 0));
+            row.add(SListWidget.TextItem.of(UI.scale(160, 30), boostFont,
+                    () -> compactBoosts(entry)), UI.scale(610, 0));
             row.add(SListWidget.TextItem.of(UI.scale(55, 30), ROW_TEXT,
-                    () -> Integer.toString(entry.recipeCount)), UI.scale(700, 0));
+                    () -> Integer.toString(entry.recipeCount)), UI.scale(795, 0));
             return(row);
         }
 
@@ -708,6 +926,40 @@ public final class CookbookWindow extends Window {
         public void change(CookbookIngredientEntry entry) {
             super.change(entry);
             showIngredientDetails(entry);
+        }
+    }
+
+    private final class IngredientRecipeList extends
+            SListBox<CookbookIngredientEntry.RecipeHighlight, Widget> {
+        private IngredientRecipeList(Coord size) {
+            super(size, UI.scale(48), UI.scale(2));
+        }
+
+        @Override
+        protected List<? extends CookbookIngredientEntry.RecipeHighlight> items() {
+            CookbookIngredientEntry selected = ingredientList.sel;
+            return(selected == null ? java.util.Collections.emptyList() :
+                    selected.recipeHighlights);
+        }
+
+        @Override
+        protected Widget makeitem(CookbookIngredientEntry.RecipeHighlight recipe, int index,
+                                  Coord size) {
+            CookbookAttribute attribute = CookbookAttribute.forEvent(recipe.attribute);
+            Text.Forge valueFont = attribute == null ? ROW_TEXT : attribute.font();
+            String valueLabel = String.format(Locale.ROOT, "%s %.2f (Q10)",
+                    attribute == null ? recipe.attribute : attribute.label, recipe.amount);
+            Widget row = new SListWidget.ItemWidget<CookbookIngredientEntry.RecipeHighlight>(
+                    this, size, recipe);
+            row.add(new ResourceIconText(Coord.of(size.x - UI.scale(5), UI.scale(25)),
+                    recipe.resourceName,
+                    CookbookIngredientCatalog.meatIconOverlay(recipe.foodName,
+                            recipe.resourceName),
+                    recipe.foodName, ROW_TEXT), UI.scale(3, 0));
+            row.add(SListWidget.TextItem.of(
+                    Coord.of(size.x - UI.scale(35), UI.scale(21)), valueFont,
+                    () -> valueLabel), UI.scale(32, 25));
+            return(row);
         }
     }
 }

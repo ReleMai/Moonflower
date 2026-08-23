@@ -8,24 +8,23 @@ import java.util.List;
 
 /** Coordinates the verified phases required to prepare and equip one fishing rig. */
 final class FishingEquipment {
+    private final GameUI gui;
     private final FishingItemLocator items;
-    private final FishingHandManager hands;
     private final FishingPoleInspector inspector;
     private final FishingPoleAssembler assembler;
     private Phase phase = Phase.IDLE;
 
     FishingEquipment(GameUI gui) {
+        this.gui = gui;
         items = new FishingItemLocator(gui);
         inspector = new FishingPoleInspector();
-        hands = new FishingHandManager(gui, items);
         assembler = new FishingPoleAssembler(gui, items, inspector);
     }
 
     synchronized Result prepare(String poleName, List<String> linePriority, List<String> hookPriority,
                                 List<String> consumablePriority, boolean lure) throws InterruptedException {
-        phase = Phase.NORMALIZE_CURSOR;
-        if(!hands.stowFishingCursor())
-            return(fail("Clear the cursor or make inventory room before preparing the fishing pole."));
+        if(gui.vhand != null)
+            return(fail("Clear the cursor before attaching tackle; the helper will not move the fishing rod."));
 
         phase = Phase.LOCATE_POLE;
         WItem pole = items.findPole(poleName, null);
@@ -41,12 +40,6 @@ final class FishingEquipment {
         FishingPoleInspector.Kind consumable = lure ?
                 FishingPoleInspector.Kind.LURE : FishingPoleInspector.Kind.BAIT;
         if(!state.ready(consumable)) {
-            phase = Phase.STATION_POLE;
-            pole = hands.movePoleToMainInventory(poleName, pole);
-            if(pole == null)
-                return(fail("The incomplete " + poleName +
-                        " could not be placed in inventory for assembly."));
-
             phase = Phase.ASSEMBLE;
             FishingPoleAssembler.Outcome assembled = assembler.assemble(poleName, pole,
                     linePriority, hookPriority, consumablePriority, consumable);
@@ -56,28 +49,21 @@ final class FishingEquipment {
             state = assembled.state;
         }
 
-        phase = Phase.EQUIP;
-        WItem equipped = hands.equipPole(poleName, pole);
-        if(equipped == null)
-            return(fail("The prepared " + poleName +
-                    " could not be placed in an allowed empty hand slot."));
-
         phase = Phase.VERIFY;
-        FishingPoleInspector.State equippedState = inspector.awaitReady(equipped, consumable);
-        if(equippedState == null)
-            return(fail("The equipped pole did not retain its verified tackle."));
+        FishingPoleInspector.State verifiedState = inspector.inspect(pole);
+        if(verifiedState.loading || !verifiedState.ready(consumable))
+            return(fail("The fishing pole did not retain its verified tackle."));
 
         phase = Phase.READY;
-        return(Result.ready(new Snapshot(FishingItemMetadata.describe(equipped), equippedState.line,
-                equippedState.hook, equippedState.consumable(consumable),
-                lure ? "lure" : "bait")));
+        boolean equipped = items.findPoleInHands(poleName, pole.item) != null;
+        return(Result.ready(new Snapshot(FishingItemMetadata.describe(pole), verifiedState.line,
+                verifiedState.hook, verifiedState.consumable(consumable),
+                lure ? "lure" : "bait", equipped)));
     }
 
     synchronized boolean restoreDisplacedHands() throws InterruptedException {
-        phase = Phase.RESTORE;
-        boolean restored = hands.restoreDisplacedHands();
         phase = Phase.IDLE;
-        return(restored);
+        return(true);
     }
 
     private Result fail(String message) {
@@ -101,14 +87,10 @@ final class FishingEquipment {
 
     private enum Phase {
         IDLE("Idle"),
-        NORMALIZE_CURSOR("Cursor cleanup"),
         LOCATE_POLE("Pole lookup"),
-        STATION_POLE("Pole stationing"),
         ASSEMBLE("Tackle assembly"),
-        EQUIP("Pole equip"),
         VERIFY("Final verification"),
         READY("Ready"),
-        RESTORE("Hand restoration"),
         FAILED("Failed");
 
         final String label;
@@ -137,14 +119,16 @@ final class FishingEquipment {
         final ItemData hook;
         final ItemData consumable;
         final String consumableKind;
+        final boolean equipped;
 
         Snapshot(ItemData pole, ItemData line, ItemData hook, ItemData consumable,
-                 String consumableKind) {
+                 String consumableKind, boolean equipped) {
             this.pole = pole;
             this.line = line;
             this.hook = hook;
             this.consumable = consumable;
             this.consumableKind = consumableKind;
+            this.equipped = equipped;
         }
     }
 

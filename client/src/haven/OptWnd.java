@@ -1330,6 +1330,7 @@ public class OptWnd extends Window {
 	public static Button damageInfoClearButton;
 	public static CheckBox yourselfDamageInfoCheckBox;
 	public static CheckBox partyMembersDamageInfoCheckBox;
+	public static CheckBox estimatedAnimalHealthBarsCheckBox;
 	public static boolean stamBarLocationIsTop = Utils.getprefb("stamBarLocationIsTop", true);
 	public static CheckBox highlightPartyMembersCheckBox;
 	public static CheckBox showCirclesUnderPartyMembersCheckBox;
@@ -1556,6 +1557,14 @@ public class OptWnd extends Window {
 					Utils.setprefb("(partyMembersDamageInfo", val);
 				}
 			}, leftColumn.pos("ur").adds(6, 0));
+
+			leftColumn = add(estimatedAnimalHealthBarsCheckBox = new CheckBox("Estimated Animal Health Bars"){
+				{a = Utils.getprefb("estimatedAnimalHealthBars", false);}
+				public void changed(boolean val) {
+					Utils.setprefb("estimatedAnimalHealthBars", val);
+				}
+			}, leftColumn.pos("bl").adds(0, 12).x(0));
+			estimatedAnimalHealthBarsCheckBox.tooltip = estimatedAnimalHealthBarsTooltip;
 
             leftColumn = add(showYourCombatRangeCirclesCheckBox = new CheckBox("Show Your Combat Range Circles"){
                 {a = Utils.getprefb("showYourCombatRangeCircles", false);}
@@ -5317,6 +5326,9 @@ public class OptWnd extends Window {
 			"\n- How much $col[218,163,0]{Damage} your currently equipped $col[218,163,0]{Weapon} has (if the move uses the weapon)}", UI.scale(320));
 	private static final Object damageInfoClearTooltip = RichText.render("Clears all damage info." +
 			"\n$col[218,163,0]{Action Button:} $col[185,185,185]{This setting can also be turned on/off using an action button from the menu grid (Custom Client Extras → Toggles).}", UI.scale(320));
+	private static final Object estimatedAnimalHealthBarsTooltip = RichText.render("Experimental, read-only animal health estimates based on damage numbers observed during the current combat and a versioned community max-HP catalog." +
+			"\n\nOnly fixed community values receive a proportional fill. Approximate, ranged, unknown, stale, or contradicted values are labeled without false precision." +
+			"\n\nThis is not server-authoritative health and is disabled by default.", UI.scale(360));
 	private static final Object onlyShowOpeningsAbovePercentageCombatInfoTooltip = RichText.render("Only show the combat info openings if at least one of them is above the set number. If one of them is above that, show all of them." +
 			"\n" +
 			"\nThis does NOT apply to your current target, only other combat foes.}", UI.scale(320));

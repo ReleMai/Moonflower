@@ -30,10 +30,12 @@ import java.util.*;
 import java.util.function.*;
 
 import haven.automated.cookbook.FoodService;
+import haven.feasting.FeastingActionContext;
+import haven.feasting.FeastingSnapshot;
+import haven.feasting.TablewareProtection;
 import haven.render.*;
 import haven.res.ui.tt.q.qbuff.QBuff;
 import haven.res.ui.tt.q.quality.Quality;
-import haven.res.ui.tt.wear.Wear;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -228,6 +230,11 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 		spr.tick(dt);
 	}
 	updcontinfo();
+	/* Capture tooltip sequences even when the item is never hovered. This also
+	 * retries container-propagated recipe data after a child tooltip changes. */
+	if((rawinfo != null) && (rawinfo != ItemInfo.Raw.nil) &&
+		(cookbookObservedSeq != infoseq))
+	    observeCookbookIfNeeded();
 	if(!hoverset)
 	    hovering = null;
 	hoverset = false;
@@ -254,6 +261,25 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 			cookbookObservedSeq = infoseq;
 			ui.gui.cookbookService.observe(this);
 		}
+	}
+
+	/**
+	 * Submits the current tooltip to the cookbook even if the normal item-update hook has
+	 * already seen this sequence. Used by the visible Cookbook's inventory scan to recover
+	 * items that arrived before a capture completed.
+	 */
+	public boolean scanForCookbook() {
+		if((rawinfo == null) || (rawinfo == ItemInfo.Raw.nil))
+			return(false);
+		if((ui == null) || (ui.gui == null) || (ui.gui.cookbookService == null))
+			return(false);
+		ui.gui.cookbookService.observe(this);
+		return(true);
+	}
+
+	/** Stable until the server sends changed item tooltip data. */
+	public int cookbookInfoSequence() {
+		return(infoseq);
 	}
 
 	/** Builds tooltip data for local consumers without activating optional network integrations. */
@@ -769,43 +795,18 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	@Override
 	public void wdgmsg(String msg, Object... args) {
 		if (msg.equals("take")) {
-			if (OptWnd.preventTablewareFromBreakingCheckBox.a && ui.checkCursorImage("gfx/hud/curs/eat")) { // ND: Only when using the table's Feast button
-				Window feastingWindow = null;
-				outerLoop:
-				for (Window wnd : ui.gui.getAllWindows()) {
-					if (wnd.cap.equals("Table")) {
-						for (Widget wdg : wnd.children()) {
-							if (wdg instanceof Button) {
-								feastingWindow = wnd;
-								break outerLoop; // Break out of both loops
-							}
-						}
-					}
+			if (OptWnd.preventTablewareFromBreakingCheckBox.a &&
+					ui.checkCursorImage("gfx/hud/curs/eat") &&
+					!FeastingActionContext.allowsTablewareBreakage()) {
+				TablewareProtection.Inspection inspection = TablewareProtection.inspect(ui);
+				if(inspection.state == FeastingSnapshot.TablewareState.UNKNOWN) {
+					ui.gui.error(inspection.message + " Try again before feasting.");
+					return;
 				}
-				if (feastingWindow != null) {
-					for(Widget wdg : feastingWindow.children()) {
-                        Inventory inv = Inventory.fromWidget(wdg);
-						if (inv != null) {
-							if (inv.isz.equals(3, 3) || inv.isz.equals(1, 2)) {
-								for (WItem item : inv.wmap.values()) {
-                                    try {
-                                        for (ItemInfo ii : item.item.info()) {
-                                            if (ii instanceof Wear) {
-                                                Wear wear = (Wear) ii;
-                                                if ((wear.m - wear.d == 1) && item.item.getres() != null) {
-                                                    ui.gui.error("Preventing Tableware from Breaking! The " + item.item.getname() + " is almost broken. Polish it or replace it.");
-                                                    return;
-                                                }
-                                            }
-                                        }
-                                    } catch (Loading l) {
-                                        ui.gui.error("Loading error when trying to check tableware durability. Try again.");
-                                        return;
-                                    }
-								}
-							}
-						}
-					}
+				if(inspection.state == FeastingSnapshot.TablewareState.AT_RISK) {
+					ui.gui.error("Preventing Tableware from Breaking! " + inspection.message +
+							". Polish or replace it before feasting.");
+					return;
 				}
 			}
 		}

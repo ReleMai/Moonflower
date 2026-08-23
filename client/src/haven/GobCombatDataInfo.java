@@ -1,5 +1,11 @@
 package haven;
 
+import haven.combat.AnimalHealthBarRenderer;
+import haven.combat.AnimalHealthCatalog;
+import haven.combat.AnimalHealthEstimate;
+import haven.combat.AnimalHealthEstimator;
+import haven.combat.CombatDamageSnapshot;
+import haven.combat.CombatDamageTracker;
 import haven.render.Homo3D;
 import haven.render.Pipe;
 
@@ -35,6 +41,7 @@ public class GobCombatDataInfo extends GobInfo {
     private String cachedCleaveCooldownText = null;
     private Tex cachedDefenseCooldownTex = null;
     private String cachedDefenseCooldownText = null;
+    private final AnimalHealthBarRenderer animalHealthBar = new AnimalHealthBarRenderer();
 
     public GobCombatDataInfo(Gob owner, Fightview.Relation rel) {
         super(owner);
@@ -50,6 +57,7 @@ public class GobCombatDataInfo extends GobInfo {
             return;
         if (gob != null && gob.glob != null && gob.glob.sess != null && gob.glob.sess.ui != null && gob.glob.sess.ui.gui != null && gob.glob.sess.ui.gui.fs != null) {
             Fightsess fs = gob.glob.sess.ui.gui.fs;
+            drawAnimalHealth(g, state);
             if (OptWnd.drawFloatingCombatDataCheckBox.a) {
                 if (OptWnd.drawFloatingCombatDataOnCurrentTargetCheckBox.a) {
                     if (rel == fs.fv.current) {
@@ -68,6 +76,29 @@ public class GobCombatDataInfo extends GobInfo {
             }
 
         }
+    }
+
+    private void drawAnimalHealth(GOut g, Pipe state) {
+        if(OptWnd.estimatedAnimalHealthBarsCheckBox == null)
+            return;
+        String resourceName;
+        try {
+            Resource resource = gob.getres();
+            resourceName = resource == null ? null : resource.name;
+        } catch(Loading ignored) {
+            return;
+        }
+        AnimalHealthCatalog.Entry animal = AnimalHealthCatalog.find(resourceName);
+        if(!AnimalHealthBarRenderer.shouldDisplay(OptWnd.estimatedAnimalHealthBarsCheckBox.a, animal))
+            return;
+        Coord sc = Homo3D.obj2sc(pos, state, Area.sized(g.sz()));
+        if(sc == null)
+            return;
+        long now = System.currentTimeMillis();
+        CombatDamageTracker tracker = CombatDamageTracker.forGlob(gob.glob);
+        CombatDamageSnapshot damage = tracker.snapshot(gob.id, resourceName, now);
+        AnimalHealthEstimate estimate = AnimalHealthEstimator.estimate(animal, damage);
+        animalHealthBar.draw(g, sc, estimate);
     }
 
     @Override
@@ -352,6 +383,7 @@ public class GobCombatDataInfo extends GobInfo {
 
     @Override
     public void dispose() {
+        animalHealthBar.dispose();
         if (cachedIpTex != null) {
             cachedIpTex.dispose();
             cachedIpTex = null;

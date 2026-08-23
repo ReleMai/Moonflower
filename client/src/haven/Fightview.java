@@ -26,6 +26,8 @@
 
 package haven;
 
+import haven.combat.CombatDamageTracker;
+
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
@@ -85,6 +87,7 @@ public class Fightview extends Widget {
 	}
 
 	public void remove() {
+	    CombatDamageTracker.forGlob(ui.sess.glob).endCombat(gobid);
 	    buffs.destroy();
 	    relbuffs.destroy();
 	    invalid = true;
@@ -133,6 +136,7 @@ public class Fightview extends Widget {
 	public void updateCombatOverlays(Relation rel) {
 		final Gob g = ui.sess.glob.oc.getgob(gobid);
 		if (g != null) {
+			CombatDamageTracker.forGlob(ui.sess.glob).beginCombat(gobid, resourceName(g), System.currentTimeMillis());
 			if (rel != current)
 				g.setCombatFoeCircleOverlay();
 			g.setCombatFoeHighlightOverlay();
@@ -401,6 +405,7 @@ public class Fightview extends Widget {
     public void uimsg(String msg, Object... args) {
         if(msg == "new") {
             Relation rel = new Relation(Utils.uiv(args[0]));
+	    CombatDamageTracker.forGlob(ui.sess.glob).beginCombat(rel.gobid, resourceName(ui.sess.glob.oc.getgob(rel.gobid)), System.currentTimeMillis());
 	    rel.give(Utils.iv(args[1]));
 	    rel.ip = Utils.iv(args[2]);
 	    rel.oip = Utils.iv(args[3]);
@@ -461,6 +466,17 @@ public class Fightview extends Widget {
 	    return;
 	}
         super.uimsg(msg, args);
+    }
+
+    private static String resourceName(Gob gob) {
+        if(gob == null)
+            return(null);
+        try {
+            Resource resource = gob.getres();
+            return(resource == null ? null : resource.name);
+        } catch(Loading ignored) {
+            return(null);
+        }
     }
 
 	public void playCombatSoundEffect(Indir<Resource> lastact){

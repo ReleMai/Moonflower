@@ -21,7 +21,7 @@ import java.util.TreeSet;
 
 /** Owns the versioned local SQLite cookbook schema and queries. */
 final class CookbookRepository {
-    private static final int SCHEMA_VERSION = 3;
+    private static final int SCHEMA_VERSION = 4;
     private static final String SHADOWED_PLACEHOLDER_FILTER =
             " NOT (NOT EXISTS (SELECT 1 FROM cookbook_ingredients pi WHERE pi.recipe_id = r.id)" +
             " AND r.modifiers = '' AND EXISTS (SELECT 1 FROM cookbook_recipes documented" +
@@ -56,7 +56,7 @@ final class CookbookRepository {
                     "ON cookbook_recipes(world_id, item_name)");
             statement.execute("CREATE TABLE IF NOT EXISTS cookbook_ingredients (" +
                     "recipe_id INTEGER NOT NULL REFERENCES cookbook_recipes(id) ON DELETE CASCADE, " +
-                    "kind TEXT NOT NULL, name TEXT NOT NULL, percentage REAL NOT NULL, " +
+                    "kind TEXT NOT NULL, name TEXT NOT NULL, percentage REAL NOT NULL, position INTEGER, " +
                     "UNIQUE(recipe_id, kind, name, percentage))");
             statement.execute("CREATE TABLE IF NOT EXISTS cookbook_observations (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, recipe_id INTEGER NOT NULL " +
@@ -78,6 +78,7 @@ final class CookbookRepository {
                     "REAL");
             ensureColumn(connection, "cookbook_observations", "captured_hunger_efficiency_percent",
                     "REAL");
+            ensureColumn(connection, "cookbook_ingredients", "position", "INTEGER");
             statement.execute("INSERT INTO cookbook_meta(key, value) VALUES " +
                     "('schema_version', '" + SCHEMA_VERSION + "') ON CONFLICT(key) DO UPDATE SET " +
                     "value = excluded.value");
@@ -126,8 +127,8 @@ final class CookbookRepository {
                     recipeId = insertRecipe(connection, food);
                 else
                     updateRecipe(connection, recipeId, food);
-                if(newRecipe)
-                    insertIngredients(connection, recipeId, food.ingredients);
+                boolean ingredientsChanged = replaceIngredients(connection, recipeId,
+                        food.ingredients);
 
                 long observationId = findObservation(connection, food.observationKey);
                 boolean newObservation = observationId < 0;
@@ -139,7 +140,7 @@ final class CookbookRepository {
                     updatedObservation = touchObservation(connection, observationId, food);
                 }
                 connection.commit();
-                return(newRecipe || newObservation || updatedObservation);
+                return(newRecipe || ingredientsChanged || newObservation || updatedObservation);
             } catch(SQLException e) {
                 connection.rollback();
                 throw(e);
@@ -310,9 +311,10 @@ final class CookbookRepository {
                                                Map<Long, EntryBuilder> builders) throws SQLException {
         if(builders.isEmpty())
             return;
-        String sql = "SELECT i.recipe_id, i.kind, i.name, i.percentage FROM cookbook_ingredients i " +
+        String sql = "SELECT i.recipe_id, i.kind, i.name, i.percentage, i.position " +
+                "FROM cookbook_ingredients i " +
                 "JOIN cookbook_recipes r ON r.id = i.recipe_id WHERE r.world_id = ? " +
-                "ORDER BY i.recipe_id, i.kind, i.name COLLATE NOCASE, i.percentage";
+                "ORDER BY i.recipe_id, COALESCE(i.position, 2147483647), i.rowid";
         Map<Long, List<IngredientSample>> ingredients = new HashMap<>();
         try(PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, worldId);
@@ -322,7 +324,7 @@ final class CookbookRepository {
                     if(builders.containsKey(recipeId)) {
                         ingredients.computeIfAbsent(recipeId, ignored -> new ArrayList<>()).add(
                                 new IngredientSample(result.getString(2), result.getString(3),
-                                        result.getDouble(4)));
+                                        result.getDouble(4), nullableInt(result, 5)));
                     }
                 }
             }
@@ -330,8 +332,16 @@ final class CookbookRepository {
         for(Map.Entry<Long, EntryBuilder> value : builders.entrySet()) {
             List<String> regular = new ArrayList<>();
             List<String> modifiers = splitModifiers(value.getValue().modifiers);
-            for(IngredientSample ingredient : ingredients.getOrDefault(value.getKey(),
-                    Collections.emptyList())) {
+            List<IngredientSample> ordered = new ArrayList<>(ingredients.getOrDefault(
+                    value.getKey(), Collections.emptyList()));
+            ordered.sort(Comparator
+                    .comparingInt((IngredientSample ingredient) ->
+                            CookbookIngredientOrder.mainPriority(value.getValue().itemName,
+                                    ingredient.name))
+                    .thenComparingInt(ingredient -> ingredient.position)
+                    .thenComparing(ingredient -> ingredient.name,
+                            String.CASE_INSENSITIVE_ORDER));
+            for(IngredientSample ingredient : ordered) {
                 String display = String.format(Locale.ROOT, "%s %.2f%%", ingredient.name,
                         ingredient.percentage);
                 if(CookbookIngredientCatalog.isSpice(ingredient.name)) {
@@ -341,9 +351,8 @@ final class CookbookRepository {
                     regular.add(prefix + display);
                 }
             }
-            regular.sort(String.CASE_INSENSITIVE_ORDER);
             modifiers = distinctSorted(modifiers);
-            value.getValue().ingredients = String.join(", ", regular);
+            value.getValue().ingredients = String.join("  •  ", regular);
             value.getValue().modifiers = String.join(", ", modifiers);
         }
     }
@@ -462,11 +471,17 @@ final class CookbookRepository {
         final String kind;
         final String name;
         final double percentage;
+        final int position;
 
         IngredientSample(String kind, String name, double percentage) {
+            this(kind, name, percentage, Integer.MAX_VALUE);
+        }
+
+        IngredientSample(String kind, String name, double percentage, int position) {
             this.kind = kind == null ? "ingredient" : kind;
             this.name = name;
             this.percentage = percentage;
+            this.position = position;
         }
 
         String key() {
@@ -531,6 +546,7 @@ final class CookbookRepository {
         final Set<Long> recipeIds = new LinkedHashSet<>();
         final Set<String> recipeNames = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         final Map<String, Double> fepTotals = new HashMap<>();
+        final List<CookbookIngredientEntry.RecipeHighlight> recipeHighlights = new ArrayList<>();
         final Map<String, Double> boostTotals = new HashMap<>();
         final Map<String, Double> boostPercentTotals = new HashMap<>();
         final Map<String, Integer> boostPercentCounts = new HashMap<>();
@@ -548,6 +564,12 @@ final class CookbookRepository {
             recipeNames.add(profile.itemName);
             for(Map.Entry<String, Double> fep : profile.feps.entrySet())
                 fepTotals.merge(fep.getKey(), fep.getValue(), Double::sum);
+            CookbookRecipeStat strongest = CookbookRecipeStat.strongest(profile.feps);
+            if(strongest.attribute != null) {
+                recipeHighlights.add(new CookbookIngredientEntry.RecipeHighlight(
+                        profile.recipeId, profile.itemName, profile.resourceName,
+                        strongest.attribute.label, strongest.amount));
+            }
         }
 
         void addSpiceComparison(Map<String, Double> spiced, Map<String, Double> baseline) {
@@ -574,6 +596,10 @@ final class CookbookRepository {
             average.sort(Comparator.comparingDouble(
                             (CookbookIngredientEntry.AttributeValue value) -> value.amount).reversed()
                     .thenComparing(value -> value.attribute, String.CASE_INSENSITIVE_ORDER));
+            recipeHighlights.sort(Comparator.comparingDouble(
+                            (CookbookIngredientEntry.RecipeHighlight value) -> value.amount)
+                    .reversed()
+                    .thenComparing(value -> value.foodName, String.CASE_INSENSITIVE_ORDER));
 
             List<CookbookIngredientEntry.SpiceBoost> boosts = new ArrayList<>();
             if(spiceComparisons > 0) {
@@ -591,7 +617,8 @@ final class CookbookRepository {
                         .thenComparing(value -> value.attribute, String.CASE_INSENSITIVE_ORDER));
             }
             return(new CookbookIngredientEntry(name, category, resourceName, recipeIds.size(),
-                    new ArrayList<>(recipeNames), average, boosts, spiceComparisons));
+                    new ArrayList<>(recipeNames), average, recipeHighlights, boosts,
+                    spiceComparisons));
         }
     }
 
@@ -709,18 +736,74 @@ final class CookbookRepository {
         }
     }
 
+    private static boolean replaceIngredients(Connection connection, long recipeId,
+                                              List<CookbookFood.Ingredient> ingredients) throws SQLException {
+        List<StoredIngredient> stored = new ArrayList<>();
+        try(PreparedStatement statement = connection.prepareStatement(
+                "SELECT kind, name, percentage, position FROM cookbook_ingredients " +
+                        "WHERE recipe_id = ? ORDER BY COALESCE(position, 2147483647), rowid")) {
+            statement.setLong(1, recipeId);
+            try(ResultSet result = statement.executeQuery()) {
+                while(result.next())
+                    stored.add(new StoredIngredient(result.getString(1), result.getString(2),
+                            result.getDouble(3), nullableInt(result, 4)));
+            }
+        }
+        boolean changed = stored.size() != ingredients.size();
+        for(int index = 0; !changed && index < ingredients.size(); index++)
+            changed = !stored.get(index).matches(ingredients.get(index), index);
+        if(!changed)
+            return(false);
+
+        try(PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM cookbook_ingredients WHERE recipe_id = ?")) {
+            statement.setLong(1, recipeId);
+            statement.executeUpdate();
+        }
+        insertIngredients(connection, recipeId, ingredients);
+        return(true);
+    }
+
     private static void insertIngredients(Connection connection, long recipeId,
                                           List<CookbookFood.Ingredient> ingredients) throws SQLException {
-        String sql = "INSERT OR IGNORE INTO cookbook_ingredients(recipe_id, kind, name, percentage) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT OR IGNORE INTO cookbook_ingredients" +
+                "(recipe_id, kind, name, percentage, position) VALUES (?, ?, ?, ?, ?)";
         try(PreparedStatement statement = connection.prepareStatement(sql)) {
-            for(CookbookFood.Ingredient ingredient : ingredients) {
+            for(int position = 0; position < ingredients.size(); position++) {
+                CookbookFood.Ingredient ingredient = ingredients.get(position);
                 statement.setLong(1, recipeId);
                 statement.setString(2, ingredient.kind);
                 statement.setString(3, ingredient.name);
                 statement.setDouble(4, ingredient.percentage);
+                statement.setInt(5, position);
                 statement.addBatch();
             }
             statement.executeBatch();
+        }
+    }
+
+    private static int nullableInt(ResultSet result, int column) throws SQLException {
+        int value = result.getInt(column);
+        return(result.wasNull() ? Integer.MAX_VALUE : value);
+    }
+
+    private static final class StoredIngredient {
+        final String kind;
+        final String name;
+        final double percentage;
+        final int position;
+
+        StoredIngredient(String kind, String name, double percentage, int position) {
+            this.kind = kind;
+            this.name = name;
+            this.percentage = percentage;
+            this.position = position;
+        }
+
+        boolean matches(CookbookFood.Ingredient ingredient, int expectedPosition) {
+            return(kind.equals(ingredient.kind) && name.equals(ingredient.name) &&
+                    Double.compare(percentage, ingredient.percentage) == 0 &&
+                    position == expectedPosition);
         }
     }
 

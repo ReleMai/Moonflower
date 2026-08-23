@@ -56,6 +56,28 @@ public final class CookbookChecks {
             check(allRecipes.size() == 2, "all-recipes view should retain every recipe");
             check(allRecipes.get(0).itemName.equals("Berry Pie"),
                     "all-recipes view should be alphabetized");
+            CookbookRecipeStat strongest = CookbookRecipeStat.strongest(java.util.Map.of(
+                    "Strength +1", 2d, "Strength +2", 3d, "Agility +1", 4d));
+            check(strongest.attribute == CookbookAttribute.STRENGTH &&
+                            close(strongest.amount, 5),
+                    "strongest recipe attribute should combine matching FEP events");
+
+            check(repository.save(food("world-groups", "Shared Roast",
+                    "gfx/invobjs/sharedroast", 10, 4, 8, "Swan", 100)),
+                    "first shared-food recipe should save");
+            check(repository.save(food("world-groups", "Shared Roast",
+                    "gfx/invobjs/sharedroast", 10, 1, 5, "Chicken", 100)),
+                    "second shared-food recipe should save");
+            List<CookbookRecipeGroup> groups = CookbookRecipeGroup.group(
+                    repository.list("world-groups", "Strength", ""));
+            check(groups.size() == 1 && groups.get(0).recipes.size() == 2,
+                    "same-named food recipes should combine into one food group");
+            check(groups.get(0).representative(CookbookRecipeSort.SELECTED_STAT, false)
+                            .ingredients.contains("Swan"),
+                    "selected-stat sort should display the strongest known recipe");
+            check(groups.get(0).representative(CookbookRecipeSort.FEP_PER_HUNGER, false)
+                            .ingredients.contains("Chicken"),
+                    "efficiency sort should display the best FEP-per-hunger recipe");
 
             CookbookFood panSearedFish = recipe("world-spice", false, 80, 70);
             CookbookFood panSearedFishWithTansy = recipe("world-spice", true, 80, 70);
@@ -75,6 +97,10 @@ public final class CookbookChecks {
             List<CookbookEntry> spiceRecipes = repository.list(
                     "world-spice", "Strength", "tansy");
             check(spiceRecipes.size() == 1, "Tansy recipe search should return one recipe");
+            check(spiceRecipes.get(0).ingredients.startsWith("Zander 100.00%"),
+                    "the main fish ingredient should be presented first");
+            check(spiceRecipes.get(0).ingredients.contains("  •  Stinging Nettle 100.00%"),
+                    "ingredients should use a readable visual separator");
             check(spiceRecipes.get(0).modifiers.contains("Tansy 100.00%"),
                     "existing ingredient records should be presented as modifiers");
             check(!spiceRecipes.get(0).ingredients.contains("Tansy"),
@@ -96,6 +122,11 @@ public final class CookbookChecks {
                     "observed native ingredient icon should be retained");
             check(tansy.matchedSpiceComparisons == 1,
                     "matching unspiced recipe should provide one boost comparison");
+            check(!tansy.recipeHighlights.isEmpty() &&
+                            tansy.recipeHighlights.get(0).foodName.equals("Pan-Seared Fish") &&
+                            tansy.recipeHighlights.get(0).attribute.startsWith("Strength") &&
+                            close(tansy.recipeHighlights.get(0).amount, 4),
+                    "ingredient planner should retain each recipe's strongest Q10 FEP");
             CookbookIngredientEntry.SpiceBoost agilityBoost = tansy.spiceBoosts.stream()
                     .filter(value -> value.attribute.startsWith("Agility"))
                     .findFirst().orElseThrow();
@@ -134,6 +165,19 @@ public final class CookbookChecks {
             check(CookbookIngredientCatalog.category("Wheat", "gfx/invobjs/seed-cereal") ==
                             CookbookIngredientCategory.CROP,
                     "crop name should classify as a crop");
+
+            CookbookFood firstOrder = orderedFood("world-order", "Zucchini", "Apple");
+            CookbookFood correctedOrder = orderedFood("world-order", "Apple", "Zucchini");
+            check(repository.save(firstOrder), "ordered recipe should save");
+            check(repository.save(correctedOrder),
+                    "re-observation should update ingredient source order");
+            List<CookbookEntry> orderedRecipes = repository.list(
+                    "world-order", "All recipes", "");
+            check(orderedRecipes.size() == 1,
+                    "changing source order must not duplicate a known recipe");
+            check(orderedRecipes.get(0).ingredients.startsWith("Apple 100.00%"),
+                    "the latest tooltip ingredient order should persist");
+
             CookbookFood incompleteStew = documentedFood("world-documentation",
                     Collections.emptyList());
             CookbookFood documentedStew = documentedFood("world-documentation",
@@ -192,6 +236,17 @@ public final class CookbookChecks {
                 "gfx/invobjs/vegetablestew", 10, 100, 1, 1,
                 ingredients, Collections.emptyList(), Collections.singletonList(
                         new CookbookFood.Fep("Constitution +1", 2, 2)),
+                System.currentTimeMillis()));
+    }
+
+    private static CookbookFood orderedFood(String world, String first, String second) {
+        List<CookbookFood.Ingredient> ingredients = Arrays.asList(
+                new CookbookFood.Ingredient("ingredient", first, 100),
+                new CookbookFood.Ingredient("ingredient", second, 100));
+        return(new CookbookFood(world, "character", "Garden Medley",
+                "gfx/invobjs/gardenmedley", 10, 100, 1, 1,
+                ingredients, Collections.emptyList(), Collections.singletonList(
+                        new CookbookFood.Fep("Perception +1", 2, 2)),
                 System.currentTimeMillis()));
     }
 

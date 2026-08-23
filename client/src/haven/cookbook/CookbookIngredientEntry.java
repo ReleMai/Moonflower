@@ -12,12 +12,15 @@ public final class CookbookIngredientEntry {
     public final int recipeCount;
     public final List<String> recipes;
     public final List<AttributeValue> averageFeps;
+    public final List<RecipeHighlight> recipeHighlights;
     public final List<SpiceBoost> spiceBoosts;
     public final int matchedSpiceComparisons;
 
     CookbookIngredientEntry(String name, CookbookIngredientCategory category, String resourceName,
                             int recipeCount, List<String> recipes,
-                            List<AttributeValue> averageFeps, List<SpiceBoost> spiceBoosts,
+                            List<AttributeValue> averageFeps,
+                            List<RecipeHighlight> recipeHighlights,
+                            List<SpiceBoost> spiceBoosts,
                             int matchedSpiceComparisons) {
         this.name = name;
         this.category = category;
@@ -25,6 +28,7 @@ public final class CookbookIngredientEntry {
         this.recipeCount = recipeCount;
         this.recipes = immutableCopy(recipes);
         this.averageFeps = immutableCopy(averageFeps);
+        this.recipeHighlights = immutableCopy(recipeHighlights);
         this.spiceBoosts = immutableCopy(spiceBoosts);
         this.matchedSpiceComparisons = matchedSpiceComparisons;
     }
@@ -62,6 +66,24 @@ public final class CookbookIngredientEntry {
             this.attribute = attribute;
             this.amount = amount;
             this.percent = percent;
+        }
+    }
+
+    /** Strongest normalized attribute observed for one recipe containing this ingredient. */
+    public static final class RecipeHighlight {
+        public final long recipeId;
+        public final String foodName;
+        public final String resourceName;
+        public final String attribute;
+        public final double amount;
+
+        RecipeHighlight(long recipeId, String foodName, String resourceName,
+                        String attribute, double amount) {
+            this.recipeId = recipeId;
+            this.foodName = foodName;
+            this.resourceName = resourceName;
+            this.attribute = attribute;
+            this.amount = amount;
         }
     }
 }

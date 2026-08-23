@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Coordinates deferred tooltip parsing and serialized local database access. */
@@ -24,6 +25,7 @@ public final class CookbookService implements AutoCloseable {
     private final CookbookRepository repository;
     private final ExecutorService databaseExecutor;
     private final AtomicLong generation = new AtomicLong();
+    private final AtomicInteger pendingCaptures = new AtomicInteger();
     private volatile boolean closed;
     private volatile String lastError;
 
@@ -68,8 +70,26 @@ public final class CookbookService implements AutoCloseable {
                         observedAt);
                 CookbookFood food = CookbookFoodParser.parse(info, resource, worldId, characterId,
                         observedAt);
-                if(!closed && (observedItem != null || food != null))
-                    databaseExecutor.execute(() -> save(observedItem, food));
+                if(!closed && (observedItem != null || food != null)) {
+                    boolean capturingFood = food != null;
+                    if(capturingFood)
+                        pendingCaptures.incrementAndGet();
+                    try {
+                        databaseExecutor.execute(() -> {
+                            try {
+                                save(observedItem, food);
+                            } finally {
+                                if(capturingFood)
+                                    pendingCaptures.decrementAndGet();
+                            }
+                        });
+                    } catch(RuntimeException e) {
+                        if(capturingFood)
+                            pendingCaptures.decrementAndGet();
+                        if(!closed)
+                            recordFailure("Could not queue cookbook capture", e);
+                    }
+                }
             } catch(Loading loading) {
                 throw(loading);
             } catch(RuntimeException e) {
@@ -108,6 +128,10 @@ public final class CookbookService implements AutoCloseable {
 
     public long generation() {
         return(generation.get());
+    }
+
+    public int pendingCaptures() {
+        return(pendingCaptures.get());
     }
 
     public boolean available() {

@@ -50,9 +50,8 @@ final class CookbookFoodParser {
                     modifiers.add(text.trim());
             }
         }
-        ingredients.sort(Comparator.comparing((CookbookFood.Ingredient value) -> value.kind)
-                .thenComparing(value -> value.name, String.CASE_INSENSITIVE_ORDER)
-                .thenComparingDouble(value -> value.percentage));
+        // The server-provided tooltip order carries recipe meaning: the primary ingredient is
+        // normally first. Keep that order instead of alphabetizing it away.
         modifiers.sort(String.CASE_INSENSITIVE_ORDER);
 
         List<CookbookFood.Fep> feps = new ArrayList<>();
