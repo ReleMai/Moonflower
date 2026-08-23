@@ -1,26 +1,51 @@
 .idea/
 *.iml
+*.swp
+*.swo
+*~
+.vscode/
+
 *.log
 *.class
+*.db
+*.hmap
+*.bak
+*.backup
+.env
+.env.*
+
 node_modules/
+package-lock.json
 __pycache__/
 *.py[cod]
+
+dist/
 web/dist/
 web/.vite/
 server/target/
 shared-protocol/target/
+server-data/
+media-gateway/.venv/
+
 client/build/
 client/bin/
 client/out/
-server-data/
-media-gateway/.venv/
 client/lib/ext/
+
+HavenCartographer/data/
+HavenData/
+MoonflowerClient/dist/
+MoonflowerPlugin/build/
+MoonflowerPlugin/*.jar
+hafen-client/
+
+Thumbs.db
+.DS_Store
+desktop.ini
 
 # Preserved evidence, runtime output, and compromised legacy bundles are not
 # operational source. Keep them on disk, but outside version control.
 artifacts/
 
-# Local comparison, backup, and migration material must stay off commits.
+# Local comparison, backup, migration, and publishing state must stay private.
 .recovery/
-*.bak
-*.backup

@@ -1,0 +1,35 @@
+# =============================================================================
+# Haven Cartographer - Docker Compose
+# =============================================================================
+# Single container: map server + tile collector share in-memory SQLite DB
+# =============================================================================
+
+services:
+  cartographer:
+    build: .
+    container_name: haven-cartographer
+    restart: unless-stopped
+    ports:
+      - "3300:3300"
+    volumes:
+      # Persistent data (database, processed tiles, stitched maps)
+      - cartographer-data:/app/data
+      # Mount Haven map folder read-only for tile scanning (if applicable)
+      - ../HavenData/map:/haven/map:ro
+    environment:
+      - NODE_ENV=production
+      - HC_HOST=0.0.0.0
+      - HC_PORT=3300
+      - HC_MAP_PATH=/haven/map
+      - HC_ENABLE_COLLECTOR=true
+    command: ["node", "src/server/index.js"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3300/api/health').then(r=>{if(!r.ok)throw r;process.exit(0)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  cartographer-data:
+    name: haven-cartographer-data
