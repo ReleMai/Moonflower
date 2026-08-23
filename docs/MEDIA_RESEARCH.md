@@ -5,7 +5,7 @@
 The Python media gateway owns the media pipeline. For each enabled bot it reads
 the server's JPEG live feed, serves the frames as WebRTC video, and keeps a
 bounded in-memory replay deque. A save request selects the requested time window
-and writes an MP4 under `..\server-data\clips`.
+and writes an MP4 under the repository sibling path `..\server-data\clips`.
 
 The server coordinates replay enable/release/save operations, stores clip
 metadata, audits saves, and broadcasts `clip-saved` events. The React dashboard

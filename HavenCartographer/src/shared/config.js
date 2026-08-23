@@ -29,8 +29,7 @@ const defaults = {
     },
     server: {
         host: '127.0.0.1',
-        port: 3300,
-        apiKey: ''
+        port: 3300
     },
     collector: {
         watchInterval: 2000,
