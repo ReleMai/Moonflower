@@ -132,10 +132,13 @@ if (-not $SkipChecks) {
     Push-Location $clientRoot
     try {
         Invoke-ClientCheck "MoonFlower identity checks" @("-cp", "bin/*", "haven.MoonFlowerChecks")
+        Invoke-ClientCheck "Inventory slot-lock checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.InventorySlotLockChecks")
+        Invoke-ClientCheck "Container window placement checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.ContainerWindowPlacementChecks")
         Invoke-ClientCheck "Cookbook checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.cookbook.CookbookChecks")
         Invoke-ClientCheck "Fishing checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.fishing.FishingChecks")
         Invoke-ClientCheck "Feasting checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.feasting.FeastingChecks")
         Invoke-ClientCheck "Combat assist checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.combat.CombatAssistChecks")
+        Invoke-ClientCheck "Ring of Brodgar wiki checks" @("-Dhaven.uiscale=1", "-cp", "bin/*", "haven.wiki.WikiChecks")
         Invoke-ClientCheck "Resource update checks" @("-cp", "bin/*", "haven.Resource", "find-updates")
     } finally {
         Pop-Location

@@ -32,6 +32,9 @@ import java.awt.Color;
 public class Bufflist extends Widget {
     public static final int margin = UI.scale(2);
     public static final int num = 12;
+    private double displayScale = 1.0;
+    private int columns = num;
+    private boolean manualLayout = false;
 
 	public final static Resource buffswim = Resource.local().loadwait("customclient/buffs/swim");
 	public final static Resource bufftrack = Resource.local().loadwait("customclient/buffs/tracking");
@@ -45,6 +48,30 @@ public class Bufflist extends Widget {
 
     public Bufflist() {
         super(Buff.cframe.sz());
+    }
+
+    public void setDisplay(double scale, int columns) {
+	displayScale = Utils.clip(scale, 0.5, 1.0);
+	this.columns = Math.max(1, columns);
+	for(Widget child = this.child; child != null; child = child.next) {
+	    if(child instanceof Buff)
+		((Buff)child).setDisplayScale(displayScale);
+	}
+	if(!manualLayout)
+	    arrange(null);
+    }
+
+    public void setManualLayout(boolean manual) {
+	manualLayout = manual;
+	for(Widget child = this.child; child != null; child = child.next) {
+	    if(child instanceof Buff) {
+		((Buff)child).setCircularDisplay(manual);
+		if(!manual)
+		    child.show();
+	    }
+	}
+	if(!manual)
+	    arrange(null);
     }
 
     private void arrange(Widget imm) {
@@ -61,11 +88,12 @@ public class Bufflist extends Widget {
 	    else
 		mv.add(new Pair<>(ch, c));
 	    i++;
-	    x += wdg.sz.x + margin;
+	    int spacing = Math.max(1, (int)Math.round(margin * displayScale));
+	    x += wdg.sz.x + spacing;
 	    maxh = Math.max(maxh, wdg.sz.y);
-	    if(++rn >= num) {
+	    if(++rn >= columns) {
 		x = 0;
-		y += maxh + margin;
+		y += maxh + spacing;
 		maxh = 0;
 		rn = 0;
 	    }
@@ -81,12 +109,19 @@ public class Bufflist extends Widget {
     }
 
     public void addchild(Widget child, Object... args) {
+	if(child instanceof Buff)
+	    {
+		((Buff)child).setDisplayScale(displayScale);
+		((Buff)child).setCircularDisplay(manualLayout);
+	    }
 	add(child);
-	arrange(child);
+	if(!manualLayout)
+	    arrange(child);
     }
 
     public void cdestroy(Widget ch) {
-	arrange(null);
+	if(!manualLayout)
+	    arrange(null);
     }
 
     public void draw(GOut g) {

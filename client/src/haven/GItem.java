@@ -535,6 +535,10 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	public final GItem cont;
 	public final Widget inv;
 	private final Object id;
+	private final int equipmentSlot;
+	private final boolean equippedByPlayer;
+	private final String legacyPositionPreferenceKey;
+	private final String positionPreferenceKey;
 	private Coord psz = null;
 	private String st;
 	private boolean hovering;
@@ -545,18 +549,83 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    this.cont = cont;
 	    this.inv = add(inv, Coord.z);
 	    this.id = cont.contentsid;
+	    this.equipmentSlot = equipmentSlot(cont);
+	    this.equippedByPlayer = myOwnEquipory(cont);
+	    this.legacyPositionPreferenceKey = String.format("cont-wndc/%s", id);
+	    this.positionPreferenceKey = ContainerWindowPlacement.positionPreferenceKey(
+		    id, cont.contentsnm, equippedByPlayer, equipmentSlot);
 	    this.tick(0);
 	    Coord c = null;
 		if (Utils.getprefb("alwaysOpenBeltOnLogin", true) && String.format("%s",this.id).equals("toolbelt")) {
-			c = Utils.getprefc(String.format("cont-wndc/%s", this.id), null);
+			c = savedPosition();
 		} else if(Utils.getprefb(String.format("cont-wndvis/%s", id), false))
-			c = Utils.getprefc(String.format("cont-wndc/%s", id), null);
+			c = savedPosition();
 	    if(c != null) {
 		this.c = c;
 		chstate("wnd");
 	    } else {
 		chstate("hide");
 	    }
+	}
+
+	private Coord savedPosition() {
+	    Coord saved = Utils.getprefc(positionPreferenceKey, null);
+	    if((saved == null) && !positionPreferenceKey.equals(legacyPositionPreferenceKey))
+		saved = Utils.getprefc(legacyPositionPreferenceKey, null);
+	    return(saved);
+	}
+
+	private static boolean myOwnEquipory(GItem cont) {
+	    return(cont.parent instanceof Equipory) && ((Equipory)cont.parent).myOwnEquipory;
+	}
+
+	private static int equipmentSlot(GItem cont) {
+	    if(!(cont.parent instanceof Equipory))
+		return(-1);
+	    Equipory equipory = (Equipory)cont.parent;
+	    for(int i = 0; i < equipory.slots.length; i++) {
+		WItem equipped = equipory.slots[i];
+		if((equipped != null) && (equipped.item == cont))
+		    return(i);
+	    }
+	    return(-1);
+	}
+
+	private boolean usesSeparateEquippedCreelPosition() {
+	    return(ContainerWindowPlacement.isEquippedCreel(
+		    cont.contentsnm, equippedByPlayer, equipmentSlot));
+	}
+
+	String inventorySlotLockPreferenceKey() {
+	    if(!usesSeparateEquippedCreelPosition())
+		return(null);
+	    return(String.format("inventory-slot-locks/creel/equip/%d", equipmentSlot));
+	}
+
+	private boolean sharesCreelPlacementGroup(ContentsWindow other) {
+	    return(other != this) && usesSeparateEquippedCreelPosition() &&
+		    other.usesSeparateEquippedCreelPosition();
+	}
+
+	private Coord avoidEquippedCreelOverlap(Coord preferred) {
+	    if(!usesSeparateEquippedCreelPosition() || (parent == null))
+		return(preferred);
+	    List<Area> occupied = new ArrayList<>();
+	    for(Widget sibling : parent.children()) {
+		if(sibling instanceof ContentsWindow) {
+		    ContentsWindow other = (ContentsWindow)sibling;
+		    if(sharesCreelPlacementGroup(other) && other.visible() && (other.st == "wnd"))
+			occupied.add(Area.sized(other.c, other.sz));
+		}
+	    }
+	    return(ContainerWindowPlacement.avoidOverlap(preferred, sz, parent.sz,
+		    occupied, UI.scale(4)));
+	}
+
+	protected void added() {
+	    super.added();
+	    if(st == "wnd")
+		move(avoidEquippedCreelOverlap(c));
 	}
 
 	private void chstate(String nst) {
@@ -631,7 +700,7 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 		resize(inv.c.add(psz = inv.sz));
 	    if(st == "wnd") {
 		if(!Utils.eq(lc, this.c) && (id != null))
-		    Utils.setprefc(String.format("cont-wndc/%s", id), lc = this.c);
+		    Utils.setprefc(positionPreferenceKey, lc = this.c);
 	    }
 	}
 
@@ -666,14 +735,14 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    if(show && (st != "wnd")) {
 		Coord wc = null;
 		if(id != null)
-		    wc = Utils.getprefc(String.format("cont-wndc/%s", id), null);
+		    wc = savedPosition();
 		if(st == "hide") {
 		    if(wc == null)
 			wc = cont.rootxlate(ui.mc).add(overlap);
 		}
 		chstate("wnd");
 		if(wc != null)
-		    move(wc);
+		    move(avoidEquippedCreelOverlap(wc));
 	    } else if(!show && (st == "wnd")) {
 		chstate("hide");
 	    }

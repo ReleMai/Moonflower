@@ -271,6 +271,14 @@ public class MapWnd extends Window implements Console.Directory {
 		g.image(sizer, sc);
 	}
 
+	@Override
+	public void drawframe(GOut g) {
+	    if(MoonFlowerHudTheme.active())
+		MoonFlowerHudTheme.drawFrameOverlay(g, Coord.z, sz, true);
+	    else
+		super.drawframe(g);
+	}
+
 	private UI.Grab drag;
 	private Coord dragc;
 	public boolean mousedown(MouseDownEvent ev) {

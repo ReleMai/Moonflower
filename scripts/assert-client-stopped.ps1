@@ -7,7 +7,10 @@ function Test-HavenClientCommandLine {
         return $false
     }
 
-    return $CommandLine -match '(?i)(?:^|\s)-jar\s+(?:"[^"]*hafen\.jar"|[^\s]*hafen\.jar)(?:\s|$)'
+    # The standalone launcher uses `java -jar`, while Steam's Haven Launcher
+    # puts hafen.jar inside a quoted -classpath. Either process holds client
+    # files open and must block a clean/package deployment.
+    return $CommandLine -match '(?i)hafen\.jar'
 }
 
 $runningClients = Get-CimInstance Win32_Process |
@@ -18,7 +21,7 @@ $runningClients = Get-CimInstance Win32_Process |
 
 if ($runningClients) {
     $processIds = ($runningClients.ProcessId | Sort-Object) -join ", "
-    throw "MoonFlower is running (PID: $processIds). Close the client before rebuilding client/bin. Replacing hafen.jar while Java is using it can kill the UI thread with NoClassDefFoundError and leave a frozen white window."
+    throw "MoonFlower is running (PID: $processIds). Close the client before rebuilding or refreshing packaged files. Replacing hafen.jar while Java is using it can kill the UI thread with NoClassDefFoundError and leave a frozen white window."
 }
 
 Write-Host "Client deployment check passed: no running hafen.jar process."

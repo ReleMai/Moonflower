@@ -49,8 +49,8 @@ import java.awt.image.BufferedImage;
 import java.text.AttributedCharacterIterator.Attribute;
 
 public class ChatUI extends Widget {
-    public static final RichText.Foundry fnd = new RichText.Foundry(new ChatParser(TextAttribute.FONT, Text.dfont.deriveFont(UI.scale(12f)), TextAttribute.FOREGROUND, Color.BLACK)).aa(true);
-    public static final Text.Foundry qfnd = new Text.Foundry(Text.dfont, 12, new java.awt.Color(192, 255, 192));
+    public static volatile RichText.Foundry fnd = chatFoundry();
+    public static volatile Text.Foundry qfnd = quickFoundry();
     public static final int selw = UI.scale(150);
     public static final Coord marg = UI.scale(new Coord(9, 9));
     public static final Color[] urgcols = new Color[] {
@@ -59,6 +59,22 @@ public class ChatUI extends Widget {
 	new Color(255, 128, 0),
 	new Color(255, 0, 0),
     };
+
+    private static RichText.Foundry chatFoundry() {
+	return new RichText.Foundry(new ChatParser(TextAttribute.FONT,
+		Text.dfont.deriveFont(UI.scale((float)MoonFlowerHudSettings.chatTextSize())),
+		TextAttribute.FOREGROUND, Color.BLACK)).aa(true);
+    }
+
+    private static Text.Foundry quickFoundry() {
+	return new Text.Foundry(Text.dfont, MoonFlowerHudSettings.chatTextSize(),
+		new java.awt.Color(192, 255, 192));
+    }
+
+    private static String displayText(String text, String timestamp) {
+	return MoonFlowerHudSettings.formatChatText(text, timestamp, MoonFlowerHudSettings.chatShowTimestamps(),
+		MoonFlowerHudSettings.chatContainsKeyword(text, MoonFlowerHudSettings.chatKeywords()));
+    }
     public Channel sel = null;
     public int urgency = 0;
     private final Selector chansel;
@@ -157,6 +173,7 @@ public class ChatUI extends Widget {
 	    public final double time = Utils.ntime();
 
 	    public abstract Indir<Text> render(int w);
+	    public String plainText() {return("");}
 	    public boolean valid(Indir<Text> prev) {
 		return(true);
 	    }
@@ -279,16 +296,19 @@ public class ChatUI extends Widget {
 		private final String timestamp = Utils.timestamp();
 
 	    public SimpleMessage(String text, Color col) {
-		this.text = "[" + timestamp + "] " + text;
+		this.text = text;
 		this.col = col;
 	    }
 
 	    public Indir<Text> render(int w) {
+		String rendered = displayText(text, timestamp);
 		if(col == null)
-		    return(() -> fnd.render(RichText.Parser.quote(text), w));
+		    return(() -> fnd.render(RichText.Parser.quote(rendered), w));
 		else
-		    return(() -> fnd.render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, col));
+		    return(() -> fnd.render(RichText.Parser.quote(rendered), w, TextAttribute.FOREGROUND, col));
 	    }
+
+	    public String plainText() {return(text);}
 	}
 
 	public Channel(boolean closable) {
@@ -314,8 +334,10 @@ public class ChatUI extends Widget {
 		if(b)
 		    sb.val = sb.max;
 	    }
-	    getparent(ChatUI.class).notify(this, msg, urgency);
-	    updurgency(Math.max(this.urgency, urgency));
+	    ChatUI chat = getparent(ChatUI.class);
+	    int adjustedUrgency = chat.adjustUrgency(msg, urgency);
+	    chat.notify(this, msg, adjustedUrgency);
+	    updurgency(Math.max(this.urgency, adjustedUrgency));
 	}
 
 	public void append(Message msg) {
@@ -397,9 +419,11 @@ public class ChatUI extends Widget {
 	}
 
 	public void draw(GOut g) {
-	    g.chcolor(0, 0, 0, 128);
-	    g.frect(Coord.z, sz);
-	    g.chcolor();
+	    if(!MoonFlowerHudTheme.active()) {
+		g.chcolor(0, 0, 0, MoonFlowerHudSettings.chatBackgroundAlpha());
+		g.frect(Coord.z, sz);
+		g.chcolor();
+	    }
 	    int sy = (int)Math.round(dy), h = ih(), w = iw();
 	    boolean sel = false;
 	    synchronized(rmsgs) {
@@ -460,6 +484,22 @@ public class ChatUI extends Widget {
 	    dy = sb.val;
 	    if(cb != null) {
 		cb.c = new Coord(sz.x + marg.x - cb.sz.x, -marg.y);
+	    }
+	}
+
+	public void invalidateMessages() {
+	    synchronized(rmsgs) {
+		int y = 0;
+		for(RenderedMessage message : rmsgs) {
+		    message.invalidate();
+		    message.y = y;
+		    y += message.h();
+		}
+		boolean atBottom = sb.val >= sb.max;
+		sb.max = Math.max(0, y - ih());
+		if(atBottom || sb.val > sb.max)
+		    sb.val = sb.max;
+		dy = sb.val;
 	    }
 	}
 
@@ -906,7 +946,8 @@ public class ChatUI extends Widget {
 		}
 
 		public Text get() {
-		    return(fnd.render(RichText.Parser.quote(String.format("%s: %s", "[" + timestamp + "] " + nm, text)), w, TextAttribute.FOREGROUND, col));
+		    String body = String.format("%s: %s", nm, text);
+		    return(fnd.render(RichText.Parser.quote(displayText(body, timestamp)), w, TextAttribute.FOREGROUND, col));
 		}
 	    }
 
@@ -922,6 +963,8 @@ public class ChatUI extends Widget {
 	    public boolean valid(Indir<Text> data) {
 		return(((Rendered)data).nm.equals(nm()));
 	    }
+
+	    public String plainText() {return(text);}
 
 	    public boolean clicked(Channel chan, CharPos pos, Coord c, int btn) {
 		if((btn == 3) && (muted != null)) {
@@ -1660,8 +1703,10 @@ public class ChatUI extends Widget {
 	synchronized(notifs) {
 	    for(Iterator<Notification> i = notifs.iterator(); i.hasNext();) {
 		Notification n = i.next();
-		if(now - n.time > 5.0) {
+		if(now - n.time > MoonFlowerHudSettings.chatPreviewSeconds()) {
 		    i.remove();
+		    n.chnm.dispose();
+		    n.rmsg.dispose();
 		    continue;
 		}
 		int mh = Math.max(n.chnm.sz().y, n.rmsg.sz().y);
@@ -1689,7 +1734,14 @@ public class ChatUI extends Widget {
 //    private static final Tex bmf = Resource.loadtex("gfx/hud/chat-mid");
     private static final Tex bcbd = Resource.loadtex("gfx/hud/chat-close-g");
     public void draw(GOut g) {
-	g.rimage(Window.bg, marg, sz.sub(marg.x * 2, marg.y));
+	if(MoonFlowerHudTheme.active()) {
+	    Coord dividerTop = Coord.of(selw + marg.x, marg.y + UI.scale(5));
+	    Coord dividerBottom = Coord.of(selw + marg.x, sz.y - UI.scale(6));
+	    MoonFlowerHudTheme.drawCurvedVine(g, dividerTop, dividerBottom, 1.0);
+	    MoonFlowerHudTheme.drawBlossom(g, Coord.of(sz.x - UI.scale(14), UI.scale(13)), UI.scale(4));
+	} else {
+	    g.rimage(Window.bg, marg, sz.sub(marg.x * 2, marg.y));
+	}
 	super.draw(g);
 //	g.image(bulc, new Coord(0, 0));
 //	g.image(burc, new Coord(sz.x - burc.sz().x, 0));
@@ -1702,13 +1754,28 @@ public class ChatUI extends Widget {
     }
 
     private static final Resource notifsfx = Resource.local().loadwait("sfx/hud/chat");
+    private int adjustUrgency(Channel.Message msg, int urgency) {
+	if(urgency >= 0 && MoonFlowerHudSettings.chatContainsKeyword(msg.plainText(), MoonFlowerHudSettings.chatKeywords()))
+	    return Math.max(urgency, 2);
+	return urgency;
+    }
+
     public void notify(Channel chan, Channel.Message msg, int urgency) {
 	if(urgency > 0) {
-	    synchronized(notifs) {
-		notifs.addFirst(new Notification(chan, msg));
+	    boolean activeChannel = tvisible() && chan == sel;
+	    boolean suppressActive = activeChannel && !MoonFlowerHudSettings.chatAlertActiveChannel();
+	    if(MoonFlowerHudSettings.chatShowPreviews() && !suppressActive) {
+		synchronized(notifs) {
+		    notifs.addFirst(new Notification(chan, msg));
+		    while(notifs.size() > MoonFlowerHudSettings.chatPreviewCount()) {
+			Notification removed = notifs.removeLast();
+			removed.chnm.dispose();
+			removed.rmsg.dispose();
+		    }
+		}
 	    }
 
-		boolean playSound = OptWnd.chatAlertSoundsCheckBox.a;
+		boolean playSound = !suppressActive && OptWnd.chatAlertSoundsCheckBox.a;
 
 		if (chan instanceof PrivChat && playSound) {
 			playSound = OptWnd.privateChatAlertSoundsCheckBox.a;
@@ -1725,7 +1792,10 @@ public class ChatUI extends Widget {
 			}
 		}
 
-		if(playSound) ui.sfx(notifsfx);
+		if(playSound && MoonFlowerHudSettings.chatAlertVolume() > 0) {
+			Audio.CS clip = Audio.fromres(notifsfx);
+			ui.globalSfxPlay(new Audio.VolAdjust(clip, MoonFlowerHudSettings.chatAlertVolume() / 100.0));
+		}
 
 	}
     }
@@ -1752,6 +1822,23 @@ public class ChatUI extends Widget {
 	chansel.resize(new Coord(selw, this.sz.y - marg.y));
 	if(sel != null)
 	    sel.resize(new Coord(this.sz.x - marg.x - sel.c.x, this.sz.y - sel.c.y));
+    }
+
+    public void applyDisplayPreferences() {
+	fnd = chatFoundry();
+	qfnd = quickFoundry();
+	synchronized(notifs) {
+	    for(Notification notification : notifs) {
+		notification.chnm.dispose();
+		notification.rmsg.dispose();
+	    }
+	    notifs.clear();
+	}
+	for(Widget child = lchild; child != null; child = child.prev) {
+	    if(child instanceof Channel)
+		((Channel)child).invalidateMessages();
+	}
+	resize(sz);
     }
 
 //    public void presize() {

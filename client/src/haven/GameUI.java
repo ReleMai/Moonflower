@@ -51,6 +51,8 @@ import haven.fishing.FishingJournalService;
 import haven.fishing.FishingJournalWindow;
 import haven.fishing.FishingMapMarker;
 import haven.fishing.FishingMapMarkers;
+import haven.wiki.RingOfBrodgarWikiService;
+import haven.wiki.WikiWindow;
 import haven.render.Location;
 import haven.res.ui.stackinv.ItemStack;
 
@@ -63,7 +65,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public final String chrid, genus;
     public final long plid;
     private final Hidepanel ulpanel, umpanel, urpanel, /*blpanel, mapmenupanel,*/ brpanel, menupanel;
+    private final Widget moonFlowerCornerFrame;
     public Widget portrait;
+    public MoonFlowerPortraitHub moonFlowerHud;
+    public MoonFlowerCombatGhost moonFlowerCombatGhost;
+    public MoonFlowerHudChoiceWindow moonFlowerHudChoiceWindow;
     public MenuGrid menu;
     public MapView map;
     public GobIcon.Settings iconconf;
@@ -96,6 +102,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 //    public Belt beltwdg;
     public final Map<Integer, String> polowners = new HashMap<Integer, String>();
     public Bufflist buffs;
+    private Coord classicBuffPosition;
 	public QuestObjectivesWindow questObjectivesWindow = null;
 	public final CookbookService cookbookService;
 	public final CookbookWindow cookbookWindow;
@@ -103,8 +110,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	private final FishingCatchTracker fishingCatchTracker;
 	public final FishingJournalWindow fishingJournalWindow;
 	public final FishingMapMarkers fishingMapMarkers;
+	public final RingOfBrodgarWikiService wikiService;
+	public final WikiWindow wikiWindow;
 	public TileHighlight.TileHighlightCFG tileHighlight;
 	public QuickSlotsWdg quickslots;
+	private Coord classicQuickSlotPosition;
 	private double lastmsgsfx = 0;
 	public static final Text.Foundry actBarKeybindsFoundry = new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 12);
 	public ActionBar actionBar1 = null, actionBar2 = null, actionBar3 = null, actionBar4 = null, actionBar5 = null, actionBar6 = null, currentActionBar = null;
@@ -396,6 +406,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	this.genus = genus;
 	cookbookService = new CookbookService(genus, chrid);
 	fishingJournalService = new FishingJournalService(genus);
+	wikiService = new RingOfBrodgarWikiService();
 	fishingCatchTracker = new FishingCatchTracker(this, fishingJournalService);
 	fishingMapMarkers = new FishingMapMarkers(fishingJournalService);
 	setcanfocus(true);
@@ -436,11 +447,39 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 //	blpanel.add(new Img(Resource.loadtex("gfx/hud/blframe")), 0, 0);
 	minimapc = new Coord(UI.scale(4), UI.scale(34));
 	Tex rbtnbg = Resource.loadtex("gfx/hud/csearch-bg");
-	Img brframe = brpanel.add(new Img(Resource.loadtex("gfx/hud/brframe")), rbtnbg.sz().x - UI.scale(22), 0);
+	Img brframe = brpanel.add(new Img(Resource.loadtex("gfx/hud/brframe")) {
+	    @Override
+	    public void draw(GOut g) {
+		if(!MoonFlowerHudTheme.active())
+		    super.draw(g);
+	    }
+	}, rbtnbg.sz().x - UI.scale(22), 0);
 	menugridc = brframe.c.add(UI.scale(20), UI.scale(34));
-	Img rbtnimg = brpanel.add(new Img(rbtnbg), 0, brpanel.sz.y - rbtnbg.sz().y);
+	Img rbtnimg = brpanel.add(new Img(rbtnbg) {
+	    @Override
+	    public void draw(GOut g) {
+		if(!MoonFlowerHudTheme.active())
+		    super.draw(g);
+	    }
+	}, 0, brpanel.sz.y - rbtnbg.sz().y);
 	menupanel.add(new MainMenu(), 0, 0);
 	menubuttons(rbtnimg);
+	moonFlowerCornerFrame = brpanel.add(new Widget(brpanel.sz) {
+	    @Override
+	    public void draw(GOut g) {
+		if(!MoonFlowerHudTheme.active())
+		    return;
+		if(parent != null && !sz.equals(parent.sz))
+		    resize(parent.sz);
+		MoonFlowerHudTheme.drawCornerMenuDock(g, sz, menugridc);
+	    }
+
+	    @Override
+	    public boolean checkhit(Coord c) {
+		return(false);
+	    }
+	}, Coord.z);
+	moonFlowerCornerFrame.lower();
 //	foldbuttons();
 
     portrait = ulpanel.add(new Frame(UI.scale(111, 111), true){
@@ -460,6 +499,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     }, UI.scale(10, 10));
 	buffs = ulpanel.add(new Bufflist(), portrait.c.x + portrait.sz.x + UI.scale(10), portrait.c.y + ((IMeter.fsz.y + UI.scale(2)) * 2) + UI.scale(5 - 2));
+	classicBuffPosition = new Coord(buffs.c);
 	umpanel.add(new Cal(),UI.scale(new Coord(0, 8)));
 
 	add(new Widget(new Coord(360, umpanel.sz.y)) {
@@ -534,15 +574,27 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	fishingJournalWindow = add(new FishingJournalWindow(fishingJournalService, fishingMapMarkers),
 		Utils.getprefc("wndc-fishingJournal", new Coord(240, 140)));
 	fishingJournalWindow.hide();
+	wikiWindow = add(new WikiWindow(this, wikiService,
+		Utils.getprefc("wndsz-wiki", WikiWindow.defaultSize())),
+		Utils.getprefc("wndc-wiki", new Coord(260, 130)));
+	wikiWindow.hide();
 	zerg = add(new Zergwnd(), Utils.getprefc("wndc-zerg", UI.scale(new Coord(187, 50))));
 	zerg.hide();
+	moonFlowerHud = add(new MoonFlowerPortraitHub(this), Coord.z);
+	boolean hudChoiceMade = MoonFlowerHudSettings.choiceMade();
+	setMoonFlowerHudEnabled(hudChoiceMade && MoonFlowerHudSettings.enabled());
+	if(!hudChoiceMade)
+	    moonFlowerHudChoiceWindow = add(new MoonFlowerHudChoiceWindow(this), Coord.z);
 	questhelper = new QuestHelper();
 	questhelper.hide();
 	add(questhelper, Utils.getprefc("wndc-autoDropManagerWindow", UI.unscale(new Coord(187, 50))));
 	quickslots = add(new QuickSlotsWdg(), Utils.getprefc("wndc-quickslots", UI.scale(new Coord(247, 43))));
+	classicQuickSlotPosition = new Coord(quickslots.c);
 	if (!OptWnd.showQuickSlotsCheckBox.a) {
 		quickslots.hide();
 	}
+	if(MoonFlowerHudSettings.enabled())
+	    moonFlowerHud.attachEquipment(quickslots);
 	actionBar1.c = Utils.getprefc("wndc-actionBar1", UI.unscale(new Coord(0, 500)));
 	actionBar1.raise();
 	actionBar2.c = Utils.getprefc("wndc-actionBar2", UI.unscale(new Coord(0, 540)));
@@ -567,9 +619,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     add(combatBarsWdg = new Widget(){
         @Override
         public void draw(GOut g) {
-            int x = (int) (GameUI.this.sz.x / 2.0);
-            int y = (int) (GameUI.this.sz.y - ((GameUI.this.sz.y / 500.0) * OptWnd.combatUITopPanelHeightSlider.val));
-            int bottom = (int) (GameUI.this.sz.y - ((GameUI.this.sz.y / 500.0) * OptWnd.combatUIBottomPanelHeightSlider.val));
+            Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(GameUI.this.sz,
+                    MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z);
+            Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(GameUI.this.sz,
+                    MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z);
+            int x = statusAnchor.x;
+            int y = statusAnchor.y;
+            int bottom = deckAnchor.y;
             if (OptWnd.alwaysShowCombatUIStaminaBarCheckBox.a && showUI) {
                 IMeter.Meter stam = getmeter("stam", 0);
                 if (stam != null) {
@@ -588,6 +644,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
             }
         }
     });
+    add(moonFlowerCombatGhost = new MoonFlowerCombatGhost(this), Coord.z);
+    moonFlowerCombatGhost.resize(sz);
     }
 
     protected void attached() {
@@ -607,6 +665,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		cookbookService.close();
 		fishingMapMarkers.close();
 		fishingJournalService.close();
+		wikiService.close();
 		super.destroy();
 		ui.clearGUI(this);
 	}
@@ -1142,7 +1201,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		mapfile.fixAndSavePos(mapfile.compact);
 	}
 	if(quickslots != null)
-		Utils.setprefc("wndc-quickslots", quickslots.c);
+		Utils.setprefc("wndc-quickslots", (quickslots.parent == this) ? quickslots.c : classicQuickSlotPosition);
 	if(makewnd != null)
 		Utils.setprefc("wndc-makewnd", makewnd.c);
 	if (miniStudy != null)
@@ -1155,6 +1214,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		Utils.setprefc("wndc-cookbook", cookbookWindow.c);
 	if (fishingJournalWindow != null)
 		Utils.setprefc("wndc-fishingJournal", fishingJournalWindow.c);
+	if (wikiWindow != null)
+		Utils.setprefc("wndc-wiki", wikiWindow.c);
     }
 
     private final BMap<String, Window> wndids = new HashBMap<String, Window>();
@@ -1232,7 +1293,24 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		invwnd.hide();
 		add(invwnd, Utils.getprefc("wndc-inv", new Coord(100, 100)));
 	} else if(place == "equ") {
-	    equwnd = new Hidewnd(Coord.z, "Equipment");
+	    equwnd = new Hidewnd(Coord.z, "Equipment") {
+		private void syncPortraitEquipment(boolean open) {
+		    if(moonFlowerHud != null && MoonFlowerHudSettings.enabled())
+			moonFlowerHud.setEquipmentWindowOpen(open);
+		}
+
+		@Override
+		public void show() {
+		    super.show();
+		    syncPortraitEquipment(true);
+		}
+
+		@Override
+		public void hide() {
+		    super.hide();
+		    syncPortraitEquipment(false);
+		}
+	    };
 	    equwnd.add(child, Coord.z);
 	    equwnd.pack();
 	    equwnd.hide();
@@ -1285,6 +1363,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    int y = (meters.size() / 3) * (IMeter.fsz.y + UI.scale(2));
 	    ulpanel.add(child, portrait.c.x + portrait.sz.x + UI.scale(10) + x, portrait.c.y + y);
 	    meters.add(child);
+	    child.show(!MoonFlowerHudSettings.enabled());
 	} else if(place == "buff") {
 	    buffs.addchild(child);
 	} else if(place == "qq") {
@@ -1406,6 +1485,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	} else if(w == chrwdg) {
 	    chrwdg = null;
+	} else if(w == fs) {
+	    fs = null;
 	}
 	meters.remove(w);
     }
@@ -1810,6 +1891,74 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
+    public void setMoonFlowerHudEnabled(boolean enabled) {
+	Utils.setprefb(MoonFlowerHudSettings.ENABLED, enabled);
+	if(portrait != null)
+	    portrait.show(!enabled);
+	for(Widget meter : meters)
+	    meter.show(!enabled);
+	if(menupanel != null)
+	    menupanel.show(!enabled && showUI);
+	if(moonFlowerHud != null) {
+	    moonFlowerHud.applySettings();
+	    if(enabled) {
+		moonFlowerHud.attachBuffs(buffs);
+		if(quickslots != null) {
+		    if(quickslots.parent == this)
+			classicQuickSlotPosition = new Coord(quickslots.c);
+		    moonFlowerHud.attachEquipment(quickslots);
+		}
+	    } else {
+		moonFlowerHud.detachBuffs(ulpanel, classicBuffPosition);
+		if(quickslots != null)
+		    moonFlowerHud.detachEquipment(this, classicQuickSlotPosition,
+			    OptWnd.showQuickSlotsCheckBox.a);
+	    }
+	    moonFlowerHud.show(enabled && showUI);
+	    moonFlowerHud.raise();
+	}
+    }
+
+    public void refreshMoonFlowerHud() {
+	setMoonFlowerHudEnabled(MoonFlowerHudSettings.enabled());
+	if(moonFlowerHud != null)
+	    moonFlowerHud.parentResized(sz);
+	if(moonFlowerCombatGhost != null) {
+	    moonFlowerCombatGhost.parentResized(sz);
+	    moonFlowerCombatGhost.raise();
+	}
+    }
+
+    public void completeMoonFlowerHudChoice(boolean useMoonFlower) {
+	Utils.setprefb(MoonFlowerHudSettings.CHOICE_MADE, true);
+	setMoonFlowerHudEnabled(useMoonFlower);
+	if(moonFlowerHudChoiceWindow != null) {
+	    moonFlowerHudChoiceWindow.reqdestroy();
+	    moonFlowerHudChoiceWindow = null;
+	}
+    }
+
+    public boolean isInventoryWindowOpen() {return(wndstate(invwnd));}
+    public boolean isEquipmentWindowOpen() {return(wndstate(equwnd));}
+    public boolean isCharacterWindowOpen() {return(wndstate(chrwdg));}
+    public boolean isKinWindowOpen() {return(wndstate(zerg));}
+    public boolean isOptionsWindowOpen() {return(wndstate(opts));}
+    public boolean isCookbookOpen() {return(wndstate(cookbookWindow));}
+    public boolean isFishingJournalOpen() {return(wndstate(fishingJournalWindow));}
+    public boolean isFishingHelperOpen() {return(fishingBot != null && fishingBot.visible());}
+    public boolean isWikiOpen() {return(wndstate(wikiWindow));}
+
+    public void toggleInventoryWindow() {togglewnd(invwnd);}
+    public void toggleEquipmentWindow() {togglewnd(equwnd);}
+    public void toggleCharacterWindow() {togglewnd(chrwdg);}
+    public void toggleKinWindow() {togglewnd(zerg);}
+    public void toggleOptionsWindow() {togglewnd(opts);}
+
+    public void openChatSettings() {
+	opts.showChatSettings();
+	opts.raise();
+    }
+
 	public void toggleCookbook() {
 		boolean opening = !cookbookWindow.visible();
 		togglewnd(cookbookWindow);
@@ -1822,6 +1971,13 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		togglewnd(fishingJournalWindow);
 		if(opening)
 			fishingJournalWindow.refresh();
+	}
+
+	public void toggleWiki() {
+		boolean opening = !wikiWindow.visible();
+		togglewnd(wikiWindow);
+		if(opening)
+			wikiWindow.focusSearch();
 	}
 
 	public void openFishingSpot(FishingMapMarker marker) {
@@ -1875,7 +2031,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public static final KeyBinding kb_opt = KeyBinding.get("opt", KeyMatch.forchar('O', KeyMatch.C));
     private static final int customMenuSlotWidth = UI.scale(34);
     private static final int customMenuButtonWidth = UI.scale(47);
-    private static final int customMenuFeatureWidth = customMenuSlotWidth * 3;
+    private static final int customMenuFeatureWidth = customMenuSlotWidth * 4;
     private static final int customMenuToggleWidth = customMenuSlotWidth;
     private static final int customMenuExtensionWidth = customMenuFeatureWidth + customMenuToggleWidth;
     private static final BufferedImage baseMenuBackground = Resource.loadsimg("gfx/hud/rbtn-bg");
@@ -1884,6 +2040,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
             Resource.loadimg("gfx/hud/chr/cooking"), UI.scale(24, 24), CharWnd.iconfilter);
     private static final BufferedImage fishingJournalMenuIcon = fishingJournalMenuIcon();
     private static final BufferedImage fishingHelperMenuIcon = fishingHelperMenuIcon();
+    private static final BufferedImage wikiMenuIcon = wikiMenuIcon();
     private static final BufferedImage featureMenuClosedIcon = featureMenuArrow(false);
     private static final BufferedImage featureMenuOpenIcon = featureMenuArrow(true);
     private static final Tex cookbookMenuUp = new TexI(customMenuImage(cookbookMenuIcon, false, false));
@@ -1898,6 +2055,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private static final Tex fishingHelperMenuDown = new TexI(customMenuImage(fishingHelperMenuIcon, true, false));
     private static final Tex fishingHelperMenuHover = new TexI(customMenuImage(fishingHelperMenuIcon, false, true));
     private static final Tex fishingHelperMenuHoverDown = new TexI(customMenuImage(fishingHelperMenuIcon, true, true));
+    private static final Tex wikiMenuUp = new TexI(customMenuImage(wikiMenuIcon, false, false));
+    private static final Tex wikiMenuDown = new TexI(customMenuImage(wikiMenuIcon, true, false));
+    private static final Tex wikiMenuHover = new TexI(customMenuImage(wikiMenuIcon, false, true));
+    private static final Tex wikiMenuHoverDown = new TexI(customMenuImage(wikiMenuIcon, true, true));
     private static final Tex featureMenuClosed = new TexI(customMenuImage(featureMenuClosedIcon, false, false));
     private static final Tex featureMenuClosedHover = new TexI(customMenuImage(featureMenuClosedIcon, false, true));
     private static final Tex featureMenuOpen = new TexI(customMenuImage(featureMenuOpenIcon, true, false));
@@ -2036,6 +2197,26 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	return(image);
     }
 
+    private static BufferedImage wikiMenuIcon() {
+	int size = UI.scale(24);
+	BufferedImage image = TexI.mkbuf(Coord.of(size, size));
+	Graphics2D graphics = image.createGraphics();
+	graphics.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+		java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+	graphics.setColor(new Color(76, 48, 28));
+	graphics.fillRoundRect(UI.scale(3), UI.scale(3), UI.scale(18), UI.scale(19),
+		UI.scale(3), UI.scale(3));
+	graphics.setColor(new Color(226, 207, 151));
+	graphics.fillRoundRect(UI.scale(5), UI.scale(4), UI.scale(14), UI.scale(16),
+		UI.scale(2), UI.scale(2));
+	graphics.setColor(new Color(112, 73, 39));
+	graphics.drawLine(UI.scale(12), UI.scale(5), UI.scale(12), UI.scale(19));
+	graphics.setFont(Text.sans.deriveFont(java.awt.Font.BOLD, UI.scale(9f)));
+	graphics.drawString("W", UI.scale(6), UI.scale(15));
+	graphics.dispose();
+	return(image);
+    }
+
     private static class CookbookMenuCheckBox extends ICheckBox {
 	CookbookMenuCheckBox() {
 	    super(cookbookMenuUp, cookbookMenuDown, cookbookMenuHover, cookbookMenuHoverDown);
@@ -2083,6 +2264,21 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
+    private static class WikiMenuCheckBox extends ICheckBox {
+	WikiMenuCheckBox() {
+	    super(wikiMenuUp, wikiMenuDown, wikiMenuHover, wikiMenuHoverDown);
+	    setgkey(kb_wiki);
+	    settip("Ring of Brodgar Wiki");
+	}
+
+	@Override
+	public boolean checkhit(Coord c) {
+	    Coord center = Coord.of(UI.scale(23), baseMenuBackground.getHeight() - UI.scale(17));
+	    int radius = UI.scale(15);
+	    return(c.isect(Coord.z, sz) && c.dist(center) <= radius);
+	}
+    }
+
     private static class FeatureMenuCheckBox extends ICheckBox {
 	FeatureMenuCheckBox() {
 	    super(featureMenuClosed, featureMenuOpen, featureMenuClosedHover, featureMenuOpenHover);
@@ -2119,6 +2315,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    .state(() -> wndstate(fishingJournalWindow)).click(() -> toggleFishingJournal());
 	    featureTray.add(new FishingHelperMenuCheckBox(), customMenuSlotWidth * 2, 0)
 		    .state(() -> wndstate(fishingBot)).click(() -> toggleFishingHelper());
+	    featureTray.add(new WikiMenuCheckBox(), customMenuSlotWidth * 3, 0)
+		    .state(() -> wndstate(wikiWindow)).click(() -> toggleWiki());
 
 	    featureToggle = add(new FeatureMenuCheckBox(), 0, 0);
 	    featureToggle.state(() -> featuresExpanded).click(() -> setFeaturesExpanded(!featuresExpanded));
@@ -2254,6 +2452,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		KeyMatch.forchar('J', KeyMatch.C | KeyMatch.M));
 	public static KeyBinding kb_fishingHelper = KeyBinding.get("fishing-helper",
 		KeyMatch.forchar('F', KeyMatch.C | KeyMatch.M));
+	public static KeyBinding kb_wiki = KeyBinding.get("ring-of-brodgar-wiki",
+		KeyMatch.forchar('W', KeyMatch.C | KeyMatch.M));
 
     public boolean globtype(GlobKeyEvent ev) {
 	if(ev.c == ':') {
@@ -2293,6 +2493,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		return(true);
 	} else if(kb_fishingHelper.key().match(ev)) {
 		toggleFishingHelper();
+		return(true);
+	} else if(kb_wiki.key().match(ev)) {
+		toggleWiki();
 		return(true);
 	} else if (kb_drinkButton.key().match(ev)) {
 		wdgmsg("act", "drink");
@@ -2558,6 +2761,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		for(Hidepanel p : panels)
 			p.mshow(!showUI);
 		showUI = !showUI;
+		if(MoonFlowerHudSettings.enabled())
+			menupanel.hide();
+		if(moonFlowerHud != null)
+			moonFlowerHud.show(showUI && MoonFlowerHudSettings.enabled());
     }
 
     public void resize(Coord sz) {
@@ -2575,6 +2782,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			}
 		}
     combatBarsWdg.resize(sz);
+	if(moonFlowerHud != null)
+	    moonFlowerHud.parentResized(sz);
+	if(moonFlowerCombatGhost != null)
+	    moonFlowerCombatGhost.parentResized(sz);
+	if(moonFlowerHudChoiceWindow != null && moonFlowerHudChoiceWindow.visible()) {
+	    moonFlowerHudChoiceWindow.move(sz.sub(moonFlowerHudChoiceWindow.sz).div(2));
+	    moonFlowerHudChoiceWindow.raise();
+	}
     }
     
     public void presize() {
@@ -2771,8 +2986,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		public int barNumber;
 		final Coord pagoff = UI.scale(new Coord(2, 2));
 		public boolean isHorizontal;
+		private int columns;
+		private int scalePercent;
 		private UI.Grab dragging;
 		private Coord dc;
+		private boolean locked;
 		private final String horizontalSettingName;
 
 		//cache
@@ -2785,11 +3003,16 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		}
 
 		public ActionBar(KeyBinding[] keybindings, int beltNumber, String horizontalSettingName) {
-			super(UI.scale(Utils.getprefb(horizontalSettingName, true) ? new Coord(360, 37) : new Coord(37, 360)));
-			isHorizontal = Utils.getprefb(horizontalSettingName, true);
+			super(UI.scale(new Coord(360, 37)));
 			this.horizontalSettingName = horizontalSettingName;
 			beltkeys = keybindings;
 			barNumber = beltNumber;
+			scalePercent = MoonFlowerHudSettings.actionBarScale();
+			columns = MoonFlowerHudSettings.actionBarColumns(beltNumber,
+					Utils.getprefb(horizontalSettingName, true));
+			isHorizontal = columns != 1;
+			locked = MoonFlowerHudSettings.actionBarLocked(barNumber);
+			relayout(false);
 			if (beltNumber > 0) {
 				curbelt = beltNumber - 1;
 			} else {
@@ -2836,15 +3059,34 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		}
 
 		private Coord beltc(int i) {
-			if (isHorizontal)
-				return(pagoff.add(UI.scale(36 * i), 0));
-			else
-				return(pagoff.add(0, UI.scale(36 * i)));
+			int pitch = slotPitch();
+			return(pagoff.add((i % columns) * pitch, (i / columns) * pitch));
+		}
+
+		private int slotPitch() {
+			return UI.scale(MoonFlowerHudSettings.scaled(36, scalePercent));
+		}
+
+		private Coord slotSize() {
+			return Coord.of(
+					MoonFlowerHudSettings.scaled(invsq.sz().x, scalePercent),
+					MoonFlowerHudSettings.scaled(invsq.sz().y, scalePercent));
+		}
+
+		private void relayout(boolean clampToScreen) {
+			Coord slot = slotSize();
+			int pitch = slotPitch();
+			int rows = MoonFlowerHudSettings.rowsForColumns(columns);
+			resize(pagoff.x * 2 + ((columns - 1) * pitch) + slot.x,
+					pagoff.y * 2 + ((rows - 1) * pitch) + slot.y);
+			cachedSlotCoords = null;
+			if(clampToScreen)
+				checkIfOutsideOfUI();
 		}
 
 		public int beltslot(Coord c) {
 			for(int i = 0; i < 10; i++) {
-				if(c.isect(beltc(i), invsq.sz()))
+				if(c.isect(beltc(i), slotSize()))
 					return(i + (curbelt * 12));
 			}
 			return(-1);
@@ -2873,20 +3115,70 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 				lastCurbelt = curbelt;
 			}
 
+			if(MoonFlowerHudTheme.active()) {
+				Coord previous = null;
+				Coord currentSlotSize = slotSize();
+				for(Coord slotCoord : cachedSlotCoords) {
+					Coord center = slotCoord.add(currentSlotSize.div(2));
+					if(previous != null)
+						MoonFlowerHudTheme.drawCurvedVine(g, previous, center, 1.0);
+					previous = center;
+				}
+			}
+
 			for (int i = 0; i < 10; i++) {
 				int slot = i + (curbelt * 12);
 				Coord c = cachedSlotCoords[i];
-				g.image(invsq, c);
+				Coord slotSize = slotSize();
+				if(MoonFlowerHudTheme.active())
+					MoonFlowerHudTheme.drawSlot(g, c, slotSize, belt[slot] != null, false);
+				else
+					g.image(invsq, c, slotSize);
 				try {
 					if (belt[slot] != null) {
-						belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));
+						Coord nativeOffset = slotSize.sub(invsq.sz()).div(2);
+						Coord iconOrigin = c.add(nativeOffset).add(UI.scale(1), UI.scale(1));
+						belt[slot].draw(g.reclip(iconOrigin, invsq.sz().sub(UI.scale(2), UI.scale(2))));
 					}
 				} catch (Exception ignored) {
 				}
-				g.aimage(cachedKeybindTextures[i], c.add(invsq.sz().sub(UI.scale(2), 0)), 1, 1);
+				g.aimage(cachedKeybindTextures[i], c.add(slotSize.sub(UI.scale(2), 0)), 1, 1);
+			}
+
+			if(MoonFlowerHudSettings.editMode()) {
+				MoonFlowerHudTheme.drawFrameOverlay(g, Coord.z, sz, true);
+				Coord lockCenter = editLockArea().ul.add(editLockArea().sz().div(2));
+				MoonFlowerHudTheme.drawCircularSlot(g, lockCenter, UI.scale(9), locked);
+				FastText.aprintfstroked(g, lockCenter, 0.5, 0.5, locked ? "L" : "M");
+				FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(2)), 0.5, 0,
+						"BAR %d - %s", barNumber, locked ? "LOCKED" : "LEFT-DRAG");
 			}
 
 			super.draw(g);
+		}
+
+		private Area editLockArea() {
+			return Area.sized(Coord.of(UI.scale(2), UI.scale(2)), Coord.of(UI.scale(20), UI.scale(20)));
+		}
+
+		private void beginDragging(Coord origin) {
+			if(dragging != null)
+				dragging.remove();
+			dragging = ui.grabmouse(this);
+			dc = origin;
+		}
+
+		public void setLocked(boolean locked) {
+			this.locked = locked;
+			MoonFlowerHudSettings.setActionBarLocked(barNumber, locked);
+			if(locked && dragging != null) {
+				dragging.remove();
+				dragging = null;
+			}
+		}
+
+		public boolean locked() {
+			return locked;
 		}
 
 		public boolean globtype(GlobKeyEvent ev) {
@@ -2950,13 +3242,17 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		public boolean mousedown(MouseDownEvent ev) {
 			if (!showUI)
 				return(false);
-			if (ev.b == 2) {
-				if((dragging != null)) { // ND: I need to do this extra check and remove it in case you do another click before the mouseup. Idk why it has to be done like this, but it solves the issue.
-					dragging.remove();
-					dragging = null;
+			if(MoonFlowerHudSettings.editMode()) {
+				if(ev.b == 1 && editLockArea().contains(ev.c)) {
+					setLocked(!locked);
+					return true;
 				}
-				dragging = ui.grabmouse(this);
-				dc = ev.c;
+				if(ev.b == 1 && !locked)
+					beginDragging(ev.c);
+				return true;
+			}
+			if (ev.b == 2 && !locked) {
+				beginDragging(ev.c);
 				return true;
 			}
 			int slot = beltslot(ev.c);
@@ -3029,12 +3325,26 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		}
 
 		public void setActionBarHorizontal(boolean horizontal){
-			this.sz = UI.scale(horizontal ? new Coord(360, 37) : new Coord(37, 360));
-			isHorizontal = horizontal;
-			Utils.setprefb(horizontalSettingName, horizontal);
-			checkIfOutsideOfUI();
-			// Invalidate coordinate cache since orientation changed
-			cachedSlotCoords = null;
+			setActionBarColumns(horizontal ? 10 : 1);
+		}
+
+		public void setActionBarColumns(int columns) {
+			if(columns != 1 && columns != 5 && columns != 10)
+				throw new IllegalArgumentException("Action-bar columns must be 1, 5, or 10");
+			this.columns = columns;
+			isHorizontal = columns != 1;
+			Utils.setprefi("actionBarColumns" + barNumber, columns);
+			Utils.setprefb(horizontalSettingName, columns != 1);
+			relayout(true);
+		}
+
+		public void setScalePercent(int scalePercent) {
+			this.scalePercent = MoonFlowerHudSettings.clamp(scalePercent, 100, 160);
+			relayout(true);
+		}
+
+		public int columns() {
+			return columns;
 		}
 
 		private MenuGrid.PagButton curttp = null;
@@ -3140,6 +3450,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public ActionBar getActionBar(int number) {
 		ActionBar[] actionBars = {actionBar1, actionBar2, actionBar3, actionBar4, actionBar5, actionBar6};
 		return actionBars[number - 1];
+	}
+
+	public void setAllActionBarsLocked(boolean locked) {
+		for(int number = 1; number <= 6; number++)
+			getActionBar(number).setLocked(locked);
 	}
 
 	{

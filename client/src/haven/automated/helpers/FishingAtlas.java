@@ -47,21 +47,39 @@ public class FishingAtlas {
     ));
 
     public static Part classify(String displayName) {
-        if(displayName == null)
+        String name = displayName(displayName);
+        if(name.isEmpty())
             return(Part.UNKNOWN);
-        if(fishingPoles.contains(displayName))
+        if(matchesDisplayName(name, fishingPoles))
             return(Part.POLE);
-        if(fishingLines.contains(displayName))
+        if(matchesDisplayName(name, fishingLines))
             return(Part.LINE);
-        if(fishingHooks.contains(displayName))
+        if(matchesDisplayName(name, fishingHooks))
             return(Part.HOOK);
-        if(fishingBaits.contains(displayName))
+        if(matchesDisplayName(name, fishingBaits))
             return(Part.BAIT);
-        if(fishingLures.contains(displayName))
+        if(matchesDisplayName(name, fishingLures))
             return(Part.LURE);
-        if(fishingOptions.contains(displayName))
+        if(matchesDisplayName(name, fishingOptions))
             return(Part.FISH);
         return(Part.UNKNOWN);
+    }
+
+    /** Converts stack labels into the same item names shown by the helper's selectors. */
+    public static String displayName(String value) {
+        if(value == null)
+            return("");
+        String normalized = value.trim();
+        String lower = normalized.toLowerCase(Locale.ROOT);
+        if(lower.startsWith("a stack of "))
+            return(normalized.substring("a stack of ".length()).trim());
+        if(lower.startsWith("stack of "))
+            return(normalized.substring("stack of ".length()).trim());
+        return(normalized);
+    }
+
+    public static boolean sameDisplayName(String first, String second) {
+        return(normalizeDisplayName(first).equals(normalizeDisplayName(second)));
     }
 
     public static Part classify(String displayName, String resourceName) {
@@ -113,6 +131,21 @@ public class FishingAtlas {
                 return(true);
         }
         return(false);
+    }
+
+    private static boolean matchesDisplayName(String name, Collection<String> choices) {
+        String normalized = normalizeDisplayName(name);
+        for(String choice : choices) {
+            if(normalized.equals(normalizeDisplayName(choice)))
+                return(true);
+        }
+        return(false);
+    }
+
+    private static String normalizeDisplayName(String value) {
+        String normalized = normalize(displayName(value));
+        return(normalized.endsWith("s") && normalized.length() > 1 ?
+                normalized.substring(0, normalized.length() - 1) : normalized);
     }
 
     private static String normalizedResourceBase(String resourceName) {

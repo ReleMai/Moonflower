@@ -169,7 +169,10 @@ public class Fightview extends Widget {
 	}
 
 	public void draw(GOut g) {
-	    g.image(bg, Coord.z);
+	    if(MoonFlowerHudTheme.active())
+		MoonFlowerHudTheme.drawCombatRelationCard(g, sz, false);
+	    else
+		g.image(bg, Coord.z);
 	    give.state = rel.gst;
 	    super.draw(g);
 	}
@@ -243,6 +246,8 @@ public class Fightview extends Widget {
 	}
 
 	public void draw(GOut g) {
+	    if(MoonFlowerHudTheme.active())
+		MoonFlowerHudTheme.drawCombatRelationCard(g, sz, true);
 	    give.state = rel.gst;
 	    super.draw(g);
 	}

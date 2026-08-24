@@ -469,8 +469,11 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 	for(int y = 0; y < gsz.y; y++) {
 	    for(int x = 0; x < gsz.x; x++) {
 		Coord p = bgsz.mul(new Coord(x, y));
-		g.image(bg, p);
 		PagButton btn = layout[x][y];
+		if(MoonFlowerHudTheme.active())
+		    MoonFlowerHudTheme.drawMenuGridSlot(g, p, bgsz, btn != null, btn == pressed);
+		else
+		    g.image(bg, p);
 		if(btn != null) {
 		    GSprite spr;
 		    try {

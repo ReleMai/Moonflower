@@ -30,6 +30,7 @@ final class FishingInventory {
         if(gui.maininv != null)
             collector.addInventory(gui.maininv, true);
         addEquippedFishingContainers(gui, collector, true);
+        addOpenContentsWindows(gui, collector, true);
         return(collector.items);
     }
 
@@ -40,6 +41,7 @@ final class FishingInventory {
         if(gui.maininv != null)
             collector.addCatchInventory(gui.maininv);
         addEquippedFishingContainers(gui, collector, false);
+        addOpenContentsWindows(gui, collector, false);
         return(collector.items);
     }
 
@@ -49,7 +51,8 @@ final class FishingInventory {
                 FishingAtlas.Part.HOOK, FishingAtlas.Part.BAIT, FishingAtlas.Part.LURE})
             names.put(part, new LinkedHashSet<>());
         for(WItem item : equipmentItems(gui)) {
-            String name = item == null || item.item == null ? "" : safeName(item.item);
+            String name = item == null || item.item == null ? "" :
+                    FishingAtlas.displayName(safeName(item.item));
             FishingAtlas.Part part = FishingAtlas.classify(name,
                     item == null || item.item == null ? "" : safeResource(item.item));
             if(names.containsKey(part) && !name.isBlank())
@@ -57,7 +60,7 @@ final class FishingInventory {
         }
         // Keep a pole or tackle choice stable during the short cursor-held phase.
         if(gui != null && gui.vhand != null && gui.vhand.item != null) {
-            String name = safeName(gui.vhand.item);
+            String name = FishingAtlas.displayName(safeName(gui.vhand.item));
             FishingAtlas.Part part = FishingAtlas.classify(name, safeResource(gui.vhand.item));
             if(names.containsKey(part) && !name.isBlank())
                 names.get(part).add(name);
@@ -100,6 +103,14 @@ final class FishingInventory {
                 collector.addWidget(equipped.item.contents, true);
             if(creel || includeBelt && isBelt(equipped.item))
                 collector.addWidget(equipped.item.contents, true);
+        }
+    }
+
+    /** Include already-open stack and container views without opening or moving any user UI. */
+    private static void addOpenContentsWindows(GameUI gui, Collector collector, boolean recurse) {
+        for(Widget widget = gui.lchild; widget != null; widget = widget.prev) {
+            if(widget instanceof GItem.ContentsWindow)
+                collector.addWidget(((GItem.ContentsWindow)widget).inv, recurse);
         }
     }
 
@@ -167,11 +178,16 @@ final class FishingInventory {
                     items.add(item);
                 if(recurse)
                     addWidget(item.item.contents, true);
+                if(recurse && item.item.contentswnd != null)
+                    addWidget(item.item.contentswnd.inv, true);
                 return;
             }
             items.add(item);
-            if(recurse)
+            if(recurse) {
                 addWidget(item.item.contents, true);
+                if(item.item.contentswnd != null)
+                    addWidget(item.item.contentswnd.inv, true);
+            }
         }
 
         void addWidget(Widget widget, boolean recurse) {

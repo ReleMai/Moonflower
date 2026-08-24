@@ -53,6 +53,7 @@ import java.util.concurrent.Future;
 public class OptWnd extends Window {
     public final Panel main;
 	public final Panel advancedSettings;
+    public final Panel chatSettings;
     public Panel current;
 	private PButton videoButton, audioButton, keybindButton;
 	private static final ScheduledExecutorService skyboxExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -1149,6 +1150,93 @@ public class OptWnd extends Window {
 	}
     }
 
+	public class MoonFlowerHudSettingsPanel extends Panel {
+		public MoonFlowerHudSettingsPanel(Panel back) {
+			Widget prev = add(new Label("MoonFlower Hearthwheel HUD"), 0, 0);
+			prev = add(new Label("A themed portrait dock with six core actions and an expandable feature vine."),
+					prev.pos("bl").adds(0, 5));
+
+			prev = add(new CheckBox("Use MoonFlower HUD") {
+				{a = MoonFlowerHudSettings.enabled();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.ENABLED, val);
+					if(ui != null && ui.gui != null)
+						ui.gui.setMoonFlowerHudEnabled(val);
+				}
+			}, prev.pos("bl").adds(0, 12));
+
+			prev = add(new CheckBox("HUD edit mode (drag portrait, combat ghosts, or action bars)") {
+				{a = MoonFlowerHudSettings.editMode();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.EDIT_MODE, val);
+					if(ui != null && ui.gui != null)
+						ui.gui.refreshMoonFlowerHud();
+				}
+			}, prev.pos("bl").adds(0, 5));
+			prev.tooltip = RichText.render("Outside combat, translucent Combat Status and Combat Deck previews appear for positioning. Each action bar also shows an M/L badge.", UI.scale(380));
+
+			Widget lockAll = add(new Button(UI.scale(125), "Lock all bars", () -> {
+				if(ui != null && ui.gui != null)
+					ui.gui.setAllActionBarsLocked(true);
+			}), prev.pos("bl").adds(0, 7));
+			prev = add(new Button(UI.scale(125), "Unlock all bars", () -> {
+				if(ui != null && ui.gui != null)
+					ui.gui.setAllActionBarsLocked(false);
+			}), lockAll.pos("ur").adds(8, 0));
+
+			prev = add(new Label("Vitals presentation:"), prev.pos("bl").adds(0, 12));
+			RadioGroup vitalStyles = new RadioGroup(this) {
+				public void changed(int btn, String label) {
+					Utils.setprefi(MoonFlowerHudSettings.VITAL_STYLE, btn);
+					if(ui != null && ui.gui != null)
+						ui.gui.refreshMoonFlowerHud();
+				}
+			};
+			Widget rings = vitalStyles.add("Moonflower Rings", prev.pos("bl").adds(12, 5));
+			vitalStyles.add("Compact Ribbons", rings.pos("ur").adds(18, 0));
+			vitalStyles.check(MoonFlowerHudSettings.vitalStyle());
+			prev = add(new Label("Hover a ring or ribbon for detailed values."), rings.pos("bl").adds(-12, 7));
+
+			prev = add(new CheckBox("Show numbers on custom vitals") {
+				{a = MoonFlowerHudSettings.showVitalNumbers();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.SHOW_VITAL_NUMBERS, val);
+					if(ui != null && ui.gui != null)
+						ui.gui.refreshMoonFlowerHud();
+				}
+			}, prev.pos("bl").adds(0, 7));
+
+			prev = add(new Label("Portrait hub size:"), prev.pos("bl").adds(0, 12));
+			Label portraitScale = new Label(MoonFlowerHudSettings.portraitScale() + "%");
+			add(portraitScale, prev.pos("ur").adds(10, 0));
+			prev = add(new HSlider(UI.scale(260), 80, 140, MoonFlowerHudSettings.portraitScale()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.PORTRAIT_SCALE, val);
+					portraitScale.settext(val + "%");
+					if(ui != null && ui.gui != null)
+						ui.gui.refreshMoonFlowerHud();
+				}
+			}, prev.pos("bl").adds(0, 3));
+
+			prev = add(new Button(UI.scale(200), "Reset portrait hub position", () -> {
+				if(ui != null && ui.gui != null && ui.gui.moonFlowerHud != null)
+					ui.gui.moonFlowerHud.resetPosition();
+			}), prev.pos("bl").adds(0, 14));
+
+			prev = add(new Button(UI.scale(200), "Reset combat HUD positions", () -> {
+				MoonFlowerHudSettings.resetCombatLayout();
+				if(ui != null && ui.gui != null && ui.gui.moonFlowerCombatGhost != null)
+					ui.gui.moonFlowerCombatGhost.resetLayout();
+			}), prev.pos("bl").adds(0, 7));
+
+			Widget backButton;
+			add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Advanced Settings"),
+					prev.pos("bl").adds(0, 18));
+			pack();
+			centerBackButton(backButton, this);
+		}
+	}
+
 	public static CheckBox holdCTRLtoRemoveActionButtonsCheckBox;
 
 	public class ActionBarsSettingsPanel extends Panel {
@@ -1161,6 +1249,19 @@ public class OptWnd extends Window {
 		public ActionBarsSettingsPanel(Panel back) {
 			Widget prev;
             prev = add(new Label("You can move the bars with Middle Mouse Button (scroll click)."), 0, 4);
+			prev = add(new Label("Action Bar Size:"), prev.pos("bl").adds(0, 10));
+			Label scaleLabel = new Label(MoonFlowerHudSettings.actionBarScale() + "%");
+			add(scaleLabel, prev.pos("ur").adds(8, 0));
+			prev = add(new HSlider(UI.scale(230), 100, 160, MoonFlowerHudSettings.actionBarScale()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.ACTION_BAR_SCALE, val);
+					scaleLabel.settext(val + "%");
+					if(ui != null && ui.gui != null) {
+						for(int bar = 1; bar <= 6; bar++)
+							ui.gui.getActionBar(bar).setScalePercent(val);
+					}
+				}
+			}, prev.pos("bl").adds(0, 2));
 			prev = add(new Label("Enabled Action Bars:"), prev.pos("bl").adds(0, 12));
 			add(new Label("Action Bar Orientation:"), prev.pos("ur").adds(42, 0));
 			prev = add(new CheckBox("Action Bar 1"){
@@ -1265,32 +1366,22 @@ public class OptWnd extends Window {
 			RadioGroup radioGroup = new RadioGroup(this) {
 				public void changed(int btn, String lbl) {
 					try {
-						if(btn==0) {
-							Utils.setprefb(prefName, true);
-							if (ui != null && ui.gui != null){
-								GameUI.ActionBar actionBar = ui.gui.getActionBar(actionBarNumber);
-								actionBar.setActionBarHorizontal(true);
-							}
-						}
-						if(btn==1) {
-							Utils.setprefb(prefName, false);
-							if (ui != null && ui.gui != null){
-								GameUI.ActionBar actionBar = ui.gui.getActionBar(actionBarNumber);
-								actionBar.setActionBarHorizontal(false);
-							}
-						}
+						int columns = (btn == 0) ? 10 : (btn == 1) ? 5 : 1;
+						Utils.setprefb(prefName, columns != 1);
+						Utils.setprefi("actionBarColumns" + actionBarNumber, columns);
+						if (ui != null && ui.gui != null)
+							ui.gui.getActionBar(actionBarNumber).setActionBarColumns(columns);
 					} catch (Exception e) {
 						throw new RuntimeException(e);
 					}
 				}
 			};
 			Widget prevOption = radioGroup.add("Horizontal", prev.pos("ur").adds(40, 0));
-			radioGroup.add("Vertical", prevOption.pos("ur").adds(10, 0));
-			if (Utils.getprefb(prefName, true)){
-				radioGroup.check(0);
-			} else {
-				radioGroup.check(1);
-			}
+			Widget gridOption = radioGroup.add("2 x 5", prevOption.pos("ur").adds(10, 0));
+			radioGroup.add("Vertical", gridOption.pos("ur").adds(10, 0));
+			int columns = MoonFlowerHudSettings.actionBarColumns(actionBarNumber,
+					Utils.getprefb(prefName, true));
+			radioGroup.check(columns == 10 ? 0 : columns == 5 ? 1 : 2);
 		}
 	}
 
@@ -1929,12 +2020,98 @@ public class OptWnd extends Window {
 		public ChatSettingsPanel(Panel back) {
 			Widget prev;
 
+			prev = add(new Label("Chat text size:"), 0, 0);
+			Label textSizeLabel = new Label(MoonFlowerHudSettings.chatTextSize() + " pt");
+			add(textSizeLabel, prev.pos("ur").adds(8, 0));
+			prev = add(new HSlider(UI.scale(230), 10, 24, MoonFlowerHudSettings.chatTextSize()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.CHAT_TEXT_SIZE, val);
+					textSizeLabel.settext(val + " pt");
+					if(ui != null && ui.gui != null)
+						ui.gui.chat.applyDisplayPreferences();
+				}
+			}, prev.pos("bl").adds(0, 2));
+
+			prev = add(new Label("Chat background opacity:"), prev.pos("bl").adds(0, 8));
+			Label opacityLabel = new Label(MoonFlowerHudSettings.chatBackgroundAlpha() + "/255");
+			add(opacityLabel, prev.pos("ur").adds(8, 0));
+			prev = add(new HSlider(UI.scale(230), 32, 224, MoonFlowerHudSettings.chatBackgroundAlpha()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.CHAT_BACKGROUND_ALPHA, val);
+					opacityLabel.settext(val + "/255");
+				}
+			}, prev.pos("bl").adds(0, 2));
+
+			prev = add(new Label("Chat alert volume:"), prev.pos("bl").adds(0, 8));
+			Label alertVolumeLabel = new Label(MoonFlowerHudSettings.chatAlertVolume() + "%");
+			add(alertVolumeLabel, prev.pos("ur").adds(8, 0));
+			prev = add(new HSlider(UI.scale(230), 0, 100, MoonFlowerHudSettings.chatAlertVolume()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.CHAT_ALERT_VOLUME, val);
+					alertVolumeLabel.settext(val + "%");
+				}
+			}, prev.pos("bl").adds(0, 2));
+
+			prev = add(new CheckBox("Show message timestamps") {
+				{a = MoonFlowerHudSettings.chatShowTimestamps();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.CHAT_SHOW_TIMESTAMPS, val);
+					if(ui != null && ui.gui != null)
+						ui.gui.chat.applyDisplayPreferences();
+				}
+			}, prev.pos("bl").adds(0, 9));
+
+			prev = add(new CheckBox("Show chat notification previews") {
+				{a = MoonFlowerHudSettings.chatShowPreviews();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.CHAT_SHOW_PREVIEWS, val);
+				}
+			}, prev.pos("bl").adds(0, 4));
+
+			prev = add(new CheckBox("Alert even while viewing the active channel") {
+				{a = MoonFlowerHudSettings.chatAlertActiveChannel();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.CHAT_ALERT_ACTIVE_CHANNEL, val);
+				}
+			}, prev.pos("bl").adds(0, 4));
+
+			prev = add(new Label("Notification preview duration:"), prev.pos("bl").adds(0, 7));
+			Label previewSeconds = new Label(MoonFlowerHudSettings.chatPreviewSeconds() + " sec");
+			add(previewSeconds, prev.pos("ur").adds(8, 0));
+			prev = add(new HSlider(UI.scale(230), 1, 15, MoonFlowerHudSettings.chatPreviewSeconds()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.CHAT_PREVIEW_SECONDS, val);
+					previewSeconds.settext(val + " sec");
+				}
+			}, prev.pos("bl").adds(0, 2));
+
+			prev = add(new Label("Maximum notification previews:"), prev.pos("bl").adds(0, 7));
+			Label previewCount = new Label(Integer.toString(MoonFlowerHudSettings.chatPreviewCount()));
+			add(previewCount, prev.pos("ur").adds(8, 0));
+			prev = add(new HSlider(UI.scale(230), 1, 8, MoonFlowerHudSettings.chatPreviewCount()) {
+				public void changed() {
+					Utils.setprefi(MoonFlowerHudSettings.CHAT_PREVIEW_COUNT, val);
+					previewCount.settext(Integer.toString(val));
+				}
+			}, prev.pos("bl").adds(0, 2));
+
+			prev = add(new Label("Alert keywords (comma separated):"), prev.pos("bl").adds(0, 7));
+			prev = add(new TextEntry(UI.scale(230), MoonFlowerHudSettings.chatKeywords()) {
+				protected void changed() {
+					Utils.setpref(MoonFlowerHudSettings.CHAT_KEYWORDS, text());
+					if(ui != null && ui.gui != null)
+						ui.gui.chat.applyDisplayPreferences();
+					super.changed();
+				}
+			}, prev.pos("bl").adds(0, 2));
+			prev.tooltip = RichText.render("Matching messages receive a blossom marker and elevated notification urgency.", UI.scale(300));
+
 			prev = add(chatAlertSoundsCheckBox = new CheckBox("Enable chat message notification sounds"){
 				{a = (Utils.getprefb("chatAlertSounds", true));}
 				public void changed(boolean val) {
 					Utils.setprefb("chatAlertSounds", val);
 				}
-			}, 0, 0);
+			}, prev.pos("bl").adds(0, 10));
 
 			prev = add(areaChatAlertSoundsCheckBox = new CheckBox("Area Chat Sound"){
 				{a = (Utils.getprefb("areaChatAlertSounds", true));}
@@ -3142,6 +3319,7 @@ public class OptWnd extends Window {
 	    y = addbtn(cont, "Search actions", GameUI.kb_srch, y);
 	    y = addbtn(cont, "Cookbook", GameUI.kb_cookbook, y);
 	    y = addbtn(cont, "Fishing Journal", GameUI.kb_fishingJournal, y);
+	    y = addbtn(cont, "Ring of Brodgar Wiki", GameUI.kb_wiki, y);
 	    y = addbtn(cont, "Focus chat window", GameUI.kb_chat, y);
 //	    y = addbtn(cont, "Quick chat", ChatUI.kb_quick, y);
 //	    y = addbtn(cont, "Take screenshot", GameUI.kb_shoot, y);
@@ -5082,8 +5260,9 @@ public class OptWnd extends Window {
 	advancedSettings = add(new Panel());
 	// ND: Add the sub-panel buttons for the advanced settings here
 		Panel interfacesettings = add(new InterfaceSettingsPanel(advancedSettings));
+		Panel moonflowerhudsettings = add(new MoonFlowerHudSettingsPanel(advancedSettings));
 		Panel actionbarssettings =  add(new ActionBarsSettingsPanel(advancedSettings));
-		Panel chatsettings =  add(new ChatSettingsPanel(advancedSettings));
+		chatSettings = add(new ChatSettingsPanel(advancedSettings));
 		Panel displaysettings = add(new DisplaySettingsPanel(advancedSettings));
 		Panel qualitydisplaysettings = add(new QualityDisplaySettingsPanel(advancedSettings));
 		Panel gameplayautomationsettings = add(new GameplayAutomationSettingsPanel(advancedSettings));
@@ -5098,10 +5277,11 @@ public class OptWnd extends Window {
 
 		int leftY = UI.scale(6);
 		leftY = advancedSettings.add(new PButton(UI.scale(200), "Interface Settings", -1, interfacesettings, "Interface Settings"), 0, leftY).pos("bl").adds(0, 5).y;
+		leftY = advancedSettings.add(new PButton(UI.scale(200), "MoonFlower HUD", -1, moonflowerhudsettings, "MoonFlower HUD"), 0, leftY).pos("bl").adds(0, 5).y;
 		leftY = advancedSettings.add(new PButton(UI.scale(200), "Action Bars Settings", -1, actionbarssettings, "Action Bars Settings"), 0, leftY).pos("bl").adds(0, 5).y;
 		leftY = advancedSettings.add(new PButton(UI.scale(200), "Combat Settings", -1, combatsettings, "Combat Settings"), 0, leftY).pos("bl").adds(0, 5).y;
 		leftY = advancedSettings.add(new PButton(UI.scale(200), "Quality Display Settings", -1, qualitydisplaysettings, "Quality Display Settings"), 0, leftY).pos("bl").adds(0, 5).y;
-		leftY = advancedSettings.add(new PButton(UI.scale(200), "Chat Settings", -1, chatsettings, "Chat Settings"), 0, leftY).pos("bl").adds(0, 5).y;
+		leftY = advancedSettings.add(new PButton(UI.scale(200), "Chat Settings", -1, chatSettings, "Chat Settings"), 0, leftY).pos("bl").adds(0, 5).y;
 
 		leftY += UI.scale(20);
 		leftY = advancedSettings.add(new PButton(UI.scale(200), "Altered Gameplay Settings", -1, alteredgameplaysettings, "Altered Gameplay Settings"), 0, leftY).pos("bl").adds(0, 5).y;
@@ -5161,6 +5341,12 @@ public class OptWnd extends Window {
 
     public void show() {
 	chpanel(main);
+	super.show();
+    }
+
+    public void showChatSettings() {
+	chpanel(chatSettings);
+	cap = "Chat Settings";
 	super.show();
     }
 

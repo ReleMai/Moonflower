@@ -25,6 +25,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -48,11 +50,15 @@ public final class FishingJournalWindow extends Window {
     private final FishingJournalService service;
     private final FishingMapMarkers mapMarkers;
     private final Label status;
+    private final Label fishTypesHeading;
     private final Label catchesHeading;
+    private final Label detailsHeading;
     private final Button allCatches;
+    private final Button timeInfoButton;
     private final FishGroupList groupList;
     private final FishingCatchList catchList;
     private final RichTextBox details;
+    private final RichTextBox timeInfo;
     private final List<FishingObservation> observations = new ArrayList<>();
     private final List<FishGroup> groups = new ArrayList<>();
     private Future<List<FishingObservation>> query;
@@ -65,6 +71,7 @@ public final class FishingJournalWindow extends Window {
     private int spotTileX;
     private int spotTileY;
     private List<Long> spotObservationIds = Collections.emptyList();
+    private boolean showingTimeInfo;
 
     public FishingJournalWindow(FishingJournalService service, FishingMapMarkers mapMarkers) {
         super(UI.scale(780, 520), "Fishing Journal");
@@ -83,19 +90,27 @@ public final class FishingJournalWindow extends Window {
             }
         }, UI.scale(95, 8));
         allCatches.hide();
-        status = add(new Label("Loading recent catches..."), UI.scale(195, 12));
+        timeInfoButton = add(new Button(UI.scale(90), "Fish times") {
+            @Override
+            public void click() {
+                setShowingTimeInfo(!showingTimeInfo);
+            }
+        }, UI.scale(195, 8));
+        status = add(new Label("Loading recent catches..."), UI.scale(295, 12));
 
-        add(new Label("Fish types"), UI.scale(10, 39));
+        fishTypesHeading = add(new Label("Fish types"), UI.scale(10, 39));
         catchesHeading = add(new Label("Catches by date and time — select a fish"), UI.scale(270, 39));
         groupList = add(new FishGroupList(UI.scale(250, 170)), UI.scale(10, 58));
         catchList = add(new FishingCatchList(UI.scale(490, 170)), UI.scale(270, 58));
 
-        add(new Label("Catch details and quality factors"), UI.scale(10, 238));
+        detailsHeading = add(new Label("Catch details and quality factors"), UI.scale(10, 238));
         RichText.Foundry journalText = new RichText.Foundry(RichText.IMAGESRC,
                 RichText.ImageSource.res(Resource.remote()));
         details = add(new RichTextBox(UI.scale(750, 250),
                 "Select a fish type, then click a dated catch to inspect it.", journalText),
                 UI.scale(10, 258));
+        timeInfo = add(new RichTextBox(UI.scale(750, 450), "", journalText), UI.scale(10, 58));
+        timeInfo.hide();
         reqclose(this::hide);
     }
 
@@ -168,6 +183,8 @@ public final class FishingJournalWindow extends Window {
                             .findFirst().orElse(null);
             catchList.change(selectedCatch);
             updateStatus();
+            if(showingTimeInfo)
+                updateTimeInfo();
             displayedGeneration = service.generation();
         } catch(Exception failure) {
             status.settext(service.lastError() == null ? "Could not load fishing journal." :
@@ -186,6 +203,57 @@ public final class FishingJournalWindow extends Window {
         }
         groups.clear();
         groups.addAll(grouped.values());
+    }
+
+    private void setShowingTimeInfo(boolean showing) {
+        showingTimeInfo = showing;
+        timeInfoButton.change(showing ? "Catch list" : "Fish times");
+        fishTypesHeading.show(!showing);
+        catchesHeading.show(!showing);
+        groupList.show(!showing);
+        catchList.show(!showing);
+        detailsHeading.show(!showing);
+        details.show(!showing);
+        timeInfo.show(showing);
+        if(showing)
+            updateTimeInfo();
+    }
+
+    private void updateTimeInfo() {
+        if(observations.isEmpty()) {
+            timeInfo.settext("$b{Fish by time of day}\nNo recorded catches yet. Catch fish with the native Fishing action or the helper to build this local reference.");
+            return;
+        }
+        Map<TimeBand, Map<String, TimeFish>> grouped = new EnumMap<>(TimeBand.class);
+        for(TimeBand band : TimeBand.values())
+            grouped.put(band, new LinkedHashMap<>());
+        for(FishingObservation observation : observations) {
+            TimeBand band = TimeBand.of(observation.gameSecondOfDay);
+            String key = fishKey(observation);
+            grouped.get(band).computeIfAbsent(key, ignored -> new TimeFish(observation)).add(observation);
+        }
+
+        StringBuilder text = new StringBuilder("$b{Fish by time of day}\n")
+                .append("Counts are your local catches grouped by the in-game clock. They show observed patterns, not a guaranteed server spawn table.\n");
+        for(TimeBand band : TimeBand.values()) {
+            text.append("\n$b{").append(band.label).append(" (").append(band.hours).append(")}\n");
+            List<TimeFish> fish = new ArrayList<>(grouped.get(band).values());
+            if(fish.isEmpty()) {
+                text.append("No recorded catches.\n");
+                continue;
+            }
+            fish.sort(Comparator.comparingInt((TimeFish entry) -> entry.count).reversed()
+                    .thenComparing(entry -> entry.name, String.CASE_INSENSITIVE_ORDER));
+            for(TimeFish entry : fish) {
+                if(!entry.resource.isBlank())
+                    text.append("$img[").append(entry.resource).append(",h=20] ");
+                text.append("$b{").append(quote(entry.name)).append("} — ")
+                        .append(entry.count).append(entry.count == 1 ? " catch" : " catches")
+                        .append(" | ").append(entry.qualityRange())
+                        .append(" | latest ").append(formatGameTime(entry.latest.gameSecondOfDay)).append("\n");
+            }
+        }
+        timeInfo.settext(text.toString());
     }
 
     private boolean markerStatusChanged() {
@@ -472,6 +540,64 @@ public final class FishingJournalWindow extends Window {
             this.count = count;
             this.minimum = minimum;
             this.maximum = maximum;
+        }
+    }
+
+    private enum TimeBand {
+        NIGHT("Night", "21:00–04:59"),
+        DAWN("Dawn", "05:00–08:59"),
+        DAY("Day", "09:00–16:59"),
+        DUSK("Dusk", "17:00–20:59");
+
+        final String label;
+        final String hours;
+
+        TimeBand(String label, String hours) {
+            this.label = label;
+            this.hours = hours;
+        }
+
+        static TimeBand of(int secondOfDay) {
+            int hour = Math.floorMod(secondOfDay, 24 * 60 * 60) / 3600;
+            if(hour < 5 || hour >= 21)
+                return(NIGHT);
+            if(hour < 9)
+                return(DAWN);
+            if(hour < 17)
+                return(DAY);
+            return(DUSK);
+        }
+    }
+
+    private static final class TimeFish {
+        final String name;
+        final String resource;
+        FishingObservation latest;
+        int count;
+        int qualityCount;
+        double minimumQuality = Double.POSITIVE_INFINITY;
+        double maximumQuality = Double.NEGATIVE_INFINITY;
+
+        TimeFish(FishingObservation observation) {
+            name = observation.fishName.isBlank() ? "Unknown fish" : observation.fishName;
+            resource = observation.fishResource;
+        }
+
+        void add(FishingObservation observation) {
+            count++;
+            if(latest == null || observation.observedAt > latest.observedAt)
+                latest = observation;
+            if(observation.fishQuality != null) {
+                qualityCount++;
+                minimumQuality = Math.min(minimumQuality, observation.fishQuality);
+                maximumQuality = Math.max(maximumQuality, observation.fishQuality);
+            }
+        }
+
+        String qualityRange() {
+            if(qualityCount == 0)
+                return("Q?");
+            return(String.format(Locale.ROOT, "Q%.1f–%.1f", minimumQuality, maximumQuality));
         }
     }
 

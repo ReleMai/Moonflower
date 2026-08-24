@@ -107,6 +107,11 @@ public class InventorySorter implements Defer.Callable<Void> {
 		for (int x = 0; x < inv.isz.x; x++)
 		    maskGrid[x][y] = inv.sqmask[mo++];
 	}
+	Set<Coord> lockedSlots = inv.lockedSlots();
+	for(Coord locked : lockedSlots) {
+	    if(locked.x >= 0 && locked.y >= 0 && locked.x < inv.isz.x && locked.y < inv.isz.y)
+		maskGrid[locked.x][locked.y] = true;
+	}
 
 	// Collect all items, skip those with unloaded sprites
 	List<Entry> entries = new ArrayList<>();
@@ -116,6 +121,10 @@ public class InventorySorter implements Defer.Callable<Void> {
 	    if (w.item.spr() == null) continue;
 	    Coord slots = w.sz.div(sqsz);
 	    Coord current = w.c.sub(1, 1).div(sqsz);
+	    if(inv.itemTouchesLockedSlot(current, slots, lockedSlots)) {
+		markGrid(maskGrid, current, slots, true);
+		continue;
+	    }
 	    entries.add(new Entry(w, slots, current));
 	}
 

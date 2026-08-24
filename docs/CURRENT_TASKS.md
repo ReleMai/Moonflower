@@ -28,6 +28,123 @@ Acceptance criteria:
    and `OD_HEALTH` behavior are recorded as PASS, FAIL, or NOT RUN without
    treating community values as server authority.
 
+## Pending Live Validation: MoonFlower In-Game HUD
+
+Validate the optional MoonFlower Hearthwheel HUD in one visible,
+user-supervised Haven session. The packaged implementation moves the visual
+portrait and vitality presentation into a movable bottom-center dock, mirrors
+native window controls with a six-socket MoonFlower ornament, and opens all
+client-only tools from one expandable, data-driven feature vine. Prefiltered
+custom artwork, interactive ring/ribbon vitality styles, a movement-speed
+badge, and circular native buffs around the portrait share one teal, ivory, and
+gold language. Four effects remain immediately visible; overflow effects animate
+out from a `+N` bud. The Equipment portrait button rolls the configured native
+hand, pouch, belt, backpack, shoulder, and cape quick slots out on their own vine.
+The action bars, quick slots, lower-right controls, map frame, and chat panel
+now use that same theme. The six action bars retain scalable horizontal, 2x5,
+and vertical layouts, gain edit-mode drag surfaces with persistent per-bar
+locks, while Chat provides live text-size, background-opacity, timestamp,
+preview, keyword-alert, active-channel-alert, and notification-volume controls.
+Generated MoonFlower frame, midnight-panel, and chat-settings artwork now skins
+standard windows, inventory, chat, map, and the lower-right menu through an
+adaptive nine-slice renderer. A title-bar flower-gear opens Chat Settings
+directly, and buffs occupy a separate vine cradle below the portrait rings.
+MoonFlower window chrome replaces rather than overlays Haven's native frame;
+interior views use borderless texture surfaces so chat, inventory, and the map
+do not show doubled edges. Combat now uses a themed status rail, action deck,
+and opponent cards while retaining native actions, cooldowns, openings,
+initiative, targeting controls, and last-action data.
+The generated panel texture fills the complete decorated window so title and
+margin regions cannot expose the game world. Outside combat, HUD edit mode
+shows independently draggable Combat Status and Combat Deck ghosts; their
+saved anchors drive the live combat presentation. The portrait clamp uses its
+painted lower bound rather than unused rollout space, allowing the ornament to
+sit flush with the bottom edge. The panel surface is clipped inside the floral
+frame's transparent corners, Chat delegates opacity to one window-owned
+background, the lower-right action menu uses a connected vine dock with themed
+slots, and portrait vitals use continuous illuminated arcs with embedded number
+badges instead of stacked text over the portrait.
+
+Acceptance criteria:
+
+1. The first in-game startup shows one centered choice between the MoonFlower
+   and classic HUDs. Closing the choice keeps the classic HUD, the decision is
+   remembered, and either layout remains selectable later in Options.
+2. Enabling the MoonFlower HUD hides only the classic portrait, meters, and
+   main button strip. Disabling it immediately restores all three without a
+   relog or lost action assignments. Percentage-bearing vitality labels render
+   without formatter exceptions or UI-thread termination.
+3. A never-positioned hub defaults to bottom-center, remains on-screen after
+   resize/UI-scale changes, saves a left- or middle-dragged per-character
+   position in edit mode, and returns to its responsive default after Reset
+   Position. Existing saved positions remain respected after the artwork update.
+4. Inventory, Equipment, Character, Kin, Options, and one MoonFlower Features
+   button use centers detected from the six painted socket interiors rather
+   than hand-entered offsets. The Features button animates a vine containing
+   Cookbook, Fishing Journal, Fishing Helper, and Wiki; every
+   entry retains its action, tooltip, shortcut, and visible-window state. Adding
+   another client feature requires only another vine entry, not new portrait
+   geometry or artwork.
+5. Ring and ribbon styles show the same live health, stamina, and energy data
+   as the native meters. Soft health remains visually distinct from the darker
+   hard-health ceiling. Hovering each ring/ribbon identifies that vital; health
+   includes SHP, HHP ceiling, MHP, recoverable damage, wound damage, and total
+   missing health without overlapping the Options action.
+6. Movement shows the same live player speed used by the native avatar readout.
+   Native buff widgets become circular and arc around the portrait, retain
+   their clicks and short/long tooltips, animate all overflow from a `+N` bud,
+   and return to their classic position, square presentation, and size when the
+   MoonFlower HUD is disabled. The configured equipment quick slots similarly
+   animate from the Equipment socket and return to their saved classic position.
+7. All six action bars preserve slot identities, actions, keybinds, tooltips,
+   removal safeguards, dragging, and item/action drops at 100-160% size in
+   horizontal, 2x5, and vertical layouts. Action slots, quick slots, the
+   lower-right control cluster, compact map, and chat frame use the shared
+   MoonFlower panel treatment without changing their hit areas.
+8. Chat font and timestamp changes reflow existing messages without losing
+   channel selection or scroll position. Opacity, alert volume, notification
+   preview duration/count, keyword highlighting, and active-channel alert
+   suppression apply immediately, while existing per-channel sound toggles
+   remain authoritative.
+9. The HUD remains readable and clickable at 1280x720, 1920x1080, 2560x1440,
+   ultrawide, and supported UI scales without covering critical combat UI.
+10. Rings are visibly thicker than the prior HUD. The Options checkbox can
+   show or hide health-current/max, stamina-percent, and energy-percent values
+   on their respective ring or ribbon instead of over the portrait, without
+   changing hover details.
+11. The portrait equipment rollout mirrors the real Equipment window for every
+   opening path: it is closed while the full Equipment window is open and rolls
+   back out when that window closes. It does not retain an independent state.
+12. Buff artwork is circularly masked rather than merely placed in a circular
+   frame. Inventory windows use the shared ink, teal, gold, blossom, and vine
+   treatment while retaining native item interactions, grid geometry, sorting,
+   stacking, extended view, and persistent slot locks. The lock-mode control is
+   scaled, visually distinct, and laid out on the title bar from actual button
+   widths. Edit mode permits left-dragging each action bar and provides
+   persistent per-bar plus lock-all/unlock-all controls.
+13. Inventory, Chat, Map, standard menu windows, and the lower-right menu use
+   project-local generated raster assets without stretching corner artwork or
+   covering native controls. The chat title-bar settings emblem opens the same
+   Chat Settings panel available through Options -> Advanced Settings.
+14. The four primary buffs remain visibly attached to the portrait by a lower
+   vine cradle but do not touch the health, stamina, or energy rings. Expanded
+   overflow buffs remain below the portrait and on-screen at supported scales.
+15. Standard windows show exactly one outer frame in either classic or
+   MoonFlower mode. The combat deck keeps selected and backup actions distinct,
+   exposes action name, hotkey, state, and remaining cooldown on hover, and does
+   not obscure existing opening, initiative, health, stamina, or last-action
+   information.
+16. In HUD edit mode and outside combat, separate descriptive ghost panels can
+   reposition the status rail and combat deck without sending combat messages.
+   Their positions persist, remain clamped on-screen, can be reset in Options,
+   and are used by the real combat UI on the next fight. The portrait can be
+   dragged to its actual painted bottom edge without hiding its buff cradle.
+17. The shared panel texture does not show square pixels outside transparent
+   floral frame corners. Chat displays exactly one opacity-controlled surface,
+   the lower-right action grid and control rail read as one attached botanical
+   dock, and health, stamina, and energy use fluid glowing tracks whose optional
+   values sit on their respective tracks without covering the avatar.
+
 ## Pending Live Validation: Feasting Helper
 
 Validate the new Table-integrated Feasting Helper in one visible,
@@ -181,6 +298,7 @@ packaged JAR underneath a live JVM can terminate its UI thread.
 Push-Location client
 ant clean deftgt
 java -cp "bin/*" haven.MoonFlowerChecks
+java '-Dhaven.uiscale=1' -cp "bin/*" haven.MoonFlowerHudChecks
 java '-Dhaven.uiscale=1' -cp "bin/*" haven.cookbook.CookbookChecks
 java '-Dhaven.uiscale=1' -cp "bin/*" haven.fishing.FishingChecks
 java '-Dhaven.uiscale=1' -cp "bin/*" haven.feasting.FeastingChecks

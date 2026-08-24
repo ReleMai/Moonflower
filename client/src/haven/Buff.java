@@ -27,6 +27,9 @@
 package haven;
 
 import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
 import java.util.*;
 import haven.ItemInfo.AttrCache;
@@ -45,6 +48,11 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     protected boolean dest = false;
     private ItemInfo.Raw rawinfo = null;
     private List<ItemInfo> info = Collections.emptyList();
+    private double displayScale = 1.0;
+    private boolean circularDisplay = false;
+    private Resource circularIconResource;
+    private int circularIconSide;
+    private Tex circularIcon;
 
     @RName("buff")
     public static class $_ implements Factory {
@@ -57,6 +65,55 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     public Buff(Indir<Resource> res) {
 	super(cframe.sz());
 	this.res = res;
+    }
+
+    public void setDisplayScale(double scale) {
+	displayScale = Utils.clip(scale, 0.5, 1.0);
+	resize(dscale(cframe.sz()));
+    }
+
+    public void setCircularDisplay(boolean circular) {
+	circularDisplay = circular;
+    }
+
+    static BufferedImage circularIcon(BufferedImage source, int side) {
+	BufferedImage target = TexI.mkbuf(Coord.of(side, side));
+	Graphics2D graphics = target.createGraphics();
+	graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+	graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+	graphics.setClip(new Ellipse2D.Double(0, 0, side, side));
+	int crop = Math.min(source.getWidth(), source.getHeight());
+	int sx = (source.getWidth() - crop) / 2;
+	int sy = (source.getHeight() - crop) / 2;
+	graphics.drawImage(source, 0, 0, side, side, sx, sy, sx + crop, sy + crop, null);
+	graphics.dispose();
+	return target;
+    }
+
+    private Tex circularIcon(Resource resource, int side) {
+	if(circularIcon == null || circularIconResource != resource || circularIconSide != side) {
+	    disposeCircularIcon();
+	    circularIconResource = resource;
+	    circularIconSide = side;
+	    circularIcon = new TexI(circularIcon(resource.flayer(Resource.imgc).img, side));
+	}
+	return circularIcon;
+    }
+
+    private void disposeCircularIcon() {
+	if(circularIcon != null)
+	    circularIcon.dispose();
+	circularIcon = null;
+	circularIconResource = null;
+	circularIconSide = 0;
+    }
+
+    private int dscale(int value) {
+	return(Math.max(1, (int)Math.round(value * displayScale)));
+    }
+
+    private Coord dscale(Coord value) {
+	return(Coord.of(dscale(value.x), dscale(value.y)));
     }
 
     public Resource resource() {
@@ -101,30 +158,65 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     private final AttrCache<Double> cmeteri = new AttrCache<>(this::info, AttrCache.map1(GItem.MeterInfo.class, minf -> minf::meter));
 
     public void draw(GOut g) {
+	if(circularDisplay) {
+	    drawCircular(g);
+	    return;
+	}
 	g.chcolor(255, 255, 255, a);
 	Double ameterv = ameteri.get();
 	if(ameterv != null) {
-	    g.image(cframe, Coord.z);
+	    g.image(cframe, Coord.z, sz);
 	    int w = (int)Math.floor((ameterx2 - ameterx1) * ameterv);
-	    g.image(ameter, Coord.z, Coord.of(ameterx1, 0), Coord.of(ameterx1 + w, ameter.sz().y));
+	    int x1 = dscale(ameterx1);
+	    g.image(ameter, Coord.z, Coord.of(x1, 0), Coord.of(x1 + dscale(w), sz.y), sz);
 	} else {
-	    g.image(frame, Coord.z);
+	    g.image(frame, Coord.z, sz);
 	}
 	try {
 	    Tex img = res.get().flayer(Resource.imgc).tex();
-	    g.image(img, imgoff);
+	    Coord iconOrigin = dscale(imgoff);
+	    Coord iconSize = dscale(img.sz());
+	    g.image(img, iconOrigin, iconSize);
 	    Tex nmeter = nmeteri.get();
 	    if(nmeter != null)
-		g.aimage(nmeter, imgoff.add(img.sz()).sub(1, 1), 1, 1, nmeter.sz());
+		g.aimage(nmeter, iconOrigin.add(iconSize).sub(dscale(1), dscale(1)), 1, 1, dscale(nmeter.sz()));
 	    Double cmeter = cmeteri.get();
 	    if(cmeter != null) {
 		double m = Utils.clip(cmeter, 0.0, 1.0);
 		g.chcolor(255, 255, 255, a / 2);
-		Coord ccc = img.sz().div(2);
-		g.prect(imgoff.add(ccc), ccc.inv(), img.sz().sub(ccc), Math.PI * 2 * m);
+		Coord ccc = iconSize.div(2);
+		g.prect(iconOrigin.add(ccc), ccc.inv(), iconSize.sub(ccc), Math.PI * 2 * m);
 		g.chcolor(255, 255, 255, a);
 	    }
 	} catch(Loading e) {}
+    }
+
+    private void drawCircular(GOut g) {
+	Coord center = sz.div(2);
+	int radius = Math.max(2, (Math.min(sz.x, sz.y) / 2) - UI.scale(1));
+	g.chcolor(255, 255, 255, a);
+	MoonFlowerHudTheme.drawCircularSlot(g, center, radius, false);
+	try {
+	    Resource resource = res.get();
+	    int iconSide = Math.max(UI.scale(12), (int)Math.round(Math.min(sz.x, sz.y) * 0.62));
+	    Coord iconSize = Coord.of(iconSide, iconSide);
+	    Coord iconOrigin = center.sub(iconSide / 2, iconSide / 2);
+	    g.chcolor(255, 255, 255, a);
+	    Tex img = circularIcon(resource, iconSide);
+	    g.image(img, iconOrigin, iconSize);
+	    Tex nmeter = nmeteri.get();
+	    if(nmeter != null)
+		g.aimage(nmeter, center.add(radius - UI.scale(2), radius - UI.scale(2)), 1, 1,
+			dscale(nmeter.sz()));
+	    Double cmeter = cmeteri.get();
+	    if(cmeter != null) {
+		double m = Utils.clip(cmeter, 0.0, 1.0);
+		g.chcolor(255, 255, 255, a / 2);
+		g.prect(center, Coord.of(-radius, -radius), Coord.of(radius, radius), Math.PI * 2 * m);
+	    }
+	} catch(Loading e) {
+	}
+	g.chcolor();
     }
 
     private BufferedImage shorttip() {
@@ -172,7 +264,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	new NormAnim(0.35) {
 	    public void ntick(double a) {
 		Buff.this.a = 255 - (int)(255 * a);
-		Buff.this.c = o.add(0, (int)(a * a * cframe.sz().y));
+		Buff.this.c = o.add(0, (int)(a * a * Buff.this.sz.y));
 		if(a == 1.0)
 		    destroy();
 	    }
@@ -200,6 +292,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 
     public void uimsg(String msg, Object... args) {
 	if(msg == "ch") {
+	    disposeCircularIcon();
 	    this.res = ui.sess.getresv(args[0]);
 	} else if(msg == "tt") {
 	    info = null;
@@ -211,7 +304,14 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
     }
 
     public boolean mousedown(MouseDownEvent ev) {
-	wdgmsg("cl", ev.c.sub(imgoff), ev.b, ui.modflags());
+	Coord nativeCoord = Coord.of((int)Math.round(ev.c.x / displayScale), (int)Math.round(ev.c.y / displayScale));
+	wdgmsg("cl", nativeCoord.sub(imgoff), ev.b, ui.modflags());
 	return(true);
+    }
+
+    @Override
+    public void destroy() {
+	disposeCircularIcon();
+	super.destroy();
     }
 }

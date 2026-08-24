@@ -21,9 +21,26 @@ public class QuickSlotsWdg extends Widget implements DTarget {
 
     private UI.Grab dragging;
     private Coord dc;
+    private boolean portraitIntegrated = false;
+    private double rolloutReveal = 1.0;
 
     public QuickSlotsWdg() {
         super(UI.scale(new Coord(0, 0)));
+        reloadSlots();
+    }
+
+    public void setPortraitIntegrated(boolean integrated) {
+        portraitIntegrated = integrated;
+        rolloutReveal = integrated ? 0.0 : 1.0;
+        reloadSlots();
+    }
+
+    public void setPortraitRollout(double reveal) {
+        reveal = Utils.clip(reveal, 0.0, 1.0);
+        if(portraitIntegrated && Math.abs(rolloutReveal - reveal) < 0.0001)
+            return;
+        portraitIntegrated = true;
+        rolloutReveal = reveal;
         reloadSlots();
     }
 
@@ -33,57 +50,70 @@ public class QuickSlotsWdg extends Widget implements DTarget {
             return;
         Equipory e = ui.gui.getequipory();
         if (e != null) {
+            if(portraitIntegrated && shownSlots > 1) {
+                Coord previous = null;
+                for(Coord slot : slotCoords()) {
+                    Coord center = slot.add(slotSquareBg.sz().div(2));
+                    if(previous != null)
+                        MoonFlowerHudTheme.drawCurvedVine(g, previous, center, rolloutReveal);
+                    previous = center;
+                }
+            }
             if (shownSlots > 0) {
-                Coord slotLocation = new Coord(0, 0);
-                for (int i = 0; i < shownSlots; i++) {
-                    g.image(slotSquareBg, slotLocation);
-                    slotLocation.x += slotSquareBg.sz().x + slotSpacing;
+                for (Coord slotLocation : slotCoords()) {
+                    if(portraitIntegrated)
+                        MoonFlowerHudTheme.drawCircularSlot(g, slotLocation.add(slotSquareBg.sz().div(2)),
+                                (Math.min(slotSquareBg.sz().x, slotSquareBg.sz().y) / 2) - UI.scale(1), false);
+                    else if(MoonFlowerHudTheme.active())
+                        MoonFlowerHudTheme.drawSlot(g, slotLocation, slotSquareBg.sz(), false, false);
+                    else
+                        g.image(slotSquareBg, slotLocation);
                 }
             }
 
             if (leftHandSlotCoord != null){
-                g.image(leftHandBg, leftHandSlotCoord);
+                drawEquipmentHint(g, leftHandBg, leftHandSlotCoord);
                 if (e.slots[6] != null)
                     e.slots[6].draw(g.reclipl(leftHandSlotCoord, slotSquareBg.sz()));
             }
             if (rightHandSlotCoord != null){
-                g.image(rightHandBg, rightHandSlotCoord);
+                drawEquipmentHint(g, rightHandBg, rightHandSlotCoord);
                 if (e.slots[7] != null)
                     e.slots[7].draw(g.reclipl(rightHandSlotCoord, slotSquareBg.sz()));
             }
 
             if (leftPouchSlotCoord != null) {
-                g.image(leftPouchBg, leftPouchSlotCoord);
+                drawEquipmentHint(g, leftPouchBg, leftPouchSlotCoord);
                 if (e.slots[19] != null)
                     e.slots[19].draw(g.reclipl(leftPouchSlotCoord, slotSquareBg.sz()));
             }
 
             if (rightPouchSlotCoord != null) {
-                g.image(rightPouchBg, rightPouchSlotCoord);
+                drawEquipmentHint(g, rightPouchBg, rightPouchSlotCoord);
                 if (e.slots[20] != null)
                     e.slots[20].draw(g.reclipl(rightPouchSlotCoord, slotSquareBg.sz()));
             }
 
             if (beltSlotCoord != null) {
-                g.image(beltBg, beltSlotCoord);
+                drawEquipmentHint(g, beltBg, beltSlotCoord);
                 if (e.slots[5] != null)
                     e.slots[5].draw(g.reclipl(beltSlotCoord, slotSquareBg.sz()));
             }
 
             if (backpackSlotCoord != null) {
-                g.image(backpackBg, backpackSlotCoord);
+                drawEquipmentHint(g, backpackBg, backpackSlotCoord);
                 if (e.slots[11] != null)
                     e.slots[11].draw(g.reclipl(backpackSlotCoord, slotSquareBg.sz()));
             }
 
             if (shouldersSlotCoord != null) {
-                g.image(shouldersBg, shouldersSlotCoord);
+                drawEquipmentHint(g, shouldersBg, shouldersSlotCoord);
                 if (e.slots[22] != null)
                     e.slots[22].draw(g.reclipl(shouldersSlotCoord, slotSquareBg.sz()));
             }
 
             if (capeSlotCoord != null) {
-                g.image(capeBg, capeSlotCoord);
+                drawEquipmentHint(g, capeBg, capeSlotCoord);
                 if (e.slots[14] != null)
                     e.slots[14].draw(g.reclipl(capeSlotCoord, slotSquareBg.sz()));
             }
@@ -209,7 +239,7 @@ public class QuickSlotsWdg extends Widget implements DTarget {
             return false;
         if (ui.modmeta || ui.modctrl)
             return true;
-        if (ev.b == 2) {
+        if (ev.b == 2 && !portraitIntegrated) {
             if((dragging != null)) { // ND: I need to do this extra check and remove it in case you do another click before the mouseup. Idk why it has to be done like this, but it solves the issue.
                 dragging.remove();
                 dragging = null;
@@ -232,7 +262,7 @@ public class QuickSlotsWdg extends Widget implements DTarget {
             if (w != null) {
                 w.mousedown(new MouseDownEvent(new Coord(w.sz.x / 2, w.sz.y / 2), ev.b));
                 return true;
-            } else if (ev.b == 1) {
+            } else if (ev.b == 1 && !portraitIntegrated) {
                 if((dragging != null)) { // ND: I need to do this extra check and remove it in case you do another click before the mouseup. Idk why it has to be done like this, but it solves the issue.
                     dragging.remove();
                     dragging = null;
@@ -288,7 +318,9 @@ public class QuickSlotsWdg extends Widget implements DTarget {
         shouldersSlotCoord = setSlotCoord(OptWnd.shouldersQuickSlotCheckBox.a);
         capeSlotCoord = setSlotCoord(OptWnd.capeQuickSlotCheckBox.a);
         if (shownSlots > 0) {
-            this.sz = new Coord((slotSquareBg.sz().x * shownSlots) + (slotSpacing * (shownSlots-1)), slotSquareBg.sz().y);
+            int pitch = (int)Math.round((slotSquareBg.sz().x + slotSpacing) *
+                    (portraitIntegrated ? rolloutReveal : 1.0));
+            this.sz = new Coord(slotSquareBg.sz().x + (pitch * (shownSlots - 1)), slotSquareBg.sz().y);
         } else {
             this.sz = new Coord(0, 0);
         }
@@ -297,12 +329,35 @@ public class QuickSlotsWdg extends Widget implements DTarget {
 
     private Coord setSlotCoord(boolean isEnabled) {
         if (isEnabled) {
-            Coord coord = new Coord((slotSquareBg.sz().x + slotSpacing) * shownSlots, 0);
+            int pitch = (int)Math.round((slotSquareBg.sz().x + slotSpacing) *
+                    (portraitIntegrated ? rolloutReveal : 1.0));
+            Coord coord = new Coord(pitch * shownSlots, 0);
             shownSlots++;
             return coord;
         } else {
             return null;
         }
+    }
+
+    private void drawEquipmentHint(GOut g, Tex hint, Coord origin) {
+        if(!portraitIntegrated) {
+            g.image(hint, origin);
+            return;
+        }
+        int inset = UI.scale(6);
+        g.image(hint, origin.add(inset, inset), slotSquareBg.sz().sub(inset * 2, inset * 2));
+    }
+
+    private Coord[] slotCoords() {
+        Coord[] all = {leftHandSlotCoord, rightHandSlotCoord, leftPouchSlotCoord, rightPouchSlotCoord,
+                beltSlotCoord, backpackSlotCoord, shouldersSlotCoord, capeSlotCoord};
+        Coord[] visible = new Coord[shownSlots];
+        int index = 0;
+        for(Coord coord : all) {
+            if(coord != null)
+                visible[index++] = coord;
+        }
+        return visible;
     }
 
 }

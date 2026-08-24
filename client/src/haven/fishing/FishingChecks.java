@@ -121,6 +121,9 @@ public final class FishingChecks {
 
             check(FishingAtlas.classify("Crane Fly") == FishingAtlas.Part.BAIT,
                     "current bait atlas entry is missing");
+            check(FishingAtlas.classify("A stack of Earthworms") == FishingAtlas.Part.BAIT &&
+                            FishingAtlas.sameDisplayName("Stack of Grasshoppers", "Grasshopper"),
+                    "stacked fishing tackle names must normalize to their selectable items");
             check(FishingAtlas.classify("Tick") == FishingAtlas.Part.UNKNOWN &&
                             FishingAtlas.classify("Bloated Tick") == FishingAtlas.Part.BAIT,
                     "only a bloated tick should be classified as current bait");

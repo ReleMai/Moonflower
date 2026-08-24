@@ -184,6 +184,8 @@ public class Window extends Widget {
 	}
 	if(deco != null)
 	    this.deco = add(deco);
+	if(this.deco instanceof DefaultDeco)
+	    ((DefaultDeco)this.deco).ensureInventoryButtons();
 	resize2(psz);
 	Coord coff = poff.sub(ca().ul);
 	this.c = this.c.add(coff);
@@ -224,6 +226,7 @@ public class Window extends Widget {
 	public final boolean lg;
 	public final IButton cbtn;
     public IButton extlistbtn, stackbtn, unstackbtn, sortbtn;
+    public InventorySlotLockButton slotlockbtn;
 	public boolean dragsize, cfocus;
 	public Area aa, ca;
 	public Coord cptl = Coord.z, cpsz = Coord.z;
@@ -252,16 +255,23 @@ public class Window extends Widget {
 	    aa = Area.sized(ca.ul.add(mrgn), asz);
 //		int extra = inventoryExtraWidth();
 		int anchor = sz.x;
-		cbtn.c = Coord.of(anchor - cbtn.sz.x - UI.scale(9), -UI.scale(10));
-		if (extlistbtn != null)
-			extlistbtn.c = Coord.of(anchor - cbtn.sz.x - UI.scale(29), -UI.scale(10));
-        if (sortbtn != null)
-            sortbtn.c = Coord.of(anchor - cbtn.sz.x - UI.scale(49), - UI.scale(10));
-        if (unstackbtn != null)
-            unstackbtn.c = Coord.of(anchor - cbtn.sz.x - UI.scale(69), -UI.scale(10));
-        if (stackbtn != null)
-            stackbtn.c = Coord.of(anchor - cbtn.sz.x - UI.scale(88), -UI.scale(10));
+		int right = anchor - UI.scale(9);
+		right = placeTitleButton(cbtn, right);
+		right = placeTitleButton(extlistbtn, right);
+		right = placeTitleButton(sortbtn, right);
+		right = placeTitleButton(unstackbtn, right);
+		right = placeTitleButton(stackbtn, right);
+		placeTitleButton(slotlockbtn, right);
+		if(slotlockbtn != null)
+		    slotlockbtn.c.y = UI.scale(1);
 		cpsz = Coord.of((int)(wsz.x*0.95), cm.sz().y).sub(cptl); // ND: changed this to make the window top bar fully draggable WHEN RESIZED (for instance, buddy window)
+	}
+
+	private int placeTitleButton(Widget button, int right) {
+	    if(button == null)
+		return right;
+	    button.c = Coord.of(right - button.sz.x, -UI.scale(10));
+	    return button.c.x - UI.scale(3);
 	}
 
 	public Area contarea() {
@@ -273,6 +283,16 @@ public class Window extends Widget {
 	}
 
 	protected void drawbg(GOut g) {
+	    if(MoonFlowerHudTheme.active()) {
+		/* Fill the complete decorated window, not merely the client area. The
+		 * MoonFlower frame has transparent corners and otherwise exposes hollow
+		 * title/margin strips when only ca is painted. Chat owns its opacity here
+		 * as well, so its active channel does not need a second background. */
+		Window wnd = (Window)parent;
+		int alpha = (wnd instanceof ChatWnd) ? MoonFlowerHudSettings.chatBackgroundAlpha() : 255;
+		MoonFlowerHudTheme.drawWindowBackground(g, Coord.z, sz, alpha);
+		return;
+	    }
 	    g.usestate(bgblend);
 	    Coord bgc = new Coord();
 	    for(bgc.y = ca.ul.y; bgc.y < ca.br.y; bgc.y += bg.sz().y) {
@@ -297,6 +317,17 @@ public class Window extends Widget {
 		cptl = Coord.of(ca.ul.x, 0);
 		cpsz = Coord.of((int)(wsz.x*0.95), cm.sz().y).sub(cptl); // ND: changed this to make the window top bar fully draggable
 		cmw = cmw - (cl.sz().x - cpo.x) - UI.scale(5);
+	    }
+	    /* MoonFlower owns the window chrome while its HUD is active. Drawing the
+	     * generated frame after Haven's frame produced the doubled borders visible
+	     * around chat, equipment and character windows. */
+	    if(MoonFlowerHudTheme.active()) {
+		MoonFlowerHudTheme.drawWindowFrame(g, Coord.z, sz);
+		if(cap != null)
+		    g.image(cap.tex(), cpo);
+		if(dragsize)
+		    g.image(sizer, ca.br.sub(sizer.sz()));
+		return;
 	    }
 	    if(dragsize)
 		g.image(sizer, ca.br.sub(sizer.sz()));
@@ -437,6 +468,8 @@ public class Window extends Widget {
 			unstackbtn.visible = visible && hasInventory;
 		if (sortbtn != null)
 			sortbtn.visible = visible && hasInventory;
+		if (slotlockbtn != null)
+			slotlockbtn.visible = visible && hasInventory;
 		if (extlistbtn != null)
 			extlistbtn.visible = visible && hasExtInventory;
 	}
@@ -488,6 +521,29 @@ public class Window extends Widget {
         sortbtn.visible = false;
         refreshInventoryButtons();
     }
+
+	public void addSlotLockBtn() {
+		if(slotlockbtn != null)
+			return;
+		Inventory inventory = findInventory();
+		if(inventory == null)
+			return;
+		slotlockbtn = add(new InventorySlotLockButton(inventory));
+		slotlockbtn.visible = false;
+		refreshInventoryButtons();
+	}
+
+	private void ensureInventoryButtons() {
+		if(findInventory() == null)
+			return;
+		addStackBtn();
+		addUnstackBtn();
+		addSortBtn();
+		addSlotLockBtn();
+		if(findExtInventory() != null)
+			addExtListBtn();
+		refreshInventoryButtons();
+	}
 
     public void addUnstackBtn() {
 		if (unstackbtn != null)
@@ -970,6 +1026,11 @@ public class Window extends Widget {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
+					try {
+						((DefaultDeco) deco).addSlotLockBtn();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
 					if (child instanceof ExtInventory) {
 						try {
 							((DefaultDeco) deco).addExtListBtn();

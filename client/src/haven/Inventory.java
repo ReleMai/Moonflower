@@ -38,6 +38,7 @@ public class Inventory extends Widget implements DTarget {
     public Coord isz;
     public boolean[] sqmask = null;
     public Map<GItem, WItem> wmap = new HashMap<GItem, WItem>();
+	private final InventorySlotLocks slotLocks = new InventorySlotLocks(this);
 	public static Set<String> PLAYER_INVENTORY_NAMES = new HashSet<>(Arrays.asList("Inventory", "Belt", "Equipment", "Character Sheet", "Study"));
 
 	public static final Comparator<WItem> ITEM_COMPARATOR_ASC = new Comparator<WItem>() {
@@ -88,9 +89,15 @@ public class Inventory extends Widget implements DTarget {
     public void draw(GOut g) {
 	Coord c = new Coord();
 	int mo = 0;
+	boolean moonFlower = MoonFlowerHudTheme.active();
+	if(moonFlower)
+	    MoonFlowerHudTheme.drawInventoryBackdrop(g, sz);
 	for(c.y = 0; c.y < isz.y; c.y++) {
 	    for(c.x = 0; c.x < isz.x; c.x++) {
-		if((sqmask != null) && sqmask[mo++]) {
+		boolean masked = (sqmask != null) && sqmask[mo++];
+		if(moonFlower) {
+		    MoonFlowerHudTheme.drawInventorySlot(g, c.mul(sqsz), sqsz, masked);
+		} else if(masked) {
 		    g.chcolor(64, 64, 64, 255);
 		    g.image(invsq, c.mul(sqsz));
 		    g.chcolor();
@@ -100,12 +107,38 @@ public class Inventory extends Widget implements DTarget {
 	    }
 	}
 	super.draw(g);
+	slotLocks.draw(g);
     }
 	
     public Inventory(Coord sz) {
 	super(sqsz.mul(sz).add(1, 1));
 	isz = sz;
     }
+
+	protected void added() {
+		super.added();
+		slotLocks.attached();
+	}
+
+	public boolean toggleSlotLock(Coord slot) {
+		return slotLocks.toggle(slot);
+	}
+
+	public boolean isSlotLocked(Coord slot) {
+		return slotLocks.isLocked(slot);
+	}
+
+	public Set<Coord> lockedSlots() {
+		return slotLocks.snapshot();
+	}
+
+	public boolean itemTouchesLockedSlot(Coord position, Coord size) {
+		return InventorySlotLocks.itemTouchesLockedSlot(position, size, lockedSlots());
+	}
+
+	public boolean itemTouchesLockedSlot(Coord position, Coord size, Collection<Coord> locked) {
+		return InventorySlotLocks.itemTouchesLockedSlot(position, size, locked);
+	}
 
     public static Inventory fromWidget(Widget w) {
 	if(w instanceof Inventory)
@@ -164,6 +197,7 @@ public class Inventory extends Widget implements DTarget {
 	    isz = (Coord)args[0];
 	    resize(invsq.sz().add(UI.scale(new Coord(-1, -1))).mul(isz).add(UI.scale(new Coord(1, 1))));
 	    sqmask = null;
+		slotLocks.inventoryResized();
 	} else if(msg == "mask") {
 	    boolean[] nmask;
 	    if(args[0] == null) {

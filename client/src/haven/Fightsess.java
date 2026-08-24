@@ -84,6 +84,8 @@ public class Fightsess extends Widget {
 	};
 	private static Tex estAgiLabelTex = null;
 	private static Tex unknownTextTex = null;
+	private static final Tex combatDeckTitle = Text.renderstroked("COMBAT DECK", MoonFlowerHudTheme.IVORY,
+			Color.BLACK, keybindsFoundry).tex();
 
 	public static final Color stamBarBlue = new Color(47, 58, 207, 200);
 	public static final Color hpBarGreen = new Color(0, 166, 10, 255);
@@ -107,8 +109,7 @@ public class Fightsess extends Widget {
 	private String myLastStaminaBarText = "";
 
 	private static Coord actc(int i) {
-		int rl = OptWnd.singleRowCombatMovesCheckBox.a ? 10 : 5;
-		return(new Coord((actpitch * (i % rl)) - (((rl - 1) * actpitch) / 2), UI.scale(125) + ((i / rl) * actpitch2)));
+		return MoonFlowerCombatLayout.actionCoord(i);
 	}
 
     public static class Action {
@@ -373,9 +374,14 @@ public class Fightsess extends Widget {
 		} catch (Exception ignored) {}
 	}
 
-	int x = (int)(ui.gui.sz.x / 2.0);
-	int y = (int)(ui.gui.sz.y - ((ui.gui.sz.y / 500.0) * OptWnd.combatUITopPanelHeightSlider.val));
-	int bottom = (int)(ui.gui.sz.y - ((ui.gui.sz.y / 500.0) * OptWnd.combatUIBottomPanelHeightSlider.val));
+	Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(ui.gui.sz,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z);
+	Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(ui.gui.sz,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z);
+	int x = statusAnchor.x;
+	int y = statusAnchor.y;
+	int actionX = deckAnchor.x;
+	int bottom = deckAnchor.y;
 
 	double now = Utils.rtime();
 
@@ -399,6 +405,13 @@ public class Fightsess extends Widget {
 	if (myManeuver != null && myOpenings.size() > 1) {
 		myOpenings.remove(myManeuver);
 		myOpenings.add(myOpenings.size(), myManeuver);
+	}
+	if(MoonFlowerHudTheme.active()) {
+		int enemyOpeningCount = (fv.current == null) ? 0 : fv.current.buffs.children(Buff.class).size();
+		int sideCount = Math.max(2, Math.max(myOpenings.size(), enemyOpeningCount));
+		int railWidth = UI.scale(190) + (sideCount * UI.scale(70));
+		MoonFlowerHudTheme.drawCombatStatusRail(g, Coord.of(x - (railWidth / 2), y - UI.scale(32)),
+				Coord.of(railWidth, UI.scale(68)));
 	}
 	int myLocation = - Buff.cframe.sz().x - UI.scale(80);
 	for (Buff buff : myOpenings) {
@@ -670,8 +683,16 @@ public class Fightsess extends Widget {
 	    } catch(Loading l) {
 	    }
 	}
+	if(MoonFlowerHudTheme.active() && actions.length > 0) {
+		int columns = Math.min(actions.length, OptWnd.singleRowCombatMovesCheckBox.a ? 10 : 5);
+		int rows = (actions.length + columns - 1) / columns;
+		Area deckArea = MoonFlowerCombatLayout.actionDeckArea(ui.gui.sz,
+				MoonFlowerHudSettings.combatDeckOffset(), actions.length);
+		MoonFlowerHudTheme.drawCombatActionDeck(g, deckArea.ul, deckArea.sz());
+		g.aimage(combatDeckTitle, deckArea.ul.add(deckArea.sz().x / 2, UI.scale(12)), 0.5, 0.5);
+	}
 	for(int i = 0; i < actions.length; i++) {
-	    Coord ca = new Coord(x - 16, bottom - UI.scale(150)).add(actc(i)) ;
+	    Coord ca = new Coord(actionX - 16, bottom - UI.scale(150)).add(actc(i)) ;
 	    Action act = actions[i];
 	    try {
 		if(act != null) {
@@ -679,6 +700,9 @@ public class Fightsess extends Widget {
 		    Tex img = res.flayer(Resource.imgc).tex();
 		    Coord ic = ca.sub(img.sz().div(2));
 			Coord hsz = img.sz().div(2);
+			if(MoonFlowerHudTheme.active())
+				MoonFlowerHudTheme.drawCombatActionSlot(g, ca.sub(UI.scale(3), UI.scale(3)),
+						img.sz().add(UI.scale(6), UI.scale(6)), i == use, i == useb);
 		    g.image(img, ca);
 		    if(now < act.ct) {
 			double a = (now - act.cs) / (act.ct - act.cs);
@@ -738,12 +762,14 @@ public class Fightsess extends Widget {
 					g.aimage(damageTex, ca.add((int)(img.sz().x/2), img.sz().y + UI.scale(infoY)), 0.5, 0.5);
 				}
 			}
-		    if(i == use) {
-			g.image(indframe, ca.sub(indframeo));
-		    } else if(i == useb) {
-			g.image(indbframe, ca.sub(indbframeo));
-		    } else {
-			g.image(actframe, ca.sub(actframeo));
+		    if(!MoonFlowerHudTheme.active()) {
+			if(i == use) {
+			    g.image(indframe, ca.sub(indframeo));
+			} else if(i == useb) {
+			    g.image(indbframe, ca.sub(indbframeo));
+			} else {
+			    g.image(actframe, ca.sub(actframeo));
+			}
 		    }
 		}
 	    } catch(Loading l) {}
@@ -771,9 +797,14 @@ public class Fightsess extends Widget {
     private Text acttip = null;
     public static final String[] keytips = {"1", "2", "3", "4", "5", "Shift+1", "Shift+2", "Shift+3", "Shift+4", "Shift+5"};
     public Object tooltip(Coord c, Widget prev) {
-	int x = (int)(ui.gui.sz.x / 2.0);
-	int y = (int)(ui.gui.sz.y - ((ui.gui.sz.y / 500.0) * OptWnd.combatUITopPanelHeightSlider.val));
-	int bottom = (int)(ui.gui.sz.y - ((ui.gui.sz.y / 500.0) * OptWnd.combatUIBottomPanelHeightSlider.val));
+	Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(ui.gui.sz,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z);
+	Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(ui.gui.sz,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z);
+	int x = statusAnchor.x;
+	int y = statusAnchor.y;
+	int actionX = deckAnchor.x;
+	int bottom = deckAnchor.y;
 
 	ArrayList<Buff> myOpenings = new ArrayList<>(fv.buffs.children(Buff.class));
 	myOpenings.sort((o2, o1) -> Integer.compare(getOpeningValue(o1), getOpeningValue(o2)));
@@ -839,17 +870,19 @@ public class Fightsess extends Widget {
 			location += UI.scale(40);
 	    }
 	}
-	final int rl = 5;
 	for(int i = 0; i < actions.length; i++) {
-	    Coord ca = new Coord(x - 18, bottom - UI.scale(150)).add(actc(i)).add(16, 16);
+	    Coord ca = new Coord(actionX - 16, bottom - UI.scale(150)).add(actc(i));
 	    Indir<Resource> act = (actions[i] == null) ? null : actions[i].res;
 	    if(act != null) {
 		Tex img = act.get().flayer(Resource.imgc).tex();
-		ca = ca.sub(img.sz().div(2));
 		if(c.isect(ca, img.sz())) {
-            String tip = act.get().flayer(Resource.tooltip).t + " ($b{$col[255,128,0]{" + kb_acts[i].key().name() + "}})";
-		    if(kb_acts[i].key() != KeyMatch.nil)
-			tip += " ($b{$col[255,128,0]{" + kb_acts[i].key().name() + "}})";
+		    String state = (i == use) ? "Selected action" : ((i == useb) ? "Queued backup action" : "Ready action");
+            String tip = "$b{" + act.get().flayer(Resource.tooltip).t + "}\n" +
+			    "$col[239,225,185]{Hotkey: " + kb_acts[i].key().name() + "}\n" +
+			    "$col[73,174,178]{State: " + state + "}";
+		    double remaining = actions[i].ct - Utils.rtime();
+		    if(remaining > 0)
+			tip += "\n$col[196,55,48]{Cooldown: " + fmt2DecPlaces(remaining) + " seconds}";
 		    if((acttip == null) || !acttip.text.equals(tip))
 			acttip = RichText.render(tip, -1);
 		    return(acttip);

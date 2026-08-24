@@ -87,7 +87,7 @@ final class FishingItemLocator {
             if(item == null || item.item == null || FishingInventory.insideFishingPole(item))
                 continue;
             String name = FishingItemMetadata.name(item);
-            if(classify(item) == kind && ordered.contains(name))
+            if(classify(item) == kind && selected(ordered, name))
                 matches.add(item);
         }
         matches.sort(Comparator
@@ -116,7 +116,18 @@ final class FishingItemLocator {
     }
 
     private static int preferenceIndex(List<String> priority, String name) {
-        int index = priority.indexOf(name);
-        return(index < 0 ? Integer.MAX_VALUE : index);
+        for(int index = 0; index < priority.size(); index++) {
+            if(FishingAtlas.sameDisplayName(priority.get(index), name))
+                return(index);
+        }
+        return(Integer.MAX_VALUE);
+    }
+
+    private static boolean selected(List<String> priority, String name) {
+        for(String choice : priority) {
+            if(FishingAtlas.sameDisplayName(choice, name))
+                return(true);
+        }
+        return(false);
     }
 }
