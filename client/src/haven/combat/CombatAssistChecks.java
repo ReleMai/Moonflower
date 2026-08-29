@@ -2,6 +2,12 @@ package haven.combat;
 
 import haven.Coord;
 import haven.UI;
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
 
 /** Focused offline checks for combat-number tracking and animal-health presentation rules. */
 public final class CombatAssistChecks {
@@ -17,6 +23,7 @@ public final class CombatAssistChecks {
         checkTrackerLifecycle();
         checkCatalogAndEstimates();
         checkLayoutPolicy();
+        checkLogWriter();
         System.out.println("Combat assist checks passed.");
     }
 
@@ -142,6 +149,31 @@ public final class CombatAssistChecks {
                 "disabled setting must suppress the feature");
         check(!AnimalHealthBarRenderer.shouldDisplay(true, null),
                 "unknown resources must not receive a bar");
+    }
+
+    private static void checkLogWriter() {
+        Path directory = null;
+        try {
+            directory = Files.createTempDirectory("moonflower-combat-log-check-");
+            Instant capturedAt = Instant.parse("2026-08-25T12:34:56Z");
+            JSONObject source = new JSONObject()
+                    .put("schemaVersion", CombatEncounterLog.SCHEMA_VERSION)
+                    .put("eventType", "check")
+                    .put("opponentExactAttributesAvailable", false);
+            Path file = CombatLogWriter.writeNow(directory, capturedAt, source.toString());
+            check(file.getFileName().toString().equals("combat-2026-08-25.jsonl"),
+                    "combat logs should use stable UTC day files");
+            String line = Files.readString(file, StandardCharsets.UTF_8).trim();
+            JSONObject parsed = new JSONObject(line);
+            check(parsed.getInt("schemaVersion") == CombatEncounterLog.SCHEMA_VERSION,
+                    "combat JSONL should retain its schema version");
+            check(!parsed.getBoolean("opponentExactAttributesAvailable"),
+                    "unknown opponent attributes must remain explicitly unavailable");
+            Files.delete(file);
+            Files.delete(directory);
+        } catch(Exception error) {
+            throw new AssertionError("combat log writer check failed", error);
+        }
     }
 
     private static CombatDamageEvent event(CombatDamageEvent.Type type, int amount) {

@@ -27,6 +27,7 @@
 package haven;
 
 import haven.combat.CombatDamageTracker;
+import haven.combat.CombatEncounterLog;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -371,8 +372,10 @@ public class Fightview extends Widget {
     
     public void tick(double dt) {
 	super.tick(dt);
+	long combatLogNow = System.currentTimeMillis();
 	for(Relation rel : lsrel) {
 		rel.updateCombatOverlays(rel);
+		CombatEncounterLog.forGlob(ui.sess.glob).sample(ui.gui, rel, combatLogNow);
 	    Widget inf = obinfo(rel.gobid, false);
 	    if(inf != null)
 		inf.tick(dt);
@@ -388,6 +391,18 @@ public class Fightview extends Widget {
             }
         } catch (Exception ignored) {}
 	}
+    }
+
+    @Override
+    public void destroy() {
+	if(ui != null && ui.sess != null) {
+	    long now = System.currentTimeMillis();
+	    for(Relation relation : new ArrayList<>(lsrel)) {
+		CombatEncounterLog.forGlob(ui.sess.glob).end(ui.gui, relation, now);
+		CombatDamageTracker.forGlob(ui.sess.glob).endCombat(relation.gobid);
+	    }
+	}
+	super.destroy();
     }
 
     public static class Notfound extends RuntimeException {
@@ -410,15 +425,19 @@ public class Fightview extends Widget {
     public void uimsg(String msg, Object... args) {
         if(msg == "new") {
             Relation rel = new Relation(Utils.uiv(args[0]));
-	    CombatDamageTracker.forGlob(ui.sess.glob).beginCombat(rel.gobid, resourceName(ui.sess.glob.oc.getgob(rel.gobid)), System.currentTimeMillis());
 	    rel.give(Utils.iv(args[1]));
 	    rel.ip = Utils.iv(args[2]);
 	    rel.oip = Utils.iv(args[3]);
+	    long now = System.currentTimeMillis();
+	    String resourceName = resourceName(ui.sess.glob.oc.getgob(rel.gobid));
+	    CombatDamageTracker.forGlob(ui.sess.glob).beginCombat(rel.gobid, resourceName, now);
+	    CombatEncounterLog.forGlob(ui.sess.glob).begin(ui.gui, rel, resourceName, now);
             lsrel.addFirst(rel);
 	    updrel();
             return;
         } else if(msg == "del") {
             Relation rel = getrel(Utils.uiv(args[0]));
+	    CombatEncounterLog.forGlob(ui.sess.glob).end(ui.gui, rel, System.currentTimeMillis());
 	    rel.remove();
             lsrel.remove(rel);
 	    if(rel == current) {
@@ -437,13 +456,20 @@ public class Fightview extends Widget {
 	    rel.give(Utils.iv(args[1]));
 	    rel.ip = Utils.iv(args[2]);
 	    rel.oip = Utils.iv(args[3]);
+	    CombatEncounterLog.forGlob(ui.sess.glob).relationUpdated(ui.gui, rel, System.currentTimeMillis());
             return;
 	} else if(msg == "used") {
-	    use((args[0] == null) ? null : ui.sess.getresv(args[0]));
+	    Indir<Resource> action = (args[0] == null) ? null : ui.sess.getresv(args[0]);
+	    use(action);
+	    CombatEncounterLog.forGlob(ui.sess.glob).action(ui.gui, current, "PLAYER",
+		    actionResourceName(action), System.currentTimeMillis());
 	    return;
 	} else if(msg == "ruse") {
 	    Relation rel = getrel(Utils.uiv(args[0]));
-	    rel.use((args[1] == null) ? null : ui.sess.getresv(args[1]));
+	    Indir<Resource> action = (args[1] == null) ? null : ui.sess.getresv(args[1]);
+	    rel.use(action);
+	    CombatEncounterLog.forGlob(ui.sess.glob).action(ui.gui, rel, "OPPONENT",
+		    actionResourceName(action), System.currentTimeMillis());
 	    return;
         } else if(msg == "cur") {
             try {
@@ -451,6 +477,7 @@ public class Fightview extends Widget {
                 lsrel.remove(rel);
                 lsrel.addFirst(rel);
 		setcur(rel);
+		CombatEncounterLog.forGlob(ui.sess.glob).targetChanged(ui.gui, rel, System.currentTimeMillis());
             } catch(Notfound e) {
 		setcur(null);
 	    }
@@ -459,8 +486,10 @@ public class Fightview extends Widget {
 	    atkcs = Utils.rtime();
 	    atkct = atkcs + (Utils.dv(args[0]) * 0.06);
 		lastMoveCooldown = ((Number)args[0]).doubleValue();
-		lastMoveCooldownSeconds = lastMoveCooldown * 0.06;
-		lastMoveUpdated = true;
+	    lastMoveCooldownSeconds = lastMoveCooldown * 0.06;
+	    lastMoveUpdated = true;
+	    CombatEncounterLog.forGlob(ui.sess.glob).cooldown(ui.gui, current,
+		    lastMoveCooldown, lastMoveCooldownSeconds, System.currentTimeMillis());
 	    return;
 	} else if(msg == "blk") {
 	    blk = ui.sess.getresv(args[0]);
@@ -478,6 +507,17 @@ public class Fightview extends Widget {
             return(null);
         try {
             Resource resource = gob.getres();
+            return(resource == null ? null : resource.name);
+        } catch(Loading ignored) {
+            return(null);
+        }
+    }
+
+    private static String actionResourceName(Indir<Resource> action) {
+        if(action == null)
+            return(null);
+        try {
+            Resource resource = action.get();
             return(resource == null ? null : resource.name);
         } catch(Loading ignored) {
             return(null);

@@ -94,6 +94,32 @@ Example:
 - Compilation is not live-game verification. Report login/resource/protocol
   behavior as unverified until observed with the visible client.
 
+## MoonFlower UI System
+
+- Before creating or substantially redesigning a MoonFlower UI component, copy
+  and complete [docs/templates/MOONFLOWER_UI_COMPONENT.md](docs/templates/MOONFLOWER_UI_COMPONENT.md)
+  as the design checklist for that task.
+- New UI must reuse `MoonFlowerHudTheme` and the portrait HUD's ink, teal, gold,
+  ivory, ruby, panel, vine, blossom, slot, and circular-control vocabulary.
+  Extend shared primitives only when the existing vocabulary cannot express the
+  component cleanly; do not create an unrelated one-off visual language.
+- Preserve the corresponding classic UI behavior whenever MoonFlower mode is
+  optional. Theme changes must not silently change native hit areas, keybinds,
+  tooltips, focus, Escape behavior, or server messages.
+- Separate live state, derived calculations, community guidance, and local
+  observations. Use the provenance meanings `LIVE`, `CALC`, `GUIDE`, and
+  `LEARNED`; unknown values must be omitted or shown as unavailable.
+- Keep presentation, immutable state, and services/adapters separate when a
+  component contains more than trivial drawing. Avoid growing `GameUI`, `Glob`,
+  `Window`, or another central widget into a feature-specific god file.
+- Define behavior for 1280x720, common larger resolutions, supported UI scales,
+  long text, unknown values, nearby HUD elements, and saved positions.
+- Continuous animation requires a reduced-motion/static equivalent. State must
+  never be communicated through color alone.
+- Add focused deterministic checks and classic-mode regression coverage where
+  practical. Record live visual/server verification separately from builds and
+  offline checks.
+
 ## Refactoring Rules
 Refactor only when it directly supports the current task or when the user asks.
 

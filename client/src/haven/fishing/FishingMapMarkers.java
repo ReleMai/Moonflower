@@ -18,8 +18,8 @@ import static haven.MCache.tilesz;
 /** Projects journal observations onto the map as transient, clickable fish icons. */
 public final class FishingMapMarkers {
     private static final int MAP_OBSERVATION_LIMIT = 2000;
-    /* Three Haven tiles (33 world units) keep one shoreline fishing area readable. */
-    private static final int NEARBY_CLUSTER_RADIUS_TILES = 3;
+    /* A wider shoreline radius keeps repeated casts from becoming a row of near-identical blips. */
+    private static final int NEARBY_CLUSTER_RADIUS_TILES = 12;
     private static final long RETRY_INTERVAL_MS = 10_000;
 
     private final FishingJournalService service;
@@ -29,6 +29,7 @@ public final class FishingMapMarkers {
     private long nextRefreshAt;
     private boolean needsRetry;
     private volatile int markerCount;
+    private volatile int summaryCount;
     private volatile int unresolvedCount;
     private volatile String lastError;
 
@@ -69,6 +70,10 @@ public final class FishingMapMarkers {
         return(markerCount);
     }
 
+    public int summaryCount() {
+        return(summaryCount);
+    }
+
     public int unresolvedCount() {
         return(unresolvedCount);
     }
@@ -83,7 +88,8 @@ public final class FishingMapMarkers {
             if(installedFile != null) {
                 BuildResult result = build(installedFile, observations);
                 installedFile.replaceEphemeralMarkers(result.markers);
-                markerCount = result.markers.size();
+                markerCount = result.detailCount;
+                summaryCount = result.summaryCount;
                 unresolvedCount = result.unresolved;
                 needsRetry = result.unresolved > 0;
                 lastError = null;
@@ -105,12 +111,15 @@ public final class FishingMapMarkers {
 
     private static BuildResult build(MapFile file, List<FishingObservation> observations) {
         Map<Long, List<Spot>> spotsBySegment = new LinkedHashMap<>();
+        Map<Long, Spot> summariesByGrid = new LinkedHashMap<>();
         int unresolved = 0;
         try(Locked ignored = new Locked(file.lock.readLock())) {
             for(FishingObservation observation : observations) {
                 // Haven IDs are signed 64-bit hashes, so negative grid IDs are valid.
                 // Only the observation builder's explicit -1 sentinel means unknown.
-                if(observation == null || observation.gridId == -1 || observation.fishResource.isBlank())
+                if(observation == null || observation.gridId == -1 ||
+                        FishingChanceTable.parse(observation.choiceRowsJson).isEmpty() &&
+                                observation.fishName.isBlank())
                     continue;
                 MapFile.GridInfo info = file.gridinfo.get(observation.gridId);
                 if(info == null) {
@@ -129,34 +138,69 @@ public final class FishingMapMarkers {
                 } else {
                     spot.add(mapTile, observation);
                 }
+                Spot summary = summariesByGrid.get(observation.gridId);
+                if(summary == null)
+                    summariesByGrid.put(observation.gridId,
+                            new Spot(info.seg, mapTile, tileX, tileY, observation));
+                else
+                    summary.add(mapTile, observation);
             }
         }
 
         List<FishingMapMarker> markers = new ArrayList<>();
+        int detailCount = 0;
         for(List<Spot> segmentSpots : spotsBySegment.values()) {
             for(Spot spot : segmentSpots) {
-                String fish = spot.latest.fishName.isBlank() ? "Fish" : spot.latest.fishName;
-                String name = "Fishing spot: " + fish +
-                        (spot.observations.size() > 1 ? " +" + (spot.observations.size() - 1) : "");
-                markers.add(new FishingMapMarker(file, spot.segmentId, spot.mapTile(), name,
-                        spot.latest.fishResource, spot.latest.gridId, spot.representativeTileX,
-                        spot.representativeTileY, spot.latest.id, spot.observations.size(),
-                        spot.observationIds()));
+                markers.add(marker(file, spot, false));
+                detailCount++;
             }
         }
-        return(new BuildResult(markers, unresolved));
+        for(Spot gridSummary : summariesByGrid.values())
+            markers.add(marker(file, gridSummary, true));
+        return(new BuildResult(markers, detailCount, summariesByGrid.size(), unresolved));
     }
 
     static List<FishingMapMarker> projectForChecks(MapFile file, List<FishingObservation> observations) {
-        return(build(file, observations).markers);
+        List<FishingMapMarker> details = new ArrayList<>();
+        for(FishingMapMarker marker : build(file, observations).markers) {
+            if(!marker.summary)
+                details.add(marker);
+        }
+        return(details);
+    }
+
+    static List<FishingMapMarker> projectSummariesForChecks(MapFile file,
+                                                            List<FishingObservation> observations) {
+        List<FishingMapMarker> summaries = new ArrayList<>();
+        for(FishingMapMarker marker : build(file, observations).markers) {
+            if(marker.summary)
+                summaries.add(marker);
+        }
+        return(summaries);
+    }
+
+    private static FishingMapMarker marker(MapFile file, Spot spot, boolean summary) {
+        List<FishingMapMarker.FishChance> chances = spot.fishChances();
+        FishingMapMarker.FishChance best = chances.get(0);
+        String name = (summary ? "Fishing area: " : "Fishing spot (best recorded): ") +
+                chanceSummary(chances, 3) +
+                (summary ? " | " + spot.observations.size() + " observations" : "");
+        return(new FishingMapMarker(file, spot.segmentId, spot.mapTile(), name,
+                best.fishResource, spot.latest.gridId, spot.representativeTileX,
+                spot.representativeTileY, spot.latest.id, spot.observations.size(),
+                spot.observationIds(), chances, summary));
     }
 
     private static final class BuildResult {
         final List<FishingMapMarker> markers;
+        final int detailCount;
+        final int summaryCount;
         final int unresolved;
 
-        BuildResult(List<FishingMapMarker> markers, int unresolved) {
+        BuildResult(List<FishingMapMarker> markers, int detailCount, int summaryCount, int unresolved) {
             this.markers = markers;
+            this.detailCount = detailCount;
+            this.summaryCount = summaryCount;
             this.unresolved = unresolved;
         }
     }
@@ -224,5 +268,60 @@ public final class FishingMapMarkers {
             ids.sort(Comparator.reverseOrder());
             return(ids);
         }
+
+        List<FishingMapMarker.FishChance> fishChances() {
+            Map<String, FishingMapMarker.FishChance> best = new LinkedHashMap<>();
+            for(FishingObservation observation : observations) {
+                List<FishingChoice> choices = FishingChanceTable.parse(observation.choiceRowsJson);
+                if(choices.isEmpty()) {
+                    addChance(best, observation.fishName, observation.fishResource, null);
+                } else {
+                    for(FishingChoice choice : choices)
+                        addChance(best, choice.fishName, resourceFor(choice.fishName), choice.finalPercent);
+                }
+            }
+            List<FishingMapMarker.FishChance> ordered = new ArrayList<>(best.values());
+            ordered.sort(Comparator
+                    .comparingInt((FishingMapMarker.FishChance chance) ->
+                            chance.percent == null ? Integer.MIN_VALUE : chance.percent)
+                    .reversed().thenComparing(chance -> chance.fishName,
+                            String.CASE_INSENSITIVE_ORDER));
+            if(ordered.isEmpty())
+                ordered.add(new FishingMapMarker.FishChance("Fish", latest.fishResource, null));
+            return(ordered);
+        }
+
+        private void addChance(Map<String, FishingMapMarker.FishChance> best, String fishName,
+                               String fishResource, Integer percent) {
+            String name = fishName == null || fishName.isBlank() ? "Fish" : fishName.trim();
+            String key = name.toLowerCase(java.util.Locale.ROOT);
+            FishingMapMarker.FishChance current = best.get(key);
+            if(current == null || current.percent == null && percent != null ||
+                    current.percent != null && percent != null && percent > current.percent)
+                best.put(key, new FishingMapMarker.FishChance(name, fishResource, percent));
+        }
+
+        private String resourceFor(String fishName) {
+            for(FishingObservation observation : observations) {
+                if(observation.fishName.equalsIgnoreCase(fishName) && !observation.fishResource.isBlank())
+                    return(observation.fishResource);
+            }
+            return(latest.fishResource.isBlank() ? "gfx/invobjs/missing" : latest.fishResource);
+        }
+    }
+
+    private static String chanceSummary(List<FishingMapMarker.FishChance> chances, int limit) {
+        StringBuilder text = new StringBuilder();
+        int shown = Math.min(limit, chances.size());
+        for(int i = 0; i < shown; i++) {
+            if(i > 0)
+                text.append(" | ");
+            FishingMapMarker.FishChance chance = chances.get(i);
+            text.append(chance.fishName).append(' ')
+                    .append(chance.percent == null ? "?%" : chance.percent + "%");
+        }
+        if(chances.size() > shown)
+            text.append(" | +").append(chances.size() - shown).append(" more");
+        return(text.toString());
     }
 }

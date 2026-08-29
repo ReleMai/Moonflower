@@ -20,6 +20,16 @@ Rule to remember next time:
 ## Entries
 
 ```text
+Date: 2026-08-29
+Task: Establish a unified MoonFlower UI component template while beginning the world clock redesign.
+What worked: Turning the portrait HUD's existing palette, primitives, interaction rules, provenance labels, and verification boundaries into one reusable checklist made the visual direction explicit without introducing another framework.
+What was confusing: A themed surface can look unified while still duplicating classic HUD information or presenting derived/community values as if they came from the server.
+What broke or almost broke: Adding another large drawing path directly to GameUI would have mixed astronomy, location lookup, rendering, and guidance rules into an already central file.
+What I learned: Unified UI requires shared information and verification rules as much as shared colors and artwork.
+Rule to remember next time: Start substantial MoonFlower UI work from docs/templates/MOONFLOWER_UI_COMPONENT.md, reuse MoonFlowerHudTheme, preserve classic behavior, and separate LIVE, CALC, GUIDE, and LEARNED data.
+```
+
+```text
 Date: 2026-08-21
 Task: Diagnose the recurring frozen white client window.
 What worked: Capturing the live Java thread state and comparing the process start time with the packaged JAR timestamp exposed the failure without guessing.

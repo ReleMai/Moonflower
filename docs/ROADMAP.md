@@ -14,10 +14,11 @@ The roadmap should describe the project in small milestones. Each milestone shou
 ## Current Focus
 
 Milestone 1 is complete. The Cookbook slice is offline-verified and has initial
-live capture evidence. The active controlled-expansion slice is the fishing
-helper: non-destructive equipment preparation, live inventory/belt choices,
-nearby-node casting, local catch observations, a read-only journal, and clickable
-fish-icon map spots, pending supervised validation of the latest refinements.
+live capture evidence. The active controlled-expansion slice is the first
+MoonFlower World Clock implementation: unified portrait-HUD theming, live
+astronomy and area context, a game-time season countdown, and sourced contextual
+notices. Fishing-helper and combat refinements remain pending supervised live
+validation.
 
 ## Milestones
 

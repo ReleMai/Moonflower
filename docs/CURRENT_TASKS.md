@@ -1,6 +1,37 @@
 # Current Tasks
 
-## Active Task: Combat Assist And Animal Health-Bar Validation
+## Active Task: MoonFlower Clock And Calendar First Slice
+
+Validate the new top-center MoonFlower World Clock in one visible, supervised
+client session. The offline implementation replaces the small clock only while
+MoonFlower HUD mode is active, retains the original `Cal` path in classic mode,
+and separates live astronomy/location, derived calendar state, sourced guidance,
+and themed presentation.
+
+Acceptance criteria:
+
+1. MoonFlower mode shows one top-center ink, teal, gold, ivory, vine, and blossom
+   clock matching the portrait UI; the legacy time/status columns are not
+   duplicated beside it.
+2. Classic mode immediately restores the original clock, hit shape, tooltip,
+   time/season/moon text, province/realm, population, and ping presentation.
+3. The animated sky tracks game time and visibly distinguishes dawn, daylight,
+   sunset, and night while retaining Haven's native sun and moon resources.
+4. Game time/date, moon phase, season day, and game-time countdown roll over
+   correctly without claiming a falsely exact real-time conversion.
+5. Terrain, province, and realm update after travel and map transitions; unknown
+   values are omitted or shown as unavailable rather than remaining stale.
+6. Dawn, Fish Moon, and Moonmoth notices are visibly labeled `GUIDE`; live data
+   is labeled `LIVE`, and no notice claims lore completion or server authority.
+7. `Reduce decorative clock motion` freezes decorative sun frames while live
+   time, sky state, and text continue updating.
+8. The face and tooltip remain readable at supported UI scales and common
+   resolutions without covering upper-left buffs or upper-right controls.
+9. The guarded build, `WorldClockChecks` at 1/1.25/1.5/2 scales, MoonFlower HUD
+   checks, branding checks, and diff checks pass. Live layout remains unverified
+   until observed in the visible client.
+
+## Pending Live Validation: Combat Assist And Animal Health-Bar Validation
 
 Validate the new experimental animal health presentation after the visible
 clients can be closed and a fresh package can be built. The implementation uses

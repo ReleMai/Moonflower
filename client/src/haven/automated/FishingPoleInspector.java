@@ -27,7 +27,7 @@ final class FishingPoleInspector {
         try {
             for(ItemInfo info : pole.item.info()) {
                 if(info instanceof ItemInfo.Contents)
-                    state.add(FishingItemMetadata.describe((ItemInfo.Contents)info));
+                    addContents(state, (ItemInfo.Contents)info);
             }
             addWidgetContents(state, pole.item.contents,
                     Collections.newSetFromMap(new IdentityHashMap<>()));
@@ -47,6 +47,28 @@ final class FishingPoleInspector {
         }
         State state = inspect(pole);
         return(!state.loading && state.ready(consumable) ? state : null);
+    }
+
+    /** A pole tooltip can describe line, hook, and bait/lure in one contents block. */
+    static void addContents(State state, ItemInfo.Contents contents) {
+        boolean foundName = addContentInfo(state, contents == null ? null : contents.sub);
+        if(!foundName && contents != null)
+            state.add(FishingItemMetadata.describe(contents));
+    }
+
+    private static boolean addContentInfo(State state, Iterable<ItemInfo> infos) {
+        if(infos == null)
+            return(false);
+        boolean foundName = false;
+        for(ItemInfo info : infos) {
+            if(info instanceof ItemInfo.Name) {
+                state.add(new FishingEquipment.ItemData("", ((ItemInfo.Name)info).str.text, null));
+                foundName = true;
+            } else if(info instanceof ItemInfo.Contents) {
+                foundName |= addContentInfo(state, ((ItemInfo.Contents)info).sub);
+            }
+        }
+        return(foundName);
     }
 
     private void addWidgetContents(State state, Widget widget, Set<Widget> seen) {
@@ -106,6 +128,16 @@ final class FishingPoleInspector {
 
         boolean ready(Kind consumable) {
             return(line != null && hook != null && consumable(consumable) != null && unknown.isEmpty());
+        }
+
+        String summary() {
+            java.util.List<String> parts = new java.util.ArrayList<>();
+            if(line != null) parts.add("line=" + line.displayName);
+            if(hook != null) parts.add("hook=" + hook.displayName);
+            if(bait != null) parts.add("bait=" + bait.displayName);
+            if(lure != null) parts.add("lure=" + lure.displayName);
+            if(!unknown.isEmpty()) parts.add("unknown=" + String.join(", ", unknown));
+            return(parts.isEmpty() ? "no recognized contents" : String.join("; ", parts));
         }
     }
 }

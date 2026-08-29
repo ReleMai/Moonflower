@@ -28,14 +28,19 @@ public final class MoonFlowerHudTheme {
         if(size.x <= 0 || size.y <= 0)
             return;
         drawWindowBackground(g, origin, size, alpha);
-        int cut = Math.min(UI.scale(4), Math.min(size.x, size.y) / 3);
+        int outerInset = windowBackgroundInset(size);
+        Coord panelOrigin = origin.add(outerInset, outerInset);
+        Coord panelSize = size.sub(outerInset * 2, outerInset * 2);
+        if(panelSize.x <= 0 || panelSize.y <= 0)
+            return;
+        int cut = Math.min(UI.scale(4), Math.min(panelSize.x, panelSize.y) / 3);
         g.chcolor(withAlpha(INK_DEEP, Math.min(175, alpha)));
-        g.frect(origin.add(cut, 0), Coord.of(Math.max(0, size.x - (cut * 2)), size.y));
-        g.frect(origin.add(0, cut), Coord.of(size.x, Math.max(0, size.y - (cut * 2))));
+        g.frect(panelOrigin.add(cut, 0), Coord.of(Math.max(0, panelSize.x - (cut * 2)), panelSize.y));
+        g.frect(panelOrigin.add(0, cut), Coord.of(panelSize.x, Math.max(0, panelSize.y - (cut * 2))));
         g.chcolor(withAlpha(TEAL, Math.min(210, alpha)));
-        g.frect(origin.add(UI.scale(2), UI.scale(2)), size.sub(UI.scale(4), UI.scale(4)));
+        g.frect(panelOrigin.add(UI.scale(2), UI.scale(2)), panelSize.sub(UI.scale(4), UI.scale(4)));
         g.chcolor(withAlpha(INK, alpha));
-        g.frect(origin.add(UI.scale(3), UI.scale(3)), size.sub(UI.scale(6), UI.scale(6)));
+        g.frect(panelOrigin.add(UI.scale(3), UI.scale(3)), panelSize.sub(UI.scale(6), UI.scale(6)));
         drawFrameOverlay(g, origin, size, false);
         g.chcolor();
     }
@@ -133,6 +138,71 @@ public final class MoonFlowerHudTheme {
         g.chcolor();
     }
 
+    /** State-only highlight for the action wells already painted into the
+     * portrait combat crown. It deliberately leaves their artwork visible. */
+    public static void drawCombatActionSelection(GOut g, Coord origin, Coord size,
+                                                  boolean selected, boolean backup) {
+        if(!selected && !backup)
+            return;
+        Color border = selected ? TEAL_BRIGHT : IVORY;
+        Coord center = origin.add(size.div(2));
+        int radius = Math.max(1, Math.min(size.x, size.y) / 2);
+        g.chcolor(new Color(border.getRed(), border.getGreen(), border.getBlue(), 235));
+        int segments = 36;
+        for(int ring = 0; ring < 2; ring++) {
+            int rr = Math.max(1, radius - ring - UI.scale(1));
+            for(int i = 0; i < segments; i++) {
+                double a1 = (Math.PI * 2 * i) / segments;
+                double a2 = (Math.PI * 2 * (i + 1)) / segments;
+                Coord p1 = center.add((int)Math.round(Math.cos(a1) * rr), (int)Math.round(Math.sin(a1) * rr));
+                Coord p2 = center.add((int)Math.round(Math.cos(a2) * rr), (int)Math.round(Math.sin(a2) * rr));
+                g.line(p1, p2, Math.max(1, UI.scale(1)));
+            }
+        }
+        Coord blossom = selected ? center.add(radius - UI.scale(3), -radius + UI.scale(3)) :
+                center.add(-radius + UI.scale(3), radius - UI.scale(3));
+        drawBlossom(g, blossom, UI.scale(3));
+        g.chcolor();
+    }
+
+    public static void drawOpponentHealthPlate(GOut g, Coord origin, Coord size,
+                                                Double fraction, String label) {
+        if(size.x <= 0 || size.y <= 0)
+            return;
+        g.chcolor(new Color(3, 13, 17, 238));
+        g.frect(origin, size);
+        if(fraction != null) {
+            double value = Math.max(0, Math.min(1, fraction));
+            g.chcolor(new Color(116, 27, 37, 235));
+            g.frect(origin.add(UI.scale(2), UI.scale(2)),
+                    Coord.of((int)Math.round((size.x - UI.scale(4)) * value),
+                            Math.max(1, size.y - UI.scale(4))));
+            g.chcolor(new Color(231, 92, 91, 120));
+            g.line(origin.add(UI.scale(3), UI.scale(3)),
+                    origin.add(UI.scale(3) + (int)Math.round((size.x - UI.scale(6)) * value), UI.scale(3)),
+                    Math.max(1, UI.scale(1)));
+        }
+        g.chcolor(GOLD_SOFT);
+        g.rect(origin, size);
+        g.chcolor();
+        FastText.aprintfstroked(g, origin.add(size.x / 2, size.y / 2), 0.5, 0.5,
+                "%s", fastTextLabel(label == null ? "Opponent health unavailable" : label));
+    }
+
+    static String fastTextLabel(String value) {
+        StringBuilder safe = new StringBuilder(value.length());
+        for(int i = 0; i < value.length(); i++) {
+            char glyph = value.charAt(i);
+            if(glyph < 256)
+                safe.append(glyph);
+            else if(glyph == '\u2022' || glyph == '\u00b7')
+                safe.append('-');
+            else
+                safe.append('?');
+        }
+        return safe.toString();
+    }
+
     public static void drawCombatRelationCard(GOut g, Coord size, boolean primary) {
         if(size.x <= 0 || size.y <= 0)
             return;
@@ -159,25 +229,35 @@ public final class MoonFlowerHudTheme {
     public static void drawWindowBackground(GOut g, Coord origin, Coord size, int alpha) {
         if(size.x <= 0 || size.y <= 0)
             return;
-        int cornerCut = Math.min(UI.scale(7), Math.min(size.x, size.y) / 4);
+        int inset = windowBackgroundInset(size);
+        Coord innerOrigin = origin.add(inset, inset);
+        Coord innerSize = size.sub(inset * 2, inset * 2);
+        if(innerSize.x <= 0 || innerSize.y <= 0)
+            return;
+        int cornerCut = Math.min(UI.scale(10), Math.min(innerSize.x, innerSize.y) / 4);
         g.chcolor(255, 255, 255, Math.max(0, Math.min(255, alpha)));
         if(cornerCut <= 0) {
-            g.image(MoonFlowerUiAssets.panelTexture, origin, size);
+            g.image(MoonFlowerUiAssets.panelTexture, innerOrigin, innerSize);
         } else {
-            /* Keep one continuous texture while leaving the transparent floral
-             * frame corners clear. Three non-overlapping clips avoid both the
-             * old square corner bleed and double-blended seams. */
-            Coord topLeft = origin.add(cornerCut, 0);
-            Coord topRight = origin.add(size.x - cornerCut, cornerCut);
-            Coord middleLeft = origin.add(0, cornerCut);
-            Coord middleRight = origin.add(size.x, size.y - cornerCut);
-            Coord bottomLeft = origin.add(cornerCut, size.y - cornerCut);
-            Coord bottomRight = origin.add(size.x - cornerCut, size.y);
-            g.image(MoonFlowerUiAssets.panelTexture, origin, topLeft, topRight, size);
-            g.image(MoonFlowerUiAssets.panelTexture, origin, middleLeft, middleRight, size);
-            g.image(MoonFlowerUiAssets.panelTexture, origin, bottomLeft, bottomRight, size);
+            /* The generated frame's rail begins inside its transparent outer
+             * ornament. Keep one continuous texture inside that rail, then
+             * clip the four inner corners so no square fill can protrude past
+             * the visible outline. */
+            Coord topLeft = innerOrigin.add(cornerCut, 0);
+            Coord topRight = innerOrigin.add(innerSize.x - cornerCut, cornerCut);
+            Coord middleLeft = innerOrigin.add(0, cornerCut);
+            Coord middleRight = innerOrigin.add(innerSize.x, innerSize.y - cornerCut);
+            Coord bottomLeft = innerOrigin.add(cornerCut, innerSize.y - cornerCut);
+            Coord bottomRight = innerOrigin.add(innerSize.x - cornerCut, innerSize.y);
+            g.image(MoonFlowerUiAssets.panelTexture, innerOrigin, topLeft, topRight, innerSize);
+            g.image(MoonFlowerUiAssets.panelTexture, innerOrigin, middleLeft, middleRight, innerSize);
+            g.image(MoonFlowerUiAssets.panelTexture, innerOrigin, bottomLeft, bottomRight, innerSize);
         }
         g.chcolor();
+    }
+
+    static int windowBackgroundInset(Coord size) {
+        return Math.min(UI.scale(6), Math.max(0, Math.min(size.x, size.y) / 8));
     }
 
     public static void drawCornerMenuDock(GOut g, Coord size, Coord gridOrigin) {
@@ -186,28 +266,31 @@ public final class MoonFlowerHudTheme {
         int gap = UI.scale(4);
         Coord bodyOrigin = Coord.of(Math.max(0, gridOrigin.x - gap), Math.max(0, gridOrigin.y - gap));
         Coord bodySize = size.sub(bodyOrigin);
-        int railWidth = Math.max(UI.scale(22), bodyOrigin.x);
-        Coord railOrigin = Coord.of(0, UI.scale(3));
-        Coord railSize = Coord.of(railWidth, Math.max(UI.scale(40), size.y - UI.scale(6)));
-
         drawWindowBackground(g, bodyOrigin, bodySize, 232);
         drawFrameOverlay(g, bodyOrigin, bodySize, false);
-        drawWindowBackground(g, railOrigin, railSize, 224);
-        drawFrameOverlay(g, railOrigin, railSize, false);
-
-        int stemX = Math.max(UI.scale(8), bodyOrigin.x - UI.scale(3));
-        drawCurvedVine(g, Coord.of(stemX, UI.scale(12)),
-                Coord.of(stemX, size.y - UI.scale(12)), 1.0);
         drawCurvedVine(g, bodyOrigin.add(UI.scale(8), UI.scale(7)),
                 Coord.of(size.x - UI.scale(10), bodyOrigin.y + UI.scale(7)), 1.0);
         drawBlossom(g, bodyOrigin.add(UI.scale(2), UI.scale(2)), UI.scale(4));
+    }
+
+    public static void drawChatControlDock(GOut g, Coord size) {
+        if(size.x <= 0 || size.y <= 0)
+            return;
+        drawWindowBackground(g, Coord.z, size, 224);
+        drawFrameOverlay(g, Coord.z, size, false);
+        int stemX = Math.max(UI.scale(8), size.x / 2);
+        drawCurvedVine(g, Coord.of(stemX, UI.scale(9)),
+                Coord.of(stemX, size.y - UI.scale(9)), 1.0);
         drawBlossom(g, Coord.of(stemX, size.y / 2), UI.scale(3));
     }
 
     public static void drawMenuGridSlot(GOut g, Coord origin, Coord size,
                                         boolean occupied, boolean pressed) {
         Coord slotSize = size.sub(1, 1);
-        g.chcolor(pressed ? new Color(5, 35, 39, 245) : new Color(2, 13, 18, 232));
+        /* Keep the cell surface stable while the mouse is down. The previous
+         * bright pressed fill, followed by MenuGrid's dark overlay, produced a
+         * conspicuous blue flash on every page or action click. */
+        g.chcolor(new Color(2, 13, 18, 232));
         g.frect(origin, slotSize);
         g.chcolor(occupied ? new Color(43, 128, 132, 220) : new Color(28, 73, 78, 185));
         g.rect(origin, slotSize);
@@ -216,8 +299,9 @@ public final class MoonFlowerHudTheme {
         g.line(origin.add(1, 1), origin.add(corner, 1), Math.max(1, UI.scale(1)));
         g.line(origin.add(1, 1), origin.add(1, corner), Math.max(1, UI.scale(1)));
         if(pressed) {
-            g.chcolor(new Color(90, 217, 217, 115));
-            g.frect(origin.add(UI.scale(3), UI.scale(3)), slotSize.sub(UI.scale(6), UI.scale(6)));
+            int inset = Math.max(2, UI.scale(2));
+            g.chcolor(new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 225));
+            g.rect(origin.add(inset, inset), slotSize.sub(inset * 2, inset * 2));
         }
         g.chcolor();
     }

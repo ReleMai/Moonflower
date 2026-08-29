@@ -12,6 +12,7 @@ final class FishingEquipment {
     private final FishingItemLocator items;
     private final FishingPoleInspector inspector;
     private final FishingPoleAssembler assembler;
+    private final FishingHandManager hands;
     private Phase phase = Phase.IDLE;
 
     FishingEquipment(GameUI gui) {
@@ -19,10 +20,12 @@ final class FishingEquipment {
         items = new FishingItemLocator(gui);
         inspector = new FishingPoleInspector();
         assembler = new FishingPoleAssembler(gui, items, inspector);
+        hands = new FishingHandManager(gui, items);
     }
 
     synchronized Result prepare(String poleName, List<String> linePriority, List<String> hookPriority,
-                                List<String> consumablePriority, boolean lure) throws InterruptedException {
+                                List<String> consumablePriority, boolean lure,
+                                boolean equipPole) throws InterruptedException {
         if(gui.vhand != null)
             return(fail("Clear the cursor before attaching tackle; the helper will not move the fishing rod."));
 
@@ -56,6 +59,15 @@ final class FishingEquipment {
 
         phase = Phase.READY;
         boolean equipped = items.findPoleInHands(poleName, pole.item) != null;
+        if(equipPole && !equipped) {
+            String equipError = hands.equip(poleName, pole);
+            if(equipError != null)
+                return(fail(equipError));
+            pole = items.findPoleInHands(poleName, null);
+            equipped = pole != null;
+            if(!equipped)
+                return(fail("The selected pole was not found in either hand after equipping."));
+        }
         return(Result.ready(new Snapshot(FishingItemMetadata.describe(pole), verifiedState.line,
                 verifiedState.hook, verifiedState.consumable(consumable),
                 lure ? "lure" : "bait", equipped)));
@@ -63,7 +75,7 @@ final class FishingEquipment {
 
     synchronized boolean restoreDisplacedHands() throws InterruptedException {
         phase = Phase.IDLE;
-        return(true);
+        return(hands.restore());
     }
 
     private Result fail(String message) {

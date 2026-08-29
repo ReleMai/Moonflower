@@ -20,6 +20,7 @@ public final class FishingCatchTracker {
     private static final long POLL_INTERVAL_MS = 250;
     private static final long POSE_CORRELATION_MS = 7000;
     private static final long ITEM_INFO_TIMEOUT_MS = 8000;
+    private static final long CHOICE_CONTEXT_TIMEOUT_MS = 180_000;
     private static final int WATER_SEARCH_RADIUS = 3;
     private static final double MAX_CAST_DISTANCE = 33.0;
 
@@ -30,14 +31,34 @@ public final class FishingCatchTracker {
     private final List<PendingCatch> pending = new ArrayList<>();
     private long nextPollAt;
     private long lastFishingPoseAt;
+    private volatile String latestChoiceRowsJson = "[]";
+    private volatile long latestChoiceRowsAt;
+    private volatile FishingEnvironment.Target latestTarget;
+    private volatile FishingEquipment.Snapshot latestTackle;
+    private volatile long latestAttemptAt;
 
     public FishingCatchTracker(GameUI gui, FishingJournalService journal) {
         this.gui = gui;
         this.journal = journal;
     }
 
+    /** Supplies the server choice table captured by the visible fishing helper. */
+    public void noteFishingChoices(String rowsJson) {
+        latestChoiceRowsJson = rowsJson == null || rowsJson.isBlank() ? "[]" : rowsJson;
+        latestChoiceRowsAt = System.currentTimeMillis();
+    }
+
+    /** Preserves the helper's exact cast tile and verified rig for catch correlation. */
+    void noteFishingAttempt(FishingEnvironment.Target target, FishingEquipment.Snapshot tackle) {
+        latestTarget = target;
+        latestTackle = tackle;
+        latestAttemptAt = System.currentTimeMillis();
+    }
+
     public void tick() {
         long now = System.currentTimeMillis();
+        FishingChoiceWindow.inspect(gui, gui.fishingBot, gui.fishingJournalWindow)
+                .ifPresent(snapshot -> noteFishingChoices(snapshot.rowsJson));
         if(now < nextPollAt)
             return;
         nextPollAt = now + POLL_INTERVAL_MS;
@@ -84,12 +105,15 @@ public final class FishingCatchTracker {
     }
 
     private FishingObservation captureContext(long now) {
-        FishingEquipment.Snapshot tackle = currentTackle();
-        FishingEnvironment.Target water = FishingEnvironment.findNearbyWater(gui,
-                WATER_SEARCH_RADIUS, MAX_CAST_DISTANCE);
+        boolean helperAttempt = now - latestAttemptAt <= CHOICE_CONTEXT_TIMEOUT_MS;
+        FishingEquipment.Snapshot tackle = helperAttempt ? latestTackle : currentTackle();
+        FishingEnvironment.Target water = helperAttempt ? latestTarget :
+                FishingEnvironment.findNearbyWater(gui, WATER_SEARCH_RADIUS, MAX_CAST_DISTANCE);
         if(tackle == null || water == null)
             return(null);
-        return(FishingEnvironment.capture(gui, water, tackle, "[]", now));
+        String choices = now - latestChoiceRowsAt <= CHOICE_CONTEXT_TIMEOUT_MS ?
+                latestChoiceRowsJson : "[]";
+        return(FishingEnvironment.capture(gui, water, tackle, choices, now));
     }
 
     private FishingEquipment.Snapshot currentTackle() {

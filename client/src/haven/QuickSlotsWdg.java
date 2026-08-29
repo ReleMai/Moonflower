@@ -23,6 +23,7 @@ public class QuickSlotsWdg extends Widget implements DTarget {
     private Coord dc;
     private boolean portraitIntegrated = false;
     private double rolloutReveal = 1.0;
+    private Coord[] portraitSlotOffsets;
 
     public QuickSlotsWdg() {
         super(UI.scale(new Coord(0, 0)));
@@ -32,6 +33,13 @@ public class QuickSlotsWdg extends Widget implements DTarget {
     public void setPortraitIntegrated(boolean integrated) {
         portraitIntegrated = integrated;
         rolloutReveal = integrated ? 0.0 : 1.0;
+        if(!integrated)
+            portraitSlotOffsets = null;
+        reloadSlots();
+    }
+
+    public void setPortraitSlotOffsets(Coord[] offsets) {
+        portraitSlotOffsets = (offsets == null) ? null : offsets.clone();
         reloadSlots();
     }
 
@@ -50,7 +58,7 @@ public class QuickSlotsWdg extends Widget implements DTarget {
             return;
         Equipory e = ui.gui.getequipory();
         if (e != null) {
-            if(portraitIntegrated && shownSlots > 1) {
+            if(portraitIntegrated && portraitSlotOffsets == null && shownSlots > 1) {
                 Coord previous = null;
                 for(Coord slot : slotCoords()) {
                     Coord center = slot.add(slotSquareBg.sz().div(2));
@@ -61,13 +69,15 @@ public class QuickSlotsWdg extends Widget implements DTarget {
             }
             if (shownSlots > 0) {
                 for (Coord slotLocation : slotCoords()) {
-                    if(portraitIntegrated)
-                        MoonFlowerHudTheme.drawCircularSlot(g, slotLocation.add(slotSquareBg.sz().div(2)),
-                                (Math.min(slotSquareBg.sz().x, slotSquareBg.sz().y) / 2) - UI.scale(1), false);
-                    else if(MoonFlowerHudTheme.active())
+                    if(portraitIntegrated) {
+                        if(portraitSlotOffsets == null)
+                            MoonFlowerHudTheme.drawCircularSlot(g, slotLocation.add(slotSquareBg.sz().div(2)),
+                                    (Math.min(slotSquareBg.sz().x, slotSquareBg.sz().y) / 2) - UI.scale(1), false);
+                    } else if(MoonFlowerHudTheme.active()) {
                         MoonFlowerHudTheme.drawSlot(g, slotLocation, slotSquareBg.sz(), false, false);
-                    else
+                    } else {
                         g.image(slotSquareBg, slotLocation);
+                    }
                 }
             }
 
@@ -318,9 +328,19 @@ public class QuickSlotsWdg extends Widget implements DTarget {
         shouldersSlotCoord = setSlotCoord(OptWnd.shouldersQuickSlotCheckBox.a);
         capeSlotCoord = setSlotCoord(OptWnd.capeQuickSlotCheckBox.a);
         if (shownSlots > 0) {
-            int pitch = (int)Math.round((slotSquareBg.sz().x + slotSpacing) *
-                    (portraitIntegrated ? rolloutReveal : 1.0));
-            this.sz = new Coord(slotSquareBg.sz().x + (pitch * (shownSlots - 1)), slotSquareBg.sz().y);
+            if(portraitIntegrated && portraitSlotOffsets != null) {
+                int maxX = 0;
+                int maxY = 0;
+                for(Coord offset : slotCoords()) {
+                    maxX = Math.max(maxX, offset.x + slotSquareBg.sz().x);
+                    maxY = Math.max(maxY, offset.y + slotSquareBg.sz().y);
+                }
+                this.sz = Coord.of(maxX, maxY);
+            } else {
+                int pitch = (int)Math.round((slotSquareBg.sz().x + slotSpacing) *
+                        (portraitIntegrated ? rolloutReveal : 1.0));
+                this.sz = new Coord(slotSquareBg.sz().x + (pitch * (shownSlots - 1)), slotSquareBg.sz().y);
+            }
         } else {
             this.sz = new Coord(0, 0);
         }
@@ -329,9 +349,20 @@ public class QuickSlotsWdg extends Widget implements DTarget {
 
     private Coord setSlotCoord(boolean isEnabled) {
         if (isEnabled) {
-            int pitch = (int)Math.round((slotSquareBg.sz().x + slotSpacing) *
-                    (portraitIntegrated ? rolloutReveal : 1.0));
-            Coord coord = new Coord(pitch * shownSlots, 0);
+            Coord coord;
+            if(portraitIntegrated && portraitSlotOffsets != null && portraitSlotOffsets.length > 0) {
+                if(shownSlots < portraitSlotOffsets.length) {
+                    coord = new Coord(portraitSlotOffsets[shownSlots]);
+                } else {
+                    Coord last = portraitSlotOffsets[portraitSlotOffsets.length - 1];
+                    int overflow = shownSlots - portraitSlotOffsets.length + 1;
+                    coord = last.add(overflow * (slotSquareBg.sz().x + slotSpacing), 0);
+                }
+            } else {
+                int pitch = (int)Math.round((slotSquareBg.sz().x + slotSpacing) *
+                        (portraitIntegrated ? rolloutReveal : 1.0));
+                coord = new Coord(pitch * shownSlots, 0);
+            }
             shownSlots++;
             return coord;
         } else {

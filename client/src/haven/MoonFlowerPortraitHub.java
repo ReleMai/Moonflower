@@ -9,26 +9,37 @@ import java.util.function.BooleanSupplier;
 /** A movable portrait dock with scalable client-feature navigation. */
 public class MoonFlowerPortraitHub extends Widget {
     private static final Color HEALTH = new Color(222, 69, 78, 255);
-    private static final Color HARD_HEALTH = new Color(104, 48, 66, 255);
+    private static final Color RECOVERABLE_HEALTH = new Color(239, 158, 54, 255);
     private static final Color STAMINA = new Color(58, 176, 211, 255);
-    private static final Color ENERGY = new Color(236, 194, 59, 255);
+    private static final Color ENERGY_HEALING = new Color(83, 190, 101, 255);
+    private static final Color ENERGY_LOW = new Color(236, 194, 59, 255);
+    private static final Color ENERGY_STARVING = new Color(215, 58, 62, 255);
     private static final Color EMPTY = new Color(5, 13, 19, 230);
     private static final int VITAL_SEGMENTS = 96;
     private static final PUtils.Convolution ART_FILTER = new PUtils.Lanczos(3);
     private static final double REVEAL_SECONDS = 0.28;
-    private static final double[] EXTRA_BUFF_ANGLES = {30, 47, 64, 81, 99, 116, 133, 150};
+    private static final double COMBAT_REVEAL_SECONDS = 0.42;
+    private static final int DOCK_WIDTH = 520;
+    private static final int DOCK_HEIGHT = 288;
+    private static final int DOCK_TOP = 210;
 
     private final GameUI gui;
     private final List<HudIconButton> mainButtons = new ArrayList<>();
     private final List<FeatureAction> featureActions = new ArrayList<>();
+    private final DockBacking backing;
     private final Avaview avatar;
     private final DockOrnament ornament;
     private final VitalOverlay vitals;
     private final FeatureVine featureVine;
     private final BuffMoreButton buffMoreButton;
+    private final EquipmentScrollCover equipmentScrollCover;
     private Bufflist buffs;
     private QuickSlotsWdg equipment;
     private Tex dockTexture;
+    private Tex combatCrownTexture;
+    private Coord equipmentScrollOrigin = Coord.z;
+    private Coord equipmentScrollSize = Coord.z;
+    private final Tex[] movementIcons = new Tex[4];
     private UI.Grab dragging;
     private Coord dragOrigin;
     private Coord portraitOrigin = Coord.z;
@@ -43,6 +54,7 @@ public class MoonFlowerPortraitHub extends Widget {
     private double featureReveal;
     private double equipmentReveal;
     private double buffReveal;
+    private double combatReveal;
 
     public MoonFlowerPortraitHub(GameUI gui) {
         this.gui = gui;
@@ -52,13 +64,15 @@ public class MoonFlowerPortraitHub extends Widget {
         equipmentReveal = 0.0;
         addFeatureActions();
         currentScale = MoonFlowerHudSettings.portraitScale();
-        portraitSize = scaled(84);
+        portraitSize = scaled(104);
+        backing = add(new DockBacking(), Coord.z);
         avatar = add(new Avaview(Coord.of(portraitSize, portraitSize), gui.plid, "avacam"), Coord.z);
         avatar.drawv = false;
         ornament = add(new DockOrnament(), Coord.z);
         vitals = add(new VitalOverlay(), Coord.z);
         featureVine = add(new FeatureVine(), Coord.z);
         buffMoreButton = add(new BuffMoreButton(), Coord.z);
+        equipmentScrollCover = add(new EquipmentScrollCover(), Coord.z);
         addMainButtons();
         applySettings();
         featureVine.show(featuresExpanded);
@@ -67,8 +81,8 @@ public class MoonFlowerPortraitHub extends Widget {
 
     private void addFeatureActions() {
         featureActions.add(new FeatureAction(6, "Cookbook", gui::isCookbookOpen, gui::toggleCookbook));
-        featureActions.add(new FeatureAction(7, "Fishing Journal", gui::isFishingJournalOpen, gui::toggleFishingJournal));
-        featureActions.add(new FeatureAction(8, "Fishing Helper", gui::isFishingHelperOpen, gui::toggleFishingHelper));
+        featureActions.add(new FeatureAction(7, "Fishing System", () ->
+                gui.isFishingJournalOpen() || gui.isFishingHelperOpen(), gui::toggleFishingSystem));
         featureActions.add(new FeatureAction(9, "Ring of Brodgar Wiki", gui::isWikiOpen, gui::toggleWiki));
     }
 
@@ -130,26 +144,36 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private Coord socketCenter(int index) {
-        return MoonFlowerHudAssets.scaledSocketCenter(index, Coord.of(scaled(430), scaled(187))).add(0, dockY);
+        return MoonFlowerHudAssets.scaledSocketCenter(index, ornamentSize()).add(0, dockY);
+    }
+
+    private Coord ornamentSize() {
+        return Coord.of(scaled(DOCK_WIDTH), scaled(DOCK_HEIGHT));
     }
 
     public void applySettings() {
         currentScale = MoonFlowerHudSettings.portraitScale();
-        portraitSize = scaled(84);
-        dockY = scaled(269);
-        resize(scaled(430), scaled(540));
+        portraitSize = scaled(104);
+        dockY = scaled(DOCK_TOP);
+        resize(scaled(DOCK_WIDTH), scaled(DOCK_TOP + DOCK_HEIGHT + 8));
 
-        portraitOrigin = Coord.of(scaled(173), dockY + scaled(44));
+        Coord ornamentSize = ornamentSize();
+        Coord portraitCenter = MoonFlowerHudAssets.scaledPortraitCenter(ornamentSize).add(0, dockY);
+        portraitOrigin = portraitCenter.sub(portraitSize / 2, portraitSize / 2);
         avatar.resize(Coord.of(portraitSize, portraitSize));
         avatar.move(portraitOrigin);
 
-        Coord ornamentSize = Coord.of(scaled(430), scaled(187));
         rebuildDockTexture(ornamentSize);
+        rebuildCombatCrownTexture(combatCrownSize());
+        backing.resize(ornamentSize);
+        backing.move(Coord.of(0, dockY));
         ornament.resize(ornamentSize);
         ornament.move(Coord.of(0, dockY));
         vitals.resize(sz);
         featureVine.resize(sz);
         featureVine.move(Coord.z);
+        equipmentScrollCover.resize(sz);
+        equipmentScrollCover.move(Coord.z);
 
         int buttonSize = scaled(34);
         int iconSize = scaled(23);
@@ -161,12 +185,15 @@ public class MoonFlowerPortraitHub extends Widget {
             button.rebuildIcon(iconSize);
         }
         buffMoreButton.resize(scaled(30), scaled(30));
-        buffMoreButton.move(portraitOrigin.add((portraitSize - buffMoreButton.sz.x) / 2,
-                portraitSize + scaled(60)));
+        Coord overflowCenter = MoonFlowerHudAssets.scaledBuffOverflowCenter(ornamentSize).add(0, dockY);
+        buffMoreButton.move(overflowCenter.sub(buffMoreButton.sz.div(2)));
         featureVine.relayout();
+        rebuildMovementIcons(scaled(12));
 
         if(buffs != null)
             configureBuffs();
+        if(equipment != null)
+            equipment.setPortraitSlotOffsets(equipmentSlotOffsets());
         layoutEquipment();
         positionLoaded = false;
         if(parent != null)
@@ -177,7 +204,34 @@ public class MoonFlowerPortraitHub extends Widget {
         if(dockTexture != null)
             dockTexture.dispose();
         BufferedImage filtered = PUtils.convolvedown(MoonFlowerHudAssets.dockOrnament, targetSize, ART_FILTER);
+        Coord slotSize = QuickSlotsWdg.slotSquareBg.sz();
+        Coord first = MoonFlowerHudAssets.scaledEquipmentSlotCenter(0, targetSize);
+        Coord last = MoonFlowerHudAssets.scaledEquipmentSlotCenter(
+                MoonFlowerHudAssets.equipmentSlotCenters.length - 1, targetSize);
+        int paddingX = scaled(14);
+        int paddingY = scaled(14);
+        int left = Math.max(0, first.x - (slotSize.x / 2) - paddingX);
+        int top = Math.max(0, first.y - (slotSize.y / 2) - paddingY);
+        int right = Math.min(targetSize.x, last.x + (slotSize.x / 2) + paddingX);
+        equipmentScrollOrigin = Coord.of(left, top);
+        equipmentScrollSize = Coord.of(Math.max(1, right - left), Math.max(1, targetSize.y - top));
         dockTexture = new TexI(filtered);
+    }
+
+    private void rebuildCombatCrownTexture(Coord targetSize) {
+        if(combatCrownTexture != null)
+            combatCrownTexture.dispose();
+        combatCrownTexture = new TexI(PUtils.convolvedown(MoonFlowerHudAssets.combatCrown,
+                targetSize, ART_FILTER));
+    }
+
+    private void rebuildMovementIcons(int size) {
+        for(int i = 0; i < movementIcons.length; i++) {
+            if(movementIcons[i] != null)
+                movementIcons[i].dispose();
+            movementIcons[i] = new TexI(PUtils.convolvedown(MoonFlowerHudAssets.movementIcons[i],
+                    Coord.of(size, size), ART_FILTER));
+        }
     }
 
     public void attachBuffs(Bufflist list) {
@@ -222,7 +276,7 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private void configureBuffs() {
-        double buffScale = Math.max(0.72, Math.min(0.96, 0.82 * (currentScale / 100.0)));
+        double buffScale = Math.max(0.66, Math.min(0.84, 0.76 * (currentScale / 100.0)));
         buffs.setDisplay(buffScale, Bufflist.num);
         buffs.setManualLayout(true);
     }
@@ -234,10 +288,12 @@ public class MoonFlowerPortraitHub extends Widget {
             reparent(slots, this);
         equipment = slots;
         equipment.setPortraitIntegrated(true);
+        equipment.setPortraitSlotOffsets(equipmentSlotOffsets());
         equipmentExpanded = MoonFlowerHudSettings.equipmentToolbarExpanded(gui.isEquipmentWindowOpen());
         equipmentReveal = equipmentExpanded ? 1.0 : 0.0;
         equipment.setPortraitRollout(equipmentReveal);
         equipment.show(equipmentReveal > 0.01);
+        equipmentScrollCover.raise();
         layoutEquipment();
     }
 
@@ -256,12 +312,26 @@ public class MoonFlowerPortraitHub extends Widget {
     private void layoutEquipment() {
         if(equipment == null)
             return;
+        Coord firstSlot = equipmentFirstSlotOrigin();
         equipment.setPortraitRollout(equipmentReveal);
-        int targetY = dockY - scaled(30);
-        int collapsedY = portraitOrigin.y + (portraitSize / 2);
-        int y = collapsedY + (int)Math.round((targetY - collapsedY) * Utils.smoothstep(equipmentReveal));
-        equipment.move(Coord.of((sz.x - equipment.sz.x) / 2, y));
+        equipment.move(firstSlot.add(0, dockY));
         equipment.show(equipmentReveal > 0.01);
+    }
+
+    private Coord equipmentFirstSlotOrigin() {
+        Coord center = MoonFlowerHudAssets.scaledEquipmentSlotCenter(0, ornamentSize());
+        return center.sub(QuickSlotsWdg.slotSquareBg.sz().div(2));
+    }
+
+    private Coord[] equipmentSlotOffsets() {
+        Coord first = equipmentFirstSlotOrigin();
+        Coord half = QuickSlotsWdg.slotSquareBg.sz().div(2);
+        Coord[] offsets = new Coord[MoonFlowerHudAssets.equipmentSlotCenters.length];
+        for(int i = 0; i < offsets.length; i++) {
+            Coord origin = MoonFlowerHudAssets.scaledEquipmentSlotCenter(i, ornamentSize()).sub(half);
+            offsets[i] = origin.sub(first);
+        }
+        return offsets;
     }
 
     private void layoutBuffs() {
@@ -270,20 +340,13 @@ public class MoonFlowerPortraitHub extends Widget {
         buffs.move(Coord.z);
         buffs.resize(sz);
         List<Buff> icons = new ArrayList<>(buffs.children(Buff.class));
-        Coord center = portraitOrigin.add(portraitSize / 2, portraitSize / 2);
         int primary = Math.min(4, icons.size());
         for(int i = 0; i < primary; i++) {
             Buff buff = icons.get(i);
             buff.setCircularDisplay(true);
             buff.show();
-            double[] angles = (primary == 4) ? new double[] {40, 65, 115, 140} :
-                    (primary == 3) ? new double[] {50, 90, 130} :
-                    (primary == 2) ? new double[] {60, 120} : new double[] {90};
-            double angle = Math.toRadians(angles[i]);
-            int radius = (portraitSize / 2) + scaled(76);
-            Coord target = center.add((int)Math.round(Math.cos(angle) * radius),
-                    (int)Math.round(Math.sin(angle) * radius)).sub(buff.sz.div(2));
-            buff.c = target;
+            Coord center = MoonFlowerHudAssets.scaledBuffSocketCenter(i, ornamentSize()).add(0, dockY);
+            buff.c = center.sub(buff.sz.div(2));
         }
         int extra = Math.max(0, icons.size() - primary);
         Coord bud = buffMoreButton.c.add(buffMoreButton.sz.div(2));
@@ -293,10 +356,9 @@ public class MoonFlowerPortraitHub extends Widget {
             int index = i - primary;
             double local = Utils.clip((buffReveal * 1.24) - (index * 0.045), 0.0, 1.0);
             buff.show(local > 0.01);
-            double angle = Math.toRadians(EXTRA_BUFF_ANGLES[index % EXTRA_BUFF_ANGLES.length]);
-            int radius = (portraitSize / 2) + scaled(105);
-            Coord targetCenter = center.add((int)Math.round(Math.cos(angle) * radius),
-                    (int)Math.round(Math.sin(angle) * radius));
+            int gap = scaled(35);
+            int rowWidth = Math.max(0, (extra - 1) * gap);
+            Coord targetCenter = Coord.of((sz.x - rowWidth) / 2 + (index * gap), dockY - scaled(18));
             Coord animated = bud.add(targetCenter.sub(bud).mul(Utils.smoothstep(local)));
             buff.c = animated.sub(buff.sz.div(2));
         }
@@ -319,7 +381,197 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private Coord defaultPosition(Coord parentSize) {
-        return MoonFlowerHudSettings.centeredBottomPosition(parentSize, sz, UI.scale(8));
+        return MoonFlowerHudSettings.centeredBottomPosition(parentSize,
+                Coord.of(sz.x, paintedBottom()), UI.scale(8));
+    }
+
+    private int paintedBottom() {
+        return dockY + ornamentSize().y;
+    }
+
+    /** Root-relative center shared by the portrait and its combat collar. */
+    public Coord combatCrownAnchor() {
+        return c.add(portraitOrigin.x + (portraitSize / 2),
+                portraitOrigin.y + (portraitSize / 2));
+    }
+
+    public Coord combatCrownSize() {
+        int width = scaled(520);
+        int height = (int)Math.round(width * (MoonFlowerHudAssets.combatCrown.getHeight() /
+                (double)MoonFlowerHudAssets.combatCrown.getWidth()));
+        return Coord.of(width, Math.max(1, height));
+    }
+
+    public Area combatCrownArea() {
+        Coord size = combatCrownSize();
+        Coord collarPortrait = MoonFlowerHudAssets.scaledCombatPortraitCenter(size);
+        Coord expanded = combatCrownAnchor().sub(collarPortrait);
+        int travel = scaled(72);
+        double reveal = Utils.smoothstep(effectiveCombatReveal());
+        Coord origin = expanded.add(0, (int)Math.round((1.0 - reveal) * travel));
+        return Area.sized(origin, size);
+    }
+
+    /** The collar wraps beside the portrait, so its live wells use the full HUD
+     * canvas instead of the old above-portrait clipping rectangle. */
+    public GOut combatClip(GOut g) {
+        return g.reclip(Coord.z, gui.sz);
+    }
+
+    private double effectiveCombatReveal() {
+        if(MoonFlowerHudSettings.editMode() && gui.fs == null)
+            return 1.0;
+        return combatReveal;
+    }
+
+    public double combatContentReveal() {
+        return Utils.smoothstep(Utils.clip((effectiveCombatReveal() - 0.34) / 0.66, 0.0, 1.0));
+    }
+
+    /** Draws the collar in the caller's coordinate space. The live fight
+     * session invokes this after the portrait, while the artwork's transparent
+     * center keeps the portrait face and vital rings unobstructed. */
+    private void drawCombatFrame(GOut g, Coord rootOffset) {
+        if(combatCrownTexture == null)
+            return;
+        double reveal = effectiveCombatReveal();
+        if(reveal <= 0.01)
+            return;
+        int alpha = (int)Math.round(255 * Utils.smoothstep(reveal));
+        Area crown = combatCrownArea();
+        Coord crownOrigin = crown.ul.sub(rootOffset);
+        g.chcolor(new Color(2, 11, 15, (242 * alpha) / 255));
+        Area health = combatHealthArea();
+        g.frect(health.ul.sub(rootOffset), health.sz());
+        int actionRadius = Math.max(1, combatActionDiameter() / 2);
+        for(int i = 0; i < 10; i++)
+            g.fellipse(combatActionCenter(i).sub(rootOffset), Coord.of(actionRadius, actionRadius));
+        int openingRadius = Math.max(1, combatOpeningDiameter() / 2);
+        String[] openings = {"paginae/atk/cornered", "paginae/atk/offbalance",
+                "paginae/atk/dizzy", "paginae/atk/reeling"};
+        for(String opening : openings) {
+            Coord player = combatOpeningCenter(opening, false);
+            Coord opponent = combatOpeningCenter(opening, true);
+            if(player != null)
+                g.fellipse(player.sub(rootOffset), Coord.of(openingRadius, openingRadius));
+            if(opponent != null)
+                g.fellipse(opponent.sub(rootOffset), Coord.of(openingRadius, openingRadius));
+        }
+        int moveRadius = Math.max(1, combatMoveDiameter() / 2);
+        g.fellipse(combatMoveCenter(false).sub(rootOffset), Coord.of(moveRadius, moveRadius));
+        g.fellipse(combatMoveCenter(true).sub(rootOffset), Coord.of(moveRadius, moveRadius));
+        int defenseRadius = Math.max(1, combatDefenseDiameter() / 2);
+        g.fellipse(combatDefenseCenter(false).sub(rootOffset), Coord.of(defenseRadius, defenseRadius));
+        g.fellipse(combatDefenseCenter(true).sub(rootOffset), Coord.of(defenseRadius, defenseRadius));
+        int initiativeRadius = Math.max(1, combatInitiativeDiameter() / 2);
+        g.fellipse(combatInitiativeCenter(false).sub(rootOffset), Coord.of(initiativeRadius, initiativeRadius));
+        g.fellipse(combatInitiativeCenter(true).sub(rootOffset), Coord.of(initiativeRadius, initiativeRadius));
+        int cooldownRadius = Math.max(1, combatCooldownDiameter() / 2);
+        g.fellipse(combatCooldownCenter().sub(rootOffset), Coord.of(cooldownRadius, cooldownRadius));
+        g.chcolor();
+        g.chcolor(255, 255, 255, alpha);
+        g.image(combatCrownTexture, crownOrigin);
+        g.chcolor();
+    }
+
+    /** The fight session draws the collar and labels in the combat foreground. */
+    public void drawCombatCrown(GOut g) {
+        drawCombatFrame(g, Coord.z);
+        int openingRadius = Math.max(1, combatOpeningDiameter() / 2);
+        if(combatContentReveal() > 0.45) {
+            FastText.aprintfstroked(g, combatOpeningGroupCenter(false).add(0, -openingRadius - scaled(7)),
+                    0.5, 0.5, "YOU");
+            FastText.aprintfstroked(g, combatOpeningGroupCenter(true).add(0, -openingRadius - scaled(7)),
+                    0.5, 0.5, "FOE");
+        }
+    }
+
+    public Coord combatActionCenter(int index) {
+        Area crown = combatCrownArea();
+        return crown.ul.add(MoonFlowerHudAssets.scaledCombatActionCenter(index, crown.sz()));
+    }
+
+    public Coord combatOpeningCenter(String resourceName, boolean opponent) {
+        Area crown = combatCrownArea();
+        Coord local = MoonFlowerHudAssets.scaledCombatOpeningCenter(resourceName, opponent, crown.sz());
+        return local == null ? null : crown.ul.add(local);
+    }
+
+    public Coord combatOpeningCenter(String resourceName) {
+        return combatOpeningCenter(resourceName, true);
+    }
+
+    private Coord combatOpeningGroupCenter(boolean opponent) {
+        Coord red = combatOpeningCenter("paginae/atk/cornered", opponent);
+        Coord yellow = combatOpeningCenter("paginae/atk/reeling", opponent);
+        return red.add(yellow).div(2);
+    }
+
+    public Area combatHealthArea() {
+        Area crown = combatCrownArea();
+        Area local = MoonFlowerHudAssets.scaledCombatHealthArea(crown.sz());
+        return Area.sized(crown.ul.add(local.ul), local.sz());
+    }
+
+    public Coord combatMoveCenter(boolean opponent) {
+        Area crown = combatCrownArea();
+        return crown.ul.add(MoonFlowerHudAssets.scaledCombatMoveCenter(opponent, crown.sz()));
+    }
+
+    public Coord combatDefenseCenter(boolean opponent) {
+        Area crown = combatCrownArea();
+        return crown.ul.add(MoonFlowerHudAssets.scaledCombatDefenseCenter(opponent, crown.sz()));
+    }
+
+    public Coord combatInitiativeCenter(boolean opponent) {
+        Area crown = combatCrownArea();
+        return crown.ul.add(MoonFlowerHudAssets.scaledCombatInitiativeCenter(opponent, crown.sz()));
+    }
+
+    public Coord combatCooldownCenter() {
+        Area crown = combatCrownArea();
+        return crown.ul.add(MoonFlowerHudAssets.scaledCombatCooldownCenter(crown.sz()));
+    }
+
+    public int combatActionDiameter() {
+        return MoonFlowerHudAssets.scaledCombatActionDiameter(combatCrownSize());
+    }
+
+    public int combatOpeningDiameter() {
+        return MoonFlowerHudAssets.scaledCombatOpeningDiameter(combatCrownSize());
+    }
+
+    public int combatMoveDiameter() {
+        return MoonFlowerHudAssets.scaledCombatMoveDiameter(combatCrownSize());
+    }
+
+    public int combatDefenseDiameter() {
+        return MoonFlowerHudAssets.scaledCombatDefenseDiameter(combatCrownSize());
+    }
+
+    public int combatInitiativeDiameter() {
+        return MoonFlowerHudAssets.scaledCombatInitiativeDiameter(combatCrownSize());
+    }
+
+    public int combatCooldownDiameter() {
+        return MoonFlowerHudAssets.scaledCombatCooldownDiameter(combatCrownSize());
+    }
+
+    /** Keeps legacy deck consumers anchored to the compact portrait crescent. */
+    public Coord combatDeckAnchor(int actionCount) {
+        int available = Math.max(1, actionCount);
+        int maximumColumns = OptWnd.singleRowCombatMovesCheckBox != null &&
+                OptWnd.singleRowCombatMovesCheckBox.a ? 10 : 5;
+        int columns = Math.min(available, maximumColumns);
+        int rows = (available + columns - 1) / columns;
+        int deckHeight = ((rows - 1) * Fightsess.actpitch2) + UI.scale(84);
+        Coord crown = combatCrownAnchor();
+        return Coord.of(crown.x, crown.y + UI.scale(56) - deckHeight);
+    }
+
+    /** Keeps target state immediately above the deck while retaining its own edit offset. */
+    public Coord combatStatusCenter(int actionCount) {
+        return combatCooldownCenter();
     }
 
     private Coord clampToParent(Coord requested, Coord parentSize) {
@@ -327,8 +579,7 @@ public class MoonFlowerPortraitHub extends Widget {
         /* The upper portion of this widget is rollout space, while the visible
          * ornament and lower buff cradle end well before sz.y. Clamp against
          * that painted bound so the portrait can sit flush with the screen. */
-        int paintedBottom = scaled(490);
-        int y = Math.max(0, Math.min(requested.y, Math.max(0, parentSize.y - paintedBottom)));
+        int y = Math.max(0, Math.min(requested.y, Math.max(0, parentSize.y - paintedBottom())));
         return Coord.of(x, y);
     }
 
@@ -344,38 +595,60 @@ public class MoonFlowerPortraitHub extends Widget {
     public void draw(GOut g) {
         if(!GameUI.showUI)
             return;
+        if(gui.fs == null && MoonFlowerHudSettings.editMode())
+            drawCombatFrame(g, c);
         layoutBuffs();
         layoutEquipment();
-        if(buffs != null) {
-            Coord center = portraitOrigin.add(portraitSize / 2, portraitSize / 2);
-            Coord cradle = center.add(0, scaled(118));
-            MoonFlowerHudTheme.drawCurvedVine(g, center.add(-scaled(72), scaled(53)), cradle, 1.0);
-            MoonFlowerHudTheme.drawCurvedVine(g, center.add(scaled(72), scaled(53)), cradle, 1.0);
-            MoonFlowerHudTheme.drawBlossom(g, cradle, scaled(4));
-        }
-        if(equipment != null && equipmentReveal > 0.01)
-            MoonFlowerHudTheme.drawCurvedVine(g, socketCenter(1),
-                    equipment.c.add(equipment.sz.x / 2, equipment.sz.y), equipmentReveal);
         if(MoonFlowerHudSettings.editMode())
-            FastText.aprintfstroked(g, Coord.of(sz.x / 2, sz.y - scaled(2)), 0.5, 1,
+            FastText.aprintfstroked(g, Coord.of(sz.x / 2, paintedBottom() - scaled(2)), 0.5, 1,
                     "Drag empty space to move");
         super.draw(g);
     }
 
+    @Override
+    public void tick(double dt) {
+        super.tick(dt);
+        /* Poll the native equipment view so every server/client opening path
+         * drives the same cover, not only clicks on the portrait button. */
+        setEquipmentWindowOpen(gui.isEquipmentWindowOpen());
+        double target = gui.fs == null ? 0.0 : 1.0;
+        double step = Math.max(0.0, dt) / COMBAT_REVEAL_SECONDS;
+        if(combatReveal < target)
+            combatReveal = Math.min(target, combatReveal + step);
+        else if(combatReveal > target)
+            combatReveal = Math.max(target, combatReveal - step);
+    }
+
     private void drawRings(GOut g) {
         Coord center = portraitOrigin.add(portraitSize / 2, portraitSize / 2);
-        int healthRadius = portraitSize / 2 + scaled(2);
-        int staminaRadius = portraitSize / 2 + scaled(12);
-        int energyRadius = portraitSize / 2 + scaled(22);
-        int thickness = scaled(9);
+        int healthRadius = healthRadius();
+        int staminaRadius = staminaRadius();
+        int energyRadius = energyRadius();
+        int thickness = scaled(7);
+        double softHealth = softHealth();
+        double hardHealth = hardHealth();
+        double energy = meter("nrj");
         drawVitalTrack(g, center, healthRadius, thickness);
-        drawFluidArcValue(g, center, healthRadius, hardHealth(), HARD_HEALTH, thickness, false);
-        drawFluidArcValue(g, center, healthRadius, meter("hp"), HEALTH, thickness, true);
+        drawFluidArcRange(g, center, healthRadius, softHealth, hardHealth,
+                RECOVERABLE_HEALTH, thickness, true);
+        drawFluidArcValue(g, center, healthRadius, softHealth, HEALTH, thickness, true);
         drawVitalTrack(g, center, staminaRadius, thickness);
         drawFluidArcValue(g, center, staminaRadius, meter("stam"), STAMINA, thickness, true);
         drawVitalTrack(g, center, energyRadius, thickness);
-        drawFluidArcValue(g, center, energyRadius, meter("nrj"), ENERGY, thickness, true);
+        drawFluidArcValue(g, center, energyRadius, energy, energyColor(energy), thickness, true);
         drawVitalNumbers(g, center, healthRadius, staminaRadius, energyRadius);
+    }
+
+    private int healthRadius() {
+        return portraitSize / 2 + scaled(31);
+    }
+
+    private int staminaRadius() {
+        return portraitSize / 2 + scaled(9);
+    }
+
+    private int energyRadius() {
+        return portraitSize / 2 + scaled(20);
     }
 
     private void drawVitalTrack(GOut g, Coord center, int radius, int width) {
@@ -403,6 +676,23 @@ public class MoonFlowerPortraitHub extends Widget {
             drawArcEndpoint(g, center, radius, value, color);
     }
 
+    private void drawFluidArcRange(GOut g, Coord center, int radius, double start, double end,
+                                   Color color, int width, boolean endpoint) {
+        start = Math.max(0, Math.min(1, start));
+        end = Math.max(start, Math.min(1, end));
+        if(end <= start)
+            return;
+        drawArcSegmentRange(g, center, radius, start, end, colorWithAlpha(color, 40),
+                width + scaled(8), VITAL_SEGMENTS);
+        drawArcSegmentRange(g, center, radius, start, end, colorWithAlpha(color, 92),
+                width + scaled(4), VITAL_SEGMENTS);
+        drawArcSegmentRange(g, center, radius, start, end, color, width, VITAL_SEGMENTS);
+        drawArcSegmentRange(g, center, radius - scaled(2), start, end,
+                colorWithAlpha(MoonFlowerHudTheme.IVORY, 120), Math.max(1, scaled(2)), VITAL_SEGMENTS);
+        if(endpoint)
+            drawArcEndpoint(g, center, radius, end, color);
+    }
+
     private void drawArcEndpoint(GOut g, Coord center, int radius, double value, Color color) {
         double angle = (-Math.PI / 2) + (Math.PI * 2 * value);
         Coord point = center.add((int)Math.round(Math.cos(angle) * radius),
@@ -417,9 +707,15 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private void drawArcSegments(GOut g, Coord center, int radius, double value, Color color, int width, int segments) {
-        int count = (int)Math.round(segments * Math.max(0, Math.min(1, value)));
+        drawArcSegmentRange(g, center, radius, 0, value, color, width, segments);
+    }
+
+    private void drawArcSegmentRange(GOut g, Coord center, int radius, double start, double end,
+                                     Color color, int width, int segments) {
+        int first = (int)Math.floor(segments * Math.max(0, Math.min(1, start)));
+        int count = (int)Math.round(segments * Math.max(0, Math.min(1, end)));
         g.chcolor(color);
-        for(int i = 0; i < count; i++) {
+        for(int i = first; i < count; i++) {
             double a1 = (-Math.PI / 2) + ((Math.PI * 2 * i) / segments);
             double a2 = (-Math.PI / 2) + ((Math.PI * 2 * (i + 1)) / segments);
             Coord p1 = center.add((int)Math.round(Math.cos(a1) * radius), (int)Math.round(Math.sin(a1) * radius));
@@ -432,12 +728,23 @@ public class MoonFlowerPortraitHub extends Widget {
     private void drawRibbons(GOut g) {
         int width = scaled(42);
         int height = scaled(15);
-        int y = dockY + scaled(125);
-        MoonFlowerHudTheme.drawCurvedVine(g, Coord.of(scaled(139), y + (height / 2)),
-                Coord.of(scaled(289), y + (height / 2)), 1.0);
-        drawRibbon(g, "H", scaled(147), y, width, height, meter("hp"), HEALTH);
-        drawRibbon(g, "S", scaled(194), y, width, height, meter("stam"), STAMINA);
-        drawRibbon(g, "E", scaled(241), y, width, height, meter("nrj"), ENERGY);
+        Coord health = ribbonOrigin(0);
+        Coord energy = ribbonOrigin(2);
+        MoonFlowerHudTheme.drawCurvedVine(g, health.add(-scaled(8), height / 2),
+                energy.add(width + scaled(8), height / 2), 1.0);
+        drawRibbon(g, "H", health.x, health.y, width, height, softHealth(), HEALTH);
+        Coord stamina = ribbonOrigin(1);
+        drawRibbon(g, "S", stamina.x, stamina.y, width, height, meter("stam"), STAMINA);
+        double energyValue = meter("nrj");
+        drawRibbon(g, "E", energy.x, energy.y, width, height, energyValue, energyColor(energyValue));
+    }
+
+    private Coord ribbonOrigin(int index) {
+        int width = scaled(42);
+        int gap = scaled(5);
+        int total = (width * 3) + (gap * 2);
+        return Coord.of((sz.x - total) / 2 + (index * (width + gap)),
+                portraitOrigin.y + portraitSize + scaled(9));
     }
 
     private void drawVitalNumbers(GOut g, Coord center, int healthRadius, int staminaRadius, int energyRadius) {
@@ -447,7 +754,8 @@ public class MoonFlowerPortraitHub extends Widget {
         String hp = (health == null) ? Integer.toString(percent(meter("hp"))) : (health.shp + "/" + health.mhp);
         drawRingNumber(g, center, healthRadius, Math.toRadians(210), hp, HEALTH);
         drawRingNumber(g, center, staminaRadius, Math.toRadians(270), percent(meter("stam")) + "%", STAMINA);
-        drawRingNumber(g, center, energyRadius, Math.toRadians(330), percent(meter("nrj")) + "%", ENERGY);
+        double energy = meter("nrj");
+        drawRingNumber(g, center, energyRadius, Math.toRadians(330), percent(energy) + "%", energyColor(energy));
     }
 
     private void drawRingNumber(GOut g, Coord center, int radius, double angle,
@@ -474,8 +782,12 @@ public class MoonFlowerPortraitHub extends Widget {
         g.chcolor(EMPTY);
         g.frect(origin, size);
         if("H".equals(label)) {
-            g.chcolor(HARD_HEALTH);
-            g.frect(origin, Coord.of((int)Math.round(width * hardHealth()), height));
+            int softWidth = (int)Math.round(width * softHealth());
+            int hardWidth = (int)Math.round(width * hardHealth());
+            if(hardWidth > softWidth) {
+                g.chcolor(RECOVERABLE_HEALTH);
+                g.frect(origin.add(softWidth, 0), Coord.of(hardWidth - softWidth, height));
+            }
         }
         g.chcolor(color);
         int fillWidth = (int)Math.round(width * value);
@@ -499,23 +811,54 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private void drawSpeed(GOut g) {
-        double speed = playerSpeed();
-        if(speed <= 0)
-            return;
-        Coord areaOrigin = speedAreaOrigin();
-        Coord areaSize = speedAreaSize();
-        MoonFlowerHudTheme.drawPanel(g, areaOrigin, areaSize, 210);
-        FastText.aprintfstroked(g, areaOrigin.add(areaSize.x / 2, areaSize.y / 2), 0.5, 0.5,
-                "%.2f u/s", speed);
+        Speedget control = gui.movementSpeedControl();
+        if(control != null) {
+            for(int mode = 0; mode < movementIcons.length; mode++) {
+                Coord center = movementModeCenter(mode);
+                Coord origin = center.sub(movementIcons[mode].sz().div(2));
+                boolean selected = mode == control.cur;
+                boolean available = mode <= control.max;
+                if(selected) {
+                    g.chcolor(colorWithAlpha(MoonFlowerHudTheme.GOLD_SOFT, 210));
+                    g.fellipse(center, Coord.of(scaled(8), scaled(8)));
+                    g.chcolor(new Color(8, 43, 51, 220));
+                    g.fellipse(center, Coord.of(scaled(6), scaled(6)));
+                }
+                g.chcolor(selected ? MoonFlowerHudTheme.IVORY :
+                        (available ? new Color(198, 218, 211, 230) : new Color(92, 92, 92, 185)));
+                g.image(movementIcons[mode], origin);
+                g.chcolor();
+            }
+        }
+
+        IMeter.Meter energyMeter = gui.getmeter("nrj", 0);
+        if(energyMeter != null && MoonFlowerVitalInfo.starving(energyMeter.a)) {
+            double energy = Math.max(0, Math.min(1, energyMeter.a));
+            Coord warningSize = Coord.of(scaled(92), scaled(13));
+            Coord warningOrigin = Coord.of(portraitOrigin.x + ((portraitSize - warningSize.x) / 2),
+                    movementModeCenter(0).y - warningSize.y - scaled(12));
+            g.chcolor(new Color(96, 13, 22, 235));
+            g.frect(warningOrigin, warningSize);
+            g.chcolor(new Color(255, 114, 92, 255));
+            g.rect(warningOrigin, warningSize);
+            g.chcolor();
+            FastText.aprintfstroked(g, warningOrigin.add(warningSize.x / 2, warningSize.y / 2),
+                    0.5, 0.5, "%s", MoonFlowerVitalInfo.starvationLabel(energy));
+        }
     }
 
-    private Coord speedAreaOrigin() {
-        return Coord.of(portraitOrigin.x + (portraitSize / 2) - scaled(31),
-                portraitOrigin.y + portraitSize - scaled(15));
+    private Coord movementModeCenter(int mode) {
+        return MoonFlowerHudAssets.scaledMovementSocketCenter(mode, ornamentSize()).add(0, dockY);
     }
 
-    private Coord speedAreaSize() {
-        return Coord.of(scaled(62), scaled(13));
+    private int movementModeAt(Coord c) {
+        int radius = scaled(10);
+        for(int mode = 0; mode < movementIcons.length; mode++) {
+            Coord center = movementModeCenter(mode);
+            if(c.isect(center.sub(radius, radius), Coord.of(radius * 2, radius * 2)))
+                return mode;
+        }
+        return -1;
     }
 
     private double playerSpeed() {
@@ -534,10 +877,19 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private double hardHealth() {
-        IMeter.HealthState health = IMeter.lastHealthState;
-        if(health == null)
-            return meter("hp");
-        return Math.max(0, Math.min(1, health.hardPercentage / 100.0));
+        return MoonFlowerVitalInfo.hardHealthFraction(IMeter.lastHealthState, meter("hp"));
+    }
+
+    private double softHealth() {
+        return MoonFlowerVitalInfo.softHealthFraction(IMeter.lastHealthState, meter("hp"));
+    }
+
+    private Color energyColor(double energy) {
+        return switch(MoonFlowerVitalInfo.energyState(energy)) {
+            case HEALING -> ENERGY_HEALING;
+            case BELOW_HEALING -> ENERGY_LOW;
+            case STARVING -> ENERGY_STARVING;
+        };
     }
 
     private double meter(String name) {
@@ -588,6 +940,12 @@ public class MoonFlowerPortraitHub extends Widget {
     public void destroy() {
         if(dockTexture != null)
             dockTexture.dispose();
+        if(combatCrownTexture != null)
+            combatCrownTexture.dispose();
+        for(Tex icon : movementIcons) {
+            if(icon != null)
+                icon.dispose();
+        }
         vitals.disposeTooltip();
         for(HudIconButton button : mainButtons)
             button.disposeIcon();
@@ -595,11 +953,112 @@ public class MoonFlowerPortraitHub extends Widget {
         super.destroy();
     }
 
+    /** Dark wells sit behind the transparent openings so the generated asset is
+     * the visible frame while live icons and items remain readable. */
+    private class DockBacking extends Widget {
+        @Override
+        public void draw(GOut g) {
+            g.chcolor(new Color(3, 15, 18, 238));
+            Coord portrait = MoonFlowerHudAssets.scaledPortraitCenter(sz);
+            g.fellipse(portrait, Coord.of(portraitSize / 2, portraitSize / 2));
+            for(int i = 0; i < MoonFlowerHudAssets.socketCenters.length; i++)
+                g.fellipse(MoonFlowerHudAssets.scaledSocketCenter(i, sz), Coord.of(scaled(18), scaled(18)));
+            for(int i = 0; i < MoonFlowerHudAssets.buffSocketCenters.length; i++)
+                g.fellipse(MoonFlowerHudAssets.scaledBuffSocketCenter(i, sz), Coord.of(scaled(14), scaled(14)));
+            Coord slotSize = QuickSlotsWdg.slotSquareBg.sz();
+            for(int i = 0; i < MoonFlowerHudAssets.equipmentSlotCenters.length; i++)
+                g.frect(MoonFlowerHudAssets.scaledEquipmentSlotCenter(i, sz).sub(slotSize.div(2)), slotSize);
+            for(int i = 0; i < MoonFlowerHudAssets.movementSocketCenters.length; i++)
+                g.fellipse(MoonFlowerHudAssets.scaledMovementSocketCenter(i, sz), Coord.of(scaled(7), scaled(7)));
+            g.fellipse(MoonFlowerHudAssets.scaledBuffOverflowCenter(sz), Coord.of(scaled(15), scaled(15)));
+            g.chcolor();
+        }
+    }
+
     private class DockOrnament extends Widget {
         @Override
         public void draw(GOut g) {
             g.image(dockTexture, Coord.z);
         }
+    }
+
+    private class EquipmentScrollCover extends Widget {
+        private double cover() {
+            return Utils.smoothstep(1.0 - equipmentReveal);
+        }
+
+        @Override
+        public void draw(GOut g) {
+            double cover = cover();
+            Coord origin = equipmentScrollOrigin.add(0, dockY);
+            int maximumHeight = Math.max(scaled(12), equipmentScrollSize.y - scaled(3));
+            int sheetHeight = (int)Math.round(maximumHeight * cover);
+            drawEquipmentEnamelCover(g, origin, sheetHeight, cover);
+        }
+
+        @Override
+        public boolean checkhit(Coord c) {
+            double cover = cover();
+            if(cover <= 0.01)
+                return false;
+            Coord origin = equipmentScrollOrigin.add(0, dockY);
+            int height = (int)Math.round(equipmentScrollSize.y * cover) + scaled(8);
+            return c.isect(origin.sub(scaled(6), scaled(6)),
+                    Coord.of(equipmentScrollSize.x + scaled(12), height + scaled(12)));
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            return checkhit(ev.c);
+        }
+    }
+
+    private void drawEquipmentEnamelCover(GOut g, Coord origin, int sheetHeight, double cover) {
+        int width = equipmentScrollSize.x;
+        int rollHeight = scaled(11);
+        if(sheetHeight > 0) {
+            Coord sheetOrigin = origin.add(scaled(3), 0);
+            Coord sheetSize = Coord.of(Math.max(1, width - scaled(6)), sheetHeight);
+            g.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
+            g.frect(sheetOrigin, sheetSize);
+            g.chcolor(MoonFlowerHudTheme.TEAL);
+            g.frect(sheetOrigin.add(scaled(2), scaled(1)),
+                    Coord.of(Math.max(1, sheetSize.x - scaled(4)),
+                            Math.max(1, sheetSize.y - scaled(1))));
+            g.chcolor(MoonFlowerHudTheme.INK_DEEP);
+            g.frect(sheetOrigin.add(scaled(5), scaled(2)),
+                    Coord.of(Math.max(1, sheetSize.x - scaled(10)),
+                            Math.max(1, sheetSize.y - scaled(3))));
+            g.chcolor(new Color(MoonFlowerHudTheme.GOLD_SOFT.getRed(),
+                    MoonFlowerHudTheme.GOLD_SOFT.getGreen(), MoonFlowerHudTheme.GOLD_SOFT.getBlue(), 115));
+            int filigreeGap = Math.max(2, scaled(9));
+            for(int y = sheetOrigin.y + filigreeGap; y < sheetOrigin.y + sheetHeight; y += filigreeGap)
+                g.line(sheetOrigin.add(scaled(7), y - sheetOrigin.y),
+                        Coord.of(sheetOrigin.x + sheetSize.x - scaled(7), y), Math.max(1, scaled(1)));
+            if(cover > 0.72) {
+                Coord seal = sheetOrigin.add(sheetSize.x / 2, Math.min(sheetHeight - scaled(8), scaled(34)));
+                MoonFlowerHudTheme.drawBlossom(g, seal, scaled(5));
+            }
+        }
+
+        int rollY = origin.y + sheetHeight;
+        Coord rollOrigin = Coord.of(origin.x, rollY - (rollHeight / 2));
+        Coord rollSize = Coord.of(width, rollHeight);
+        g.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
+        g.frect(rollOrigin, rollSize);
+        g.chcolor(MoonFlowerHudTheme.INK_DEEP);
+        g.frect(rollOrigin.add(scaled(3), scaled(1)), rollSize.sub(scaled(6), scaled(2)));
+        g.chcolor(MoonFlowerHudTheme.GOLD);
+        g.line(rollOrigin.add(scaled(5), scaled(2)),
+                rollOrigin.add(rollSize.x - scaled(5), scaled(2)), Math.max(1, scaled(1)));
+        g.chcolor(MoonFlowerHudTheme.GOLD);
+        g.fellipse(rollOrigin.add(0, rollHeight / 2), Coord.of(rollHeight / 2, rollHeight / 2));
+        g.fellipse(rollOrigin.add(rollSize.x, rollHeight / 2), Coord.of(rollHeight / 2, rollHeight / 2));
+        g.chcolor(MoonFlowerHudTheme.INK_DEEP);
+        int inner = Math.max(1, (rollHeight / 2) - scaled(2));
+        g.fellipse(rollOrigin.add(0, rollHeight / 2), Coord.of(inner, inner));
+        g.fellipse(rollOrigin.add(rollSize.x, rollHeight / 2), Coord.of(inner, inner));
+        g.chcolor();
     }
 
     private class FeatureRevealAnimation extends NormAnim {
@@ -790,27 +1249,52 @@ public class MoonFlowerPortraitHub extends Widget {
 
         @Override
         public Object tooltip(Coord c, Widget prev) {
-            double speed = playerSpeed();
-            if(speed > 0 && c.isect(speedAreaOrigin(), speedAreaSize()))
-                return renderTooltip(MoonFlowerVitalInfo.speedTooltip(speed));
+            Speedget control = gui.movementSpeedControl();
+            int movementMode = movementModeAt(c);
+            if(control != null && movementMode >= 0) {
+                int mode = movementMode;
+                String availability = (mode <= control.max) ? "Available" : "Currently unavailable";
+                return renderTooltip(String.format("Movement: %s\n%s\nActual speed: %.2f units/second",
+                        MoonFlowerVitalInfo.movementModeName(mode), availability, playerSpeed()));
+            }
 
             int vital = -1;
             if(MoonFlowerHudSettings.vitalStyle() == MoonFlowerHudSettings.STYLE_RIBBONS) {
-                int y = dockY + scaled(125);
-                if(c.isect(Coord.of(scaled(147), y), Coord.of(scaled(42), scaled(15))))
+                if(c.isect(ribbonOrigin(0), Coord.of(scaled(42), scaled(15))))
                     vital = MoonFlowerVitalInfo.HEALTH;
-                else if(c.isect(Coord.of(scaled(194), y), Coord.of(scaled(42), scaled(15))))
+                else if(c.isect(ribbonOrigin(1), Coord.of(scaled(42), scaled(15))))
                     vital = MoonFlowerVitalInfo.STAMINA;
-                else if(c.isect(Coord.of(scaled(241), y), Coord.of(scaled(42), scaled(15))))
+                else if(c.isect(ribbonOrigin(2), Coord.of(scaled(42), scaled(15))))
                     vital = MoonFlowerVitalInfo.ENERGY;
             } else {
                 Coord center = portraitOrigin.add(portraitSize / 2, portraitSize / 2);
                 double distance = Math.hypot(c.x - center.x, c.y - center.y);
-                vital = MoonFlowerVitalInfo.nearestRing(distance,
-                        portraitSize / 2 + scaled(2), portraitSize / 2 + scaled(12),
-                        portraitSize / 2 + scaled(22), scaled(5));
+                vital = MoonFlowerVitalInfo.nearestRing(distance, healthRadius(), staminaRadius(),
+                        energyRadius(), scaled(5));
             }
             return(vital < 0) ? null : renderTooltip(vitalTooltip(vital));
+        }
+
+        @Override
+        public boolean mousedown(MouseDownEvent ev) {
+            Speedget control = gui.movementSpeedControl();
+            int mode = movementModeAt(ev.c);
+            if(ev.b == 1 && control != null && mode >= 0) {
+                if(mode <= control.max)
+                    control.set(mode);
+                return true;
+            }
+            return super.mousedown(ev);
+        }
+
+        @Override
+        public boolean mousewheel(MouseWheelEvent ev) {
+            Speedget control = gui.movementSpeedControl();
+            if(control != null && control.max >= 0 && movementModeAt(ev.c) >= 0) {
+                control.set(Utils.clip(control.cur + ev.a, 0, control.max));
+                return true;
+            }
+            return super.mousewheel(ev);
         }
 
         private Text renderTooltip(String text) {

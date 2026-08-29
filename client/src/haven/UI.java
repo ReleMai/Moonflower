@@ -68,6 +68,8 @@ public class UI {
 	public int lastWidgetID = 0;
 	public static Tex province = null;
 	public static Tex realm = null;
+	public static volatile String provinceName = "";
+	public static volatile String realmName = "";
 
     {
 	lastevent = lasttick = Utils.rtime();
@@ -184,6 +186,8 @@ public class UI {
     }
 
     public UI(Windeye wnd, Audio.Root audio, Coord sz, Runner fun) {
+	province = realm = null;
+	provinceName = realmName = "";
 	this.wnd = wnd;
 	root = new RootWidget(this, sz);
 	this.audio = new ActAudio.Root(audio);
@@ -533,11 +537,15 @@ public class UI {
 	if (type.startsWith("ui/province")){
 //		System.out.println(Arrays.toString(cargs));
 		if (cargs.length == 4) {
-			province = Text.renderstroked(String.format("Province: %s", cargs[0])).tex();
-			realm = Text.renderstroked(String.format("Realm: %s", cargs[3])).tex();
+			provinceName = String.valueOf(cargs[0]);
+			realmName = String.valueOf(cargs[3]);
+			province = Text.renderstroked(String.format("Province: %s", provinceName)).tex();
+			realm = Text.renderstroked(String.format("Realm: %s", realmName)).tex();
 		} else if (cargs.length == 3) {
-			province = Text.renderstroked(String.format("Province: %s", cargs[0])).tex();
-			realm = Text.renderstroked(String.format("Realm: %s", "-")).tex();
+			provinceName = String.valueOf(cargs[0]);
+			realmName = "-";
+			province = Text.renderstroked(String.format("Province: %s", provinceName)).tex();
+			realm = Text.renderstroked(String.format("Realm: %s", realmName)).tex();
 		}
 	}
     }

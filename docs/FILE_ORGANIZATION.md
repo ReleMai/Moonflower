@@ -43,6 +43,11 @@ project-root/
 ### `docs/`
 Project knowledge, plans, standards, and learning notes.
 
+MoonFlower interface work begins with
+`docs/templates/MOONFLOWER_UI_COMPONENT.md`. Keep the completed task brief with
+the task's design/research notes when it contains decisions worth preserving;
+do not place runtime assets or Java source in `docs/templates/`.
+
 ### `src/core/`
 Foundational logic used across the project.
 

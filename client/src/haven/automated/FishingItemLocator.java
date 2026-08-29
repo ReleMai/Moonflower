@@ -91,7 +91,10 @@ final class FishingItemLocator {
                 matches.add(item);
         }
         matches.sort(Comparator
-                .comparingInt((WItem item) -> preferenceIndex(ordered, FishingItemMetadata.name(item)))
+                // Prefer a concrete item from inside a stack, but retain the stack
+                // wrapper as the fallback take target when no child widget exists.
+                .comparingInt((WItem item) -> FishingInventory.isTackleStack(item) ? 1 : 0)
+                .thenComparingInt((WItem item) -> preferenceIndex(ordered, FishingItemMetadata.name(item)))
                 .thenComparing(FishingItemMetadata::quality,
                         Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(FishingItemMetadata::resource));

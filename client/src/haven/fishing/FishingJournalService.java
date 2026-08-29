@@ -62,6 +62,10 @@ public final class FishingJournalService implements AutoCloseable {
         return(generation.get());
     }
 
+    public String worldId() {
+        return(worldId);
+    }
+
     public void record(FishingObservation observation) {
         if(closed || repository == null || observation == null)
             return;

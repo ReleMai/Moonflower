@@ -1,6 +1,6 @@
 package haven.fishing;
 
-/** Immutable evidence captured for one fish that appeared during an active cast. */
+/** Immutable evidence captured from a fishing chance survey or completed catch. */
 public final class FishingObservation {
     public final long id;
     public final String worldId;

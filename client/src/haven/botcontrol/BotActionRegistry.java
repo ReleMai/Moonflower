@@ -104,11 +104,8 @@ public class BotActionRegistry {
             @Override
             public JSONObject start(JSONObject params, BotActionContext context) {
                 GameUI gui = context.gui();
-                if (gui.fishingBot != null) {
-                    gui.fishingBot.stop();
-                    gui.fishingBot = null;
-                    gui.fishingThread = null;
-                }
+                gui.fishingBot.stop();
+                gui.fishingThread = null;
                 return new JSONObject().put("status", "stopped");
             }
         });
@@ -491,19 +488,13 @@ public class BotActionRegistry {
     }
 
     private void ensureFishingStarted(GameUI gui) {
-        if (gui.fishingBot == null) {
-            gui.fishingBot = new FishingBot(gui);
-            gui.add(gui.fishingBot, haven.Utils.getprefc("wndc-fishingBotWindow", new haven.Coord(160, 160)));
-        }
+        gui.openFishingHelper();
         gui.fishingBot.startAutomation();
     }
 
     private void stopFishing(GameUI gui) {
-        if (gui.fishingBot != null) {
-            gui.fishingBot.stop();
-            gui.fishingBot = null;
-            gui.fishingThread = null;
-        }
+        gui.fishingBot.stop();
+        gui.fishingThread = null;
     }
 
     private void ensureGrubGrubStarted(GameUI gui) {

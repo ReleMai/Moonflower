@@ -10,27 +10,34 @@ import haven.Label;
 import haven.Loading;
 import haven.MenuGrid;
 import haven.UI;
+import haven.Utils;
 import haven.WItem;
 import haven.Widget;
-import haven.Window;
 import haven.automated.helpers.FishingAtlas;
 import haven.fishing.FishingJournalWindow;
+import haven.fishing.FishingAnalytics;
+import haven.fishing.FishingObservation;
 import haven.widgets.MultiSelectList;
 import haven.widgets.SingleSelectList;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 import static haven.OCache.posres;
 
 /** Visible fishing helper with safe tackle preparation and a local catch journal. */
-public class FishingBot extends Window implements Runnable {
+public class FishingBot extends Widget implements Runnable {
+    private static final String HIGHEST_CHANCE = "Highest chance";
     private static final long LOOP_DELAY_MS = 250;
     private static final long ATTEMPT_TIMEOUT_MS = 180_000;
     private static final int WATER_SEARCH_RADIUS = 3;
@@ -58,8 +65,16 @@ public class FishingBot extends Window implements Runnable {
     private String choiceRowsJson = "[]";
     private volatile String desiredButtonText = "Start";
     private volatile String desiredStatus = "Highlighted inventory items are allowed for fishing.";
+    private volatile String desiredChance = "Spot chances: waiting for a fishing choice.";
     private volatile FishingSelections selections = FishingSelections.empty();
+    private volatile String preferredFish;
+    private volatile List<String> desiredFishTargets = List.of(HIGHEST_CHANCE);
     private long nextInventoryRefresh;
+    private Future<List<FishingObservation>> knowledgeQuery;
+    private final List<FishingObservation> knowledgeObservations = new ArrayList<>();
+    private final Map<String, Integer> sessionTargetSelections = new HashMap<>();
+    private long knowledgeGeneration = -1;
+    private int completedSelections;
     private final EnumMap<FishingAtlas.Part, List<String>> availableChoices =
             new EnumMap<>(FishingAtlas.Part.class);
     private final EnumMap<FishingAtlas.Part, Set<String>> excludedChoices =
@@ -68,15 +83,17 @@ public class FishingBot extends Window implements Runnable {
     private final Button startButton;
     private final CheckBox startCheckBox;
     private final Label statusLabel;
+    private final Label chanceLabel;
     private final Label baitLabel;
     private final SingleSelectList<String> fishingPoleChoice;
     private final MultiSelectList<String> hookChoice;
     private final MultiSelectList<String> fishLineChoice;
     private final MultiSelectList<String> baitChoice;
     private final MultiSelectList<String> lureChoice;
+    private final SingleSelectList<String> preferredFishChoice;
 
     public FishingBot(GameUI gui) {
-        super(UI.scale(460, 225), "Fishing Helper");
+        super(UI.scale(800, 560));
         this.gui = gui;
         equipment = new FishingEquipment(gui);
         journalWindow = gui.fishingJournalWindow;
@@ -85,6 +102,7 @@ public class FishingBot extends Window implements Runnable {
         addLabel("Choose Hook:", UI.scale(30, 73));
         addLabel("Choose Fishline:", UI.scale(155, 0));
         baitLabel = addLabel("Choose Bait:", UI.scale(295, 0));
+        addLabel("Target Fish:", UI.scale(425, 0));
 
         for(FishingAtlas.Part part : new FishingAtlas.Part[]{FishingAtlas.Part.LINE, FishingAtlas.Part.HOOK,
                 FishingAtlas.Part.BAIT, FishingAtlas.Part.LURE})
@@ -107,6 +125,20 @@ public class FishingBot extends Window implements Runnable {
         lureChoice = add(choiceList(FishingAtlas.Part.LURE, UI.scale(140, 144)),
                 UI.scale(260, 20));
         lureChoice.hide();
+        preferredFish = Utils.getpref(targetPreference(), HIGHEST_CHANCE);
+        List<String> initialTargets = new ArrayList<>();
+        initialTargets.add(HIGHEST_CHANCE);
+        if(!HIGHEST_CHANCE.equals(preferredFish))
+            initialTargets.add(preferredFish);
+        desiredFishTargets = List.copyOf(initialTargets);
+        preferredFishChoice = add(new SingleSelectList<String>(UI.scale(165, 108), 18,
+                initialTargets) {
+            @Override
+            protected void changed(String selection, int index) {
+                preferredFish = selection == null ? HIGHEST_CHANCE : selection;
+                Utils.setpref(targetPreference(), preferredFish);
+            }
+        }, UI.scale(410, 20));
 
         startCheckBox = add(new CheckBox("Auto cast") {{ a = true; }}, UI.scale(70, 177));
         add(new Button(UI.scale(70), "Prepare") {
@@ -135,6 +167,7 @@ public class FishingBot extends Window implements Runnable {
         }, UI.scale(305, 175));
         statusLabel = add(new Label("Highlighted inventory items are allowed for fishing."),
                 UI.scale(10, 204));
+        chanceLabel = add(new Label("Spot chances: waiting for a fishing choice."), UI.scale(10, 224));
 
         findFishActionId();
         refreshInventoryChoices();
@@ -297,7 +330,7 @@ public class FishingBot extends Window implements Runnable {
         }
 
         if(state == State.FISHING) {
-            if(usingLure() && !choiceSelected)
+            if(!choiceSelected)
                 selectBestFishingChoice();
             if(now - attemptStartedAt > ATTEMPT_TIMEOUT_MS) {
                 timeoutCount++;
@@ -320,7 +353,8 @@ public class FishingBot extends Window implements Runnable {
 
         FishingSelections selected = selections;
         FishingEquipment.Result result = equipment.prepare(selected.pole, selected.lines, selected.hooks,
-                selected.lure ? selected.lures : selected.baits, selected.lure);
+                selected.lure ? selected.lures : selected.baits, selected.lure,
+                !prepareOnly && startCheckBox.a);
         if(!active)
             return;
         if(result.waiting) {
@@ -350,8 +384,13 @@ public class FishingBot extends Window implements Runnable {
                     (preparationOnly ? "" : " Auto cast is disabled."));
             return;
         }
-        FishingEnvironment.Target water = FishingEnvironment.findNearbyWater(gui, WATER_SEARCH_RADIUS,
-                MAX_CAST_DISTANCE);
+        if(!refreshKnowledge()) {
+            setStatus("Loading recorded tackle and fishing-spot knowledge...");
+            return;
+        }
+        List<FishingEnvironment.Target> nearby = FishingEnvironment.nearbyWater(gui,
+                WATER_SEARCH_RADIUS, MAX_CAST_DISTANCE);
+        FishingEnvironment.Target water = chooseWaterTarget(nearby);
         if(water == null) {
             deactivate("Fishing helper found no nearby fishable water within " + WATER_SEARCH_RADIUS + " tiles.");
             return;
@@ -411,6 +450,9 @@ public class FishingBot extends Window implements Runnable {
         lastFishingPoseAt = 0;
         choiceSelected = false;
         choiceRowsJson = "[]";
+        gui.noteFishingChoices(choiceRowsJson);
+        gui.fishingCatchTracker().noteFishingAttempt(waterTarget, tackle);
+        setChanceText("Spot chances: waiting for the server at this pole and location.");
         cancelCursorPending = true;
         cancelCursorAt = now + 500;
         setStatus("Fishing at nearby water; new fish will be journaled as candidate catches.");
@@ -419,12 +461,89 @@ public class FishingBot extends Window implements Runnable {
     private void selectBestFishingChoice() {
         if(!active)
             return;
-        FishingChoiceWindow.selectBest(gui, this, journalWindow).ifPresent(selection -> {
+        FishingChoiceWindow.select(gui, this, journalWindow, preferredFish).ifPresent(selection -> {
             choiceRowsJson = selection.rowsJson;
+            gui.noteFishingChoices(choiceRowsJson);
             choiceSelected = true;
+            List<String> targets = new ArrayList<>();
+            targets.add(HIGHEST_CHANCE);
+            targets.addAll(selection.fishNames);
+            if(preferredFish != null && !HIGHEST_CHANCE.equals(preferredFish) &&
+                    targets.stream().noneMatch(preferredFish::equalsIgnoreCase))
+                targets.add(preferredFish);
+            desiredFishTargets = List.copyOf(targets);
+            FishingObservation survey = FishingEnvironment.captureSurvey(gui, waterTarget, tackle,
+                    choiceRowsJson, selection.choice, System.currentTimeMillis());
+            gui.fishingJournalService.record(survey);
+            knowledgeObservations.add(survey);
+            completedSelections++;
+            sessionTargetSelections.merge(targetKey(waterTarget), 1, Integer::sum);
+            setChanceText("Spot chances: " + selection.summary);
+            String targetNote = HIGHEST_CHANCE.equals(preferredFish) || selection.matchedPreferred ? "" :
+                    " Preferred fish was unavailable, so the highest chance was used.";
             setStatus("Aiming for " + selection.choice.fishName + " at " +
-                    selection.choice.finalPercent + "%.");
+                    selection.choice.finalPercent + "%. Choice and rig recorded." + targetNote);
         });
+    }
+
+    private boolean refreshKnowledge() {
+        if(knowledgeQuery != null) {
+            if(!knowledgeQuery.isDone())
+                return(false);
+            try {
+                List<FishingObservation> loaded = knowledgeQuery.get();
+                knowledgeObservations.clear();
+                if(loaded != null)
+                    knowledgeObservations.addAll(loaded);
+            } catch(Exception failure) {
+                new haven.Warning(failure, "Could not load fishing automation knowledge")
+                        .level(haven.Warning.ERROR).issue();
+            } finally {
+                knowledgeQuery = null;
+                knowledgeGeneration = gui.fishingJournalService.generation();
+            }
+        }
+        if(knowledgeGeneration != gui.fishingJournalService.generation()) {
+            knowledgeQuery = gui.fishingJournalService.recent(2000);
+            return(false);
+        }
+        return(true);
+    }
+
+    private FishingEnvironment.Target chooseWaterTarget(List<FishingEnvironment.Target> candidates) {
+        if(candidates == null || candidates.isEmpty() || tackle == null)
+            return(null);
+        FishingAnalytics.Snapshot knowledge = FishingAnalytics.analyze(knowledgeObservations);
+        FishingAnalytics.RigKey rig = FishingAnalytics.RigKey.of(tackle.pole.displayName,
+                tackle.pole.quality, tackle.line.displayName, tackle.line.quality,
+                tackle.hook.displayName, tackle.hook.quality, tackle.consumableKind,
+                tackle.consumable.displayName, tackle.consumable.quality);
+        boolean scouting = completedSelections % 4 == 3;
+        Comparator<FishingEnvironment.Target> ranking;
+        if(scouting) {
+            ranking = Comparator
+                    .comparingInt((FishingEnvironment.Target target) ->
+                            sessionTargetSelections.getOrDefault(targetKey(target), 0))
+                    .thenComparingInt(target -> knowledge.score(target.coordinate.x,
+                            target.coordinate.y, rig).rigSamples)
+                    .thenComparingInt(target -> -target.waterNeighbors)
+                    .thenComparingDouble(target -> target.distance);
+        } else {
+            ranking = Comparator
+                    .comparingInt((FishingEnvironment.Target target) -> knowledge.score(
+                            target.coordinate.x, target.coordinate.y, rig).rankingChance()).reversed()
+                    .thenComparingInt(target -> sessionTargetSelections.getOrDefault(targetKey(target), 0))
+                    .thenComparingInt(target -> -target.waterNeighbors)
+                    .thenComparingDouble(target -> target.distance);
+        }
+        return(candidates.stream().sorted(ranking).findFirst().orElse(candidates.get(0)));
+    }
+
+    private static String targetKey(FishingEnvironment.Target target) {
+        if(target == null)
+            return("");
+        Coord tile = target.coordinate.floor(haven.MCache.tilesz);
+        return(tile.x + ":" + tile.y);
     }
 
     private void findFishActionId() {
@@ -471,6 +590,11 @@ public class FishingBot extends Window implements Runnable {
         waterTarget = null;
         tackle = null;
         choiceRowsJson = "[]";
+        setChanceText("Spot chances: waiting for a fishing choice.");
+    }
+
+    private void setChanceText(String text) {
+        desiredChance = text == null ? "" : text;
     }
 
     private void cancelCurrentAction() {
@@ -518,29 +642,28 @@ public class FishingBot extends Window implements Runnable {
             startButton.change(desiredButtonText);
         if(!Objects.equals(statusLabel.texts, desiredStatus))
             statusLabel.settext(desiredStatus);
-    }
-
-    @Override
-    public void wdgmsg(Widget sender, String message, Object... args) {
-        if(sender == this && Objects.equals(message, "close")) {
-            stop();
-        } else {
-            super.wdgmsg(sender, message, args);
+        if(!Objects.equals(chanceLabel.texts, desiredChance))
+            chanceLabel.settext(desiredChance);
+        List<String> targetChoices = desiredFishTargets;
+        if(!targetChoices.equals(lastDisplayedFishTargets)) {
+            preferredFishChoice.setItems(targetChoices, preferredFish);
+            lastDisplayedFishTargets = targetChoices;
         }
     }
 
+    private List<String> lastDisplayedFishTargets = List.of();
+
+    private String targetPreference() {
+        return("fishing-target-fish/" + (gui.genus == null ? "" : gui.genus));
+    }
+
     public synchronized void stop() {
-        if(closed)
-            return;
-        stopAutomation("Fishing helper closed.");
-        closed = true;
-        Thread thread = runner;
-        if(thread != null)
-            thread.interrupt();
-        haven.Utils.setprefc("wndc-fishingBotWindow", c);
-        gui.fishingBot = null;
-        gui.fishingThread = null;
-        reqdestroy();
+        stopAutomation("Fishing automation stopped.");
+    }
+
+    public synchronized void shutdown() {
+        if(!closed)
+            destroy();
     }
 
     @Override
@@ -551,7 +674,6 @@ public class FishingBot extends Window implements Runnable {
             Thread thread = runner;
             if(thread != null)
                 thread.interrupt();
-            gui.fishingBot = null;
             gui.fishingThread = null;
         }
         super.destroy();

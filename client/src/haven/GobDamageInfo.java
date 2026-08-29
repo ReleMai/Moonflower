@@ -3,6 +3,7 @@ package haven;
 import haven.combat.CombatDamageEvent;
 import haven.combat.CombatDamageSnapshot;
 import haven.combat.CombatDamageTracker;
+import haven.combat.CombatEncounterLog;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -51,8 +52,15 @@ public class GobDamageInfo extends GobInfo {
     }
 
     public void update(CombatDamageEvent event, long eventKey) {
-        if(tracker.record(gob.id, resourceName(), eventKey, event, System.currentTimeMillis()))
+        long now = System.currentTimeMillis();
+        String resourceName = resourceName();
+        if(tracker.record(gob.id, resourceName, eventKey, event, now)) {
+            GameUI gui = (gob.glob == null || gob.glob.sess == null || gob.glob.sess.ui == null) ?
+                    null : gob.glob.sess.ui.gui;
+            CombatEncounterLog.forGlob(gob.glob).damage(gui, gob.id, resourceName, event,
+                    tracker.snapshot(gob.id, resourceName, now), now);
             clear();
+        }
     }
 
     public static void clearAllDamage(GameUI gui) {

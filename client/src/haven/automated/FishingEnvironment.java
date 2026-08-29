@@ -11,6 +11,7 @@ import haven.Locked;
 import haven.MCache;
 import haven.MapFile;
 import haven.Resource;
+import haven.fishing.FishingChoice;
 import haven.fishing.FishingObservation;
 import haven.resutil.WaterTile;
 
@@ -29,9 +30,14 @@ final class FishingEnvironment {
     }
 
     static Target findNearbyWater(GameUI gui, int radius, double maxDistance) {
+        List<Target> candidates = nearbyWater(gui, radius, maxDistance);
+        return(candidates.isEmpty() ? null : candidates.get(0));
+    }
+
+    static List<Target> nearbyWater(GameUI gui, int radius, double maxDistance) {
         Gob player = gui.map == null ? null : gui.map.player();
         if(player == null)
-            return(null);
+            return(List.of());
         Coord playerTile = player.rc.floor(tilesz);
         List<Target> candidates = new ArrayList<>();
         for(int x = -radius; x <= radius; x++) {
@@ -54,10 +60,9 @@ final class FishingEnvironment {
                 }
             }
         }
-        return(candidates.stream()
-                .sorted(Comparator.comparingInt((Target target) -> -target.waterNeighbors)
-                        .thenComparingDouble(target -> target.distance))
-                .findFirst().orElse(null));
+        candidates.sort(Comparator.comparingInt((Target target) -> -target.waterNeighbors)
+                .thenComparingDouble(target -> target.distance));
+        return(List.copyOf(candidates));
     }
 
     static FishingObservation capture(GameUI gui, Target target, FishingEquipment.Snapshot tackle,
@@ -110,6 +115,16 @@ final class FishingEnvironment {
                 .stats(attribute(gui, "survive"), attribute(gui, "will"))
                 .outcome("caught")
                 .confidence("candidate")
+                .build());
+    }
+
+    static FishingObservation captureSurvey(GameUI gui, Target target, FishingEquipment.Snapshot tackle,
+                                             String choiceRowsJson, FishingChoice selected, long observedAt) {
+        FishingObservation context = capture(gui, target, tackle, choiceRowsJson, observedAt);
+        return(context.copy()
+                .fish("", selected == null ? "" : selected.fishName, null)
+                .outcome("surveyed")
+                .confidence("server-choice")
                 .build());
     }
 

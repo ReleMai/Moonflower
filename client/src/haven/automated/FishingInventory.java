@@ -29,6 +29,7 @@ final class FishingInventory {
             return(collector.items);
         if(gui.maininv != null)
             collector.addInventory(gui.maininv, true);
+        addReachableInventories(gui, collector, true);
         addEquippedFishingContainers(gui, collector, true);
         addOpenContentsWindows(gui, collector, true);
         return(collector.items);
@@ -83,6 +84,31 @@ final class FishingInventory {
             }
         }
         return(false);
+    }
+
+    /** Include every inventory whose widgets are currently available to the client. */
+    private static void addReachableInventories(GameUI gui, Collector collector, boolean recurse) {
+        List<Inventory> inventories;
+        try {
+            inventories = gui.getAllInventories();
+        } catch(RuntimeException ignored) {
+            return;
+        }
+        if(inventories == null)
+            return;
+        for(Inventory inventory : inventories)
+            collector.addInventory(inventory, recurse);
+    }
+
+    static boolean isTackleStack(WItem item) {
+        if(item == null || item.item == null || !(item.item.contents instanceof ItemStack))
+            return(false);
+        return(isTacklePart(FishingAtlas.classify(safeName(item.item), safeResource(item.item))));
+    }
+
+    private static boolean isTacklePart(FishingAtlas.Part part) {
+        return(part == FishingAtlas.Part.LINE || part == FishingAtlas.Part.HOOK ||
+                part == FishingAtlas.Part.BAIT || part == FishingAtlas.Part.LURE);
     }
 
     private static void addEquippedFishingContainers(GameUI gui, Collector collector, boolean includeBelt) {
@@ -169,12 +195,12 @@ final class FishingInventory {
                 return;
             if(item.item.contents instanceof ItemStack) {
                 /*
-                 * A configured fishing pole exposes its tackle as an ItemStack. Keep the
-                 * parent pole selectable while also walking that stack; ordinary stacks
-                 * are containers only and must not become fishing-equipment candidates.
+                 * A configured pole and a stack of tackle both expose an ItemStack. Keep
+                 * recognized wrappers reachable because the server may not expose an
+                 * inner WItem until one unit is taken from the stack.
                  */
-                if(FishingAtlas.classify(safeName(item.item), safeResource(item.item)) ==
-                        FishingAtlas.Part.POLE)
+                FishingAtlas.Part part = FishingAtlas.classify(safeName(item.item), safeResource(item.item));
+                if(part == FishingAtlas.Part.POLE || isTacklePart(part))
                     items.add(item);
                 if(recurse)
                     addWidget(item.item.contents, true);

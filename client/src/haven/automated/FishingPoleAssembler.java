@@ -6,6 +6,7 @@ import haven.GameUI;
 import haven.Inventory;
 import haven.WItem;
 import haven.Widget;
+import haven.automated.helpers.FishingAtlas;
 import haven.res.ui.stackinv.ItemStack;
 
 import java.util.List;
@@ -57,12 +58,21 @@ final class FishingPoleAssembler {
                              FishingPoleInspector.Kind kind) throws InterruptedException {
         if(gui.vhand != null)
             return("The cursor changed before the " + label(kind) + " could be taken.");
-        CursorOrigin origin = new CursorOrigin(component);
-        GItem moving = component.item;
+        WItem source = resolveTakeSource(component, kind);
+        if(source == null || source.item == null)
+            return("No selected " + label(kind) + " could be taken from the resolved inventory source.");
+        CursorOrigin origin = new CursorOrigin(source);
+        HeldExpectation expected = new HeldExpectation(kind, source.item);
         // Match an ordinary left-click on the centre of the tackle item.
-        moving.wdgmsg("take", new Coord(component.sz.x / 2, component.sz.y / 2));
-        if(!await(() -> gui.vhand != null && gui.vhand.item == moving, TAKE_TIMEOUT_MS))
-            return("The selected " + label(kind) + " was not placed on the cursor.");
+        source.item.wdgmsg("take", new Coord(Math.max(1, source.sz.x) / 2,
+                Math.max(1, source.sz.y) / 2));
+        if(!await(() -> gui.vhand != null && expected.matches(gui.vhand.item), TAKE_TIMEOUT_MS)) {
+            String cursor = describeCursor();
+            if(gui.vhand != null)
+                origin.returnHeld(gui);
+            return("The selected " + label(kind) + " was not placed on the cursor. Expected " +
+                    expected.description() + "; observed " + cursor + ".");
+        }
 
         WItem target = items.findPole(poleName, poleItem);
         if(target == null) {
@@ -82,11 +92,67 @@ final class FishingPoleAssembler {
             return(current != null && !state.loading && state.has(kind));
         }, ATTACH_TIMEOUT_MS);
         if(!attached) {
+            WItem current = items.findPole(poleName, poleItem);
+            FishingPoleInspector.State observed = inspector.inspect(current);
             origin.returnHeld(gui);
-            return("Right-clicking the " + label(kind) + " onto the stationary pole was not acknowledged.");
+            return("Right-clicking the " + label(kind) + " onto the stationary pole was not acknowledged. " +
+                    "Observed pole contents: " + observed.summary() + ".");
         }
-        await(() -> gui.vhand == null || gui.vhand.item != moving, 1000);
+        if(!await(() -> gui.vhand == null, 1000))
+            origin.returnHeld(gui);
+        if(gui.vhand != null)
+            return("The " + label(kind) + " was attached, but the remaining cursor item could not be returned to " +
+                    origin.description() + ".");
         return(null);
+    }
+
+    /** Prefer a real stack child when present; otherwise take from the wrapper itself. */
+    private static WItem resolveTakeSource(WItem component, FishingPoleInspector.Kind kind) {
+        if(component == null || component.item == null)
+            return(null);
+        if(component.item.contents instanceof ItemStack) {
+            ItemStack stack = (ItemStack)component.item.contents;
+            String expectedName = FishingItemMetadata.name(component);
+            String expectedResource = FishingItemMetadata.resource(component);
+            for(GItem child : stack.order) {
+                WItem candidate = stack.wmap.get(child);
+                if(candidate != null && candidate.item != null && semanticCursorMatch(kind,
+                        expectedName, expectedResource, FishingItemMetadata.name(candidate),
+                        FishingItemMetadata.resource(candidate)))
+                    return(candidate);
+            }
+        }
+        return(component);
+    }
+
+    static boolean semanticCursorMatch(FishingPoleInspector.Kind kind, String expectedName,
+                                       String expectedResource, String actualName, String actualResource) {
+        FishingAtlas.Part actualPart = FishingAtlas.classify(actualName, actualResource);
+        if(actualPart != atlasPart(kind))
+            return(false);
+        String normalizedExpected = FishingAtlas.displayName(expectedName);
+        String normalizedActual = FishingAtlas.displayName(actualName);
+        if(!normalizedExpected.isBlank() && !normalizedActual.isBlank())
+            return(FishingAtlas.sameDisplayName(normalizedExpected, normalizedActual));
+        return(expectedResource != null && !expectedResource.isBlank() &&
+                expectedResource.equals(actualResource));
+    }
+
+    private static FishingAtlas.Part atlasPart(FishingPoleInspector.Kind kind) {
+        switch(kind) {
+        case LINE: return(FishingAtlas.Part.LINE);
+        case HOOK: return(FishingAtlas.Part.HOOK);
+        case BAIT: return(FishingAtlas.Part.BAIT);
+        case LURE: return(FishingAtlas.Part.LURE);
+        default: return(FishingAtlas.Part.UNKNOWN);
+        }
+    }
+
+    private String describeCursor() {
+        if(gui.vhand == null || gui.vhand.item == null)
+            return("an empty cursor");
+        FishingEquipment.ItemData held = FishingItemMetadata.describe(gui.vhand.item);
+        return("cursor item '" + held.displayName + "' [" + held.resourceName + "]");
     }
 
     private static String label(FishingPoleInspector.Kind kind) {
@@ -111,6 +177,34 @@ final class FishingPoleAssembler {
 
     private interface Check { boolean ready(); }
 
+    private static final class HeldExpectation {
+        final FishingPoleInspector.Kind kind;
+        final GItem original;
+        final String name;
+        final String resource;
+
+        HeldExpectation(FishingPoleInspector.Kind kind, GItem original) {
+            this.kind = kind;
+            this.original = original;
+            FishingEquipment.ItemData data = FishingItemMetadata.describe(original);
+            this.name = data.displayName;
+            this.resource = data.resourceName;
+        }
+
+        boolean matches(GItem actual) {
+            if(actual == null)
+                return(false);
+            if(actual == original)
+                return(true);
+            FishingEquipment.ItemData data = FishingItemMetadata.describe(actual);
+            return(semanticCursorMatch(kind, name, resource, data.displayName, data.resourceName));
+        }
+
+        String description() {
+            return("'" + FishingAtlas.displayName(name) + "' [" + resource + "]");
+        }
+    }
+
     private static final class CursorOrigin {
         final Widget parent;
         final Coord coordinate;
@@ -118,6 +212,14 @@ final class FishingPoleAssembler {
         CursorOrigin(WItem item) {
             parent = item.parent;
             coordinate = Inventory.fromWidget(parent) == null ? null : item.c.div(Inventory.sqsz);
+        }
+
+        String description() {
+            if(parent instanceof ItemStack)
+                return("its original stack");
+            if(Inventory.fromWidget(parent) != null && coordinate != null)
+                return("its original inventory slot " + coordinate);
+            return("the main inventory");
         }
 
         void returnHeld(GameUI gui) throws InterruptedException {

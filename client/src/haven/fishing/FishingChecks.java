@@ -54,6 +54,7 @@ public final class FishingChecks {
             MapFile map = new MapFile(new ResCache.TestCache(), "fishing-check");
             try(Locked ignored = new Locked(map.lock.writeLock())) {
                 map.gridinfo.put(11L, new MapFile.GridInfo(11L, 7L, Coord.of(2, 3)));
+                map.gridinfo.put(12L, new MapFile.GridInfo(12L, 7L, Coord.of(3, 3)));
             }
             List<FishingMapMarker> markers = FishingMapMarkers.projectForChecks(map, recent);
             check(markers.size() == 1 && markers.get(0).observationCount == 2,
@@ -66,6 +67,52 @@ public final class FishingChecks {
                             markers.get(0).observationIds.contains(secondId),
                     "fishing marker should retain the exact journal rows it represents");
 
+            String chanceRows = "[{\"fish\":\"Perch\",\"gear\":70,\"lure\":80,\"final\":24}," +
+                    "{\"fish\":\"Trout\",\"gear\":90,\"lure\":95,\"final\":73}]";
+            FishingObservation chanceObservation = recent.get(0).copy().id(8001)
+                    .choiceRowsJson(chanceRows).build();
+            List<FishingMapMarker> chanceMarkers = FishingMapMarkers.projectForChecks(map,
+                    List.of(chanceObservation));
+            check(chanceMarkers.size() == 1 && chanceMarkers.get(0).fishChances.size() == 2 &&
+                            chanceMarkers.get(0).fishChances.get(0).fishName.equals("Trout") &&
+                            chanceMarkers.get(0).fishChances.get(0).percent == 73 &&
+                            chanceMarkers.get(0).bestPercentageLabel().equals("73%"),
+                    "map spot fish should be de-duplicated and ordered by highest percentage");
+            List<FishingMapMarker> summaries = FishingMapMarkers.projectSummariesForChecks(map,
+                    List.of(chanceObservation));
+            check(summaries.size() == 1 && summaries.get(0).summary &&
+                            summaries.get(0).visibleAt(true, 0.25f) &&
+                            summaries.get(0).visibleAt(false, 1.0f) &&
+                            !summaries.get(0).visibleAt(false, 0.5f) &&
+                            !chanceMarkers.get(0).visibleAt(true, 0.5f) &&
+                            chanceMarkers.get(0).visibleAt(false, 0.5f),
+                    "compact and zoomed-out maps should show summaries while zoomed-in big maps show details");
+
+            String surveyRows = "[{\"fish\":\"Perch\",\"gear\":94,\"lure\":96,\"final\":88}]";
+            FishingObservation survey = chanceObservation.copy().id(8002).observedAt(1300)
+                    .location(7, 11, 30 * 11.0, 19 * 11.0, 3500, 5200, 3400, 5200,
+                            "gfx/tiles/water")
+                    .fish("", "", null).choiceRowsJson(surveyRows)
+                    .outcome("surveyed").confidence("server-choice").build();
+            FishingAnalytics.Snapshot analytics = FishingAnalytics.analyze(
+                    List.of(chanceObservation, survey));
+            check(analytics.catchCount == 1 && analytics.surveyCount == 1,
+                    "analytics must distinguish chance surveys from completed catches");
+            check(analytics.rigs.size() == 1 && analytics.rigs.get(0).bestChance == 88 &&
+                            analytics.rigs.get(0).catchCount == 1 &&
+                            analytics.rigs.get(0).fish.get(0).fishName.equals("Trout"),
+                    "rig history must retain catches while ranking its best offered chance");
+            check(analytics.spots.size() == 2 && analytics.spots.get(0).bestChance == 88,
+                    "known fishing spots must be ranked by their best observed chance");
+            FishingAnalytics.TargetScore targetScore = analytics.score(3500, 5200,
+                    FishingAnalytics.RigKey.from(survey));
+            check(targetScore.rigBestChance == 88 && targetScore.rigSamples == 1,
+                    "nearby-target scoring must prefer exact-rig evidence");
+            List<FishingMapMarker> surveyMarkers = FishingMapMarkers.projectForChecks(map,
+                    List.of(survey));
+            check(surveyMarkers.size() == 1 && surveyMarkers.get(0).bestPercentageLabel().equals("88%"),
+                    "chance-only surveys must remain visible as fishing-map evidence");
+
             FishingObservation nearby = recent.get(0).copy().id(9001)
                     .location(7, 11, 13 * 11.0, 21 * 11.0, 3421.5, 5212.25, 3400, 5200,
                             "gfx/tiles/water").build();
@@ -74,12 +121,24 @@ public final class FishingChecks {
             check(nearbyMarkers.size() == 1 && nearbyMarkers.get(0).observationCount == 3 &&
                             nearbyMarkers.get(0).observationIds.contains(9001L),
                     "nearby fishing tiles should merge into one clickable map spot");
-            FishingObservation distant = nearby.copy().id(9002)
+            FishingObservation expandedRadius = nearby.copy().id(9002)
                     .location(7, 11, 19 * 11.0, 19 * 11.0, 3421.5, 5212.25, 3400, 5200,
                             "gfx/tiles/water").build();
             check(FishingMapMarkers.projectForChecks(map,
-                    List.of(recent.get(0), recent.get(1), nearby, distant)).size() == 2,
+                    List.of(recent.get(0), recent.get(1), nearby, expandedRadius)).size() == 1,
+                    "casts within the expanded shoreline radius should share one detailed spot");
+            FishingObservation distant = nearby.copy().id(9003)
+                    .location(7, 11, 27 * 11.0, 19 * 11.0, 3421.5, 5212.25, 3400, 5200,
+                            "gfx/tiles/water").build();
+            check(FishingMapMarkers.projectForChecks(map,
+                    List.of(recent.get(0), recent.get(1), nearby, expandedRadius, distant)).size() == 2,
                     "distant fishing areas must remain separate map spots");
+            FishingObservation nextGrid = nearby.copy().id(9004)
+                    .location(7, 12, 10 * 11.0, 10 * 11.0, 0, 0, 0, 0,
+                            "gfx/tiles/water").build();
+            check(FishingMapMarkers.projectSummariesForChecks(map,
+                    List.of(recent.get(0), nearby, nextGrid)).size() == 2,
+                    "each mapped grid should retain one zoomed-out fishing summary");
             map.replaceEphemeralMarkers(markers);
             try(Locked ignored = new Locked(map.lock.readLock())) {
                 check(map.displayMarkers().size() == 1 && map.markers.isEmpty(),
@@ -114,10 +173,24 @@ public final class FishingChecks {
                     "Salmon", "85%", "70%", "60%"));
             check(fallback != null && fallback.gearPercent == 85 && fallback.lurePercent == 70 &&
                     fallback.finalPercent == 60, "checked percentage-order fallback is incorrect");
+            FishingChoice combined = FishingChoiceParser.parse(List.of(
+                    "Perch: 34% x 95% = 32%"));
+            check(combined != null && combined.fishName.equals("Perch") &&
+                            combined.gearPercent == 34 && combined.lurePercent == 95 &&
+                            combined.finalPercent == 32,
+                    "combined primitive-pole percentage row parsing is incorrect");
             check(FishingChoiceParser.parse(Arrays.asList("Not a complete row", "25%")) != null,
                     "minimal valid row should parse");
             check(FishingChoiceParser.parse(Arrays.asList("Trout", "loading")) == null,
                     "row without a final percentage should be rejected");
+            List<FishingChoice> savedChoices = FishingChanceTable.parse(chanceRows);
+            check(savedChoices.size() == 2 && savedChoices.get(0).fishName.equals("Trout") &&
+                            FishingChanceTable.forFish(chanceObservation).finalPercent == 73 &&
+                            FishingChanceTable.compact(savedChoices, 2)
+                                    .equals("Trout 73% | Perch 24%"),
+                    "saved fishing percentages should remain readable and highest first");
+            check(FishingChanceTable.parse("not-json").isEmpty(),
+                    "malformed legacy fishing rows should fail closed");
 
             check(FishingAtlas.classify("Crane Fly") == FishingAtlas.Part.BAIT,
                     "current bait atlas entry is missing");

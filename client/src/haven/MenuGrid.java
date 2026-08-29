@@ -481,7 +481,8 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		    } catch(Loading l) {
 			continue;
 		    }
-		    GOut g2 = g.reclip(p.add(1, 1), spr.sz());
+		    int pressOffset = (MoonFlowerHudTheme.active() && btn == pressed) ? UI.scale(1) : 0;
+		    GOut g2 = g.reclip(p.add(1 + pressOffset, 1 + pressOffset), spr.sz());
 		    Pagina info = btn.pag;
 		    if(info.tnew != 0) {
 			info.anew = 1;
@@ -499,7 +500,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 			if(ki != null)
 			    g2.aimage(ki, Coord.of(bgsz.x - UI.scale(2), UI.scale(1)), 1.0, 0.0);
 		    }
-		    if(btn == pressed) {
+		    if(btn == pressed && !MoonFlowerHudTheme.active()) {
 			g.chcolor(new Color(0, 0, 0, 128));
 			g.frect(p.add(1, 1), bgsz.sub(1, 1));
 			g.chcolor();

@@ -68,6 +68,8 @@ public class OptWnd extends Window {
 	public static final Map<String, Color> improvedOpeningsImageColor =	new ConcurrentHashMap<>(4);
 
     public void chpanel(Panel p) {
+	if((current instanceof MoonFlowerHudSettingsPanel) && (current != p))
+	    leaveHudEditMode();
 	if(current != null)
 	    current.hide();
 	(current = p).show();
@@ -1205,6 +1207,14 @@ public class OptWnd extends Window {
 						ui.gui.refreshMoonFlowerHud();
 				}
 			}, prev.pos("bl").adds(0, 7));
+
+			prev = add(new CheckBox("Reduce decorative clock motion") {
+				{a = MoonFlowerHudSettings.clockReducedMotion();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.CLOCK_REDUCED_MOTION, val);
+				}
+			}, prev.pos("bl").adds(0, 7));
+			prev.tooltip = RichText.render("Freezes the clock's decorative sun animation while keeping live Haven time and sky state current.", UI.scale(360));
 
 			prev = add(new Label("Portrait hub size:"), prev.pos("bl").adds(0, 12));
 			Label portraitScale = new Label(MoonFlowerHudSettings.portraitScale() + "%");
@@ -3318,7 +3328,7 @@ public class OptWnd extends Window {
 	    y = addbtn(cont, "Options", GameUI.kb_opt, y);
 	    y = addbtn(cont, "Search actions", GameUI.kb_srch, y);
 	    y = addbtn(cont, "Cookbook", GameUI.kb_cookbook, y);
-	    y = addbtn(cont, "Fishing Journal", GameUI.kb_fishingJournal, y);
+	    y = addbtn(cont, "Fishing System", GameUI.kb_fishingJournal, y);
 	    y = addbtn(cont, "Ring of Brodgar Wiki", GameUI.kb_wiki, y);
 	    y = addbtn(cont, "Focus chat window", GameUI.kb_chat, y);
 //	    y = addbtn(cont, "Quick chat", ChatUI.kb_quick, y);
@@ -5337,6 +5347,20 @@ public class OptWnd extends Window {
     public void reqclose() {
 	hide();
 	cap = "Options            ";
+    }
+
+    private void leaveHudEditMode() {
+	if(!MoonFlowerHudSettings.editMode())
+	    return;
+	Utils.setprefb(MoonFlowerHudSettings.EDIT_MODE, false);
+	if(ui != null && ui.gui != null)
+	    ui.gui.refreshMoonFlowerHud();
+    }
+
+    @Override
+    public void hide() {
+	leaveHudEditMode();
+	super.hide();
     }
 
     public void show() {

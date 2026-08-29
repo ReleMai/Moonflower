@@ -26,21 +26,32 @@ public final class FishingChoiceParser {
             if(text.isEmpty())
                 continue;
             Matcher matcher = PERCENT.matcher(text);
-            Integer percent = matcher.find() ? Integer.parseInt(matcher.group(1)) : null;
-            if(percent == null) {
+            List<Integer> percentages = new ArrayList<>();
+            int firstPercentAt = -1;
+            while(matcher.find()) {
+                if(firstPercentAt < 0)
+                    firstPercentAt = matcher.start();
+                percentages.add(Integer.parseInt(matcher.group(1)));
+            }
+            if(percentages.isEmpty()) {
                 if(fishName.isEmpty())
-                    fishName = text;
+                    fishName = trimFishName(text);
                 continue;
             }
             String lower = text.toLowerCase(Locale.ROOT);
+            if(fishName.isEmpty() && !semanticLabel(lower)) {
+                String prefix = trimFishName(text.substring(0, firstPercentAt));
+                if(!prefix.isEmpty())
+                    fishName = prefix;
+            }
             if(lower.contains("gear") || lower.contains("hook") || lower.contains("line"))
-                gear = percent;
+                gear = percentages.get(0);
             else if(lower.contains("lure") || lower.contains("bait"))
-                lure = percent;
+                lure = percentages.get(0);
             else if(lower.contains("final") || lower.contains("chance") || lower.contains("total"))
-                result = percent;
+                result = percentages.get(percentages.size() - 1);
             else
-                unlabelled.add(percent);
+                unlabelled.addAll(percentages);
         }
         int next = 0;
         if(gear == null && next < unlabelled.size())
@@ -52,5 +63,15 @@ public final class FishingChoiceParser {
         if(fishName.isEmpty() || result == null)
             return(null);
         return(new FishingChoice(fishName, gear, lure, result));
+    }
+
+    private static boolean semanticLabel(String lower) {
+        return(lower.contains("gear") || lower.contains("hook") || lower.contains("line") ||
+                lower.contains("lure") || lower.contains("bait") || lower.contains("final") ||
+                lower.contains("chance") || lower.contains("total"));
+    }
+
+    private static String trimFishName(String value) {
+        return(value == null ? "" : value.trim().replaceFirst("[:=\\-]+$", "").trim());
     }
 }

@@ -34,20 +34,51 @@ public class MoonFlowerCombatGhost extends Widget {
     }
 
     private Area statusArea() {
-        return MoonFlowerCombatLayout.statusPreviewArea(sz, statusOffset);
+        return MoonFlowerCombatLayout.statusPreviewArea(gui, statusOffset, 10);
     }
 
     private Area deckArea() {
-        return MoonFlowerCombatLayout.actionDeckArea(sz, deckOffset, 10);
+        return MoonFlowerCombatLayout.actionDeckArea(gui, deckOffset, 10);
     }
 
     @Override
     public void draw(GOut g) {
         if(!active())
             return;
-        drawStatusGhost(g, statusArea());
-        drawDeckGhost(g, deckArea());
+        drawIntegratedPreview(g);
         super.draw(g);
+    }
+
+    private void drawIntegratedPreview(GOut g) {
+        if(gui.moonFlowerHud == null)
+            return;
+        gui.moonFlowerHud.drawCombatCrown(g);
+        g = gui.moonFlowerHud.combatClip(g);
+        Area health = gui.moonFlowerHud.combatHealthArea();
+        MoonFlowerHudTheme.drawOpponentHealthPlate(g, health.ul, health.sz(), 0.72,
+                "OPPONENT - 72% - PORTRAIT COMBAT PREVIEW");
+        String[] resources = {"paginae/atk/cornered", "paginae/atk/offbalance",
+                "paginae/atk/dizzy", "paginae/atk/reeling"};
+        String[] values = {"34", "36", "18", "21"};
+        for(int i = 0; i < resources.length; i++) {
+            Coord player = gui.moonFlowerHud.combatOpeningCenter(resources[i], false);
+            Coord opponent = gui.moonFlowerHud.combatOpeningCenter(resources[i], true);
+            if(player != null)
+                FastText.aprintfstroked(g, player, 0.5, 0.5, "%s", values[i]);
+            if(opponent != null)
+                FastText.aprintfstroked(g, opponent, 0.5, 0.5, "%s",
+                        Integer.toString(Math.max(0, Integer.parseInt(values[i]) - 9)));
+        }
+        for(int i = 0; i < 10; i++)
+            FastText.aprintfstroked(g, gui.moonFlowerHud.combatActionCenter(i), 0.5, 0.5,
+                    "%s", i < 5 ? Integer.toString(i + 1) : "S" + (i - 4));
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatMoveCenter(false), 0.5, 0.5, "YOU");
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatMoveCenter(true), 0.5, 0.5, "FOE");
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatDefenseCenter(false), 0.5, 0.5, "DEF");
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatDefenseCenter(true), 0.5, 0.5, "DEF");
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatInitiativeCenter(false), 0.5, 0.5, "4");
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatInitiativeCenter(true), 0.5, 0.5, "7");
+        FastText.aprintfstroked(g, gui.moonFlowerHud.combatCooldownCenter(), 0.5, 0.5, "1.8");
     }
 
     private void drawStatusGhost(GOut g, Area area) {
@@ -75,7 +106,7 @@ public class MoonFlowerCombatGhost extends Widget {
         FastText.aprintfstroked(g, area.ul.add(area.sz().x / 2, UI.scale(12)), 0.5, 0.5,
                 "COMBAT DECK - DRAG");
         int columns = OptWnd.singleRowCombatMovesCheckBox != null && OptWnd.singleRowCombatMovesCheckBox.a ? 10 : 5;
-        Coord anchor = MoonFlowerCombatLayout.deckAnchor(sz, deckOffset);
+        Coord anchor = MoonFlowerCombatLayout.deckAnchor(gui, deckOffset, 10);
         for(int i = 0; i < 10; i++) {
             Coord slot = anchor.add(-UI.scale(16), -UI.scale(150)).add(MoonFlowerCombatLayout.actionCoord(i));
             Coord size = UI.scale(38, 38);
@@ -88,27 +119,12 @@ public class MoonFlowerCombatGhost extends Widget {
 
     @Override
     public boolean checkhit(Coord c) {
-        return active() && (c.isect(statusArea().ul, statusArea().sz()) || c.isect(deckArea().ul, deckArea().sz()));
+        return false;
     }
 
     @Override
     public boolean mousedown(MouseDownEvent ev) {
-        if(ev.b != 1 || !active())
-            return false;
-        Area status = statusArea();
-        Area deck = deckArea();
-        if(ev.c.isect(status.ul, status.sz())) {
-            target = Target.STATUS;
-            offsetStart = statusOffset;
-        } else if(ev.c.isect(deck.ul, deck.sz())) {
-            target = Target.DECK;
-            offsetStart = deckOffset;
-        } else {
-            return false;
-        }
-        dragStart = ev.c;
-        dragging = ui.grabmouse(this);
-        return true;
+        return false;
     }
 
     @Override
@@ -119,10 +135,10 @@ public class MoonFlowerCombatGhost extends Widget {
         }
         Coord proposed = offsetStart.add(ev.c.sub(dragStart));
         if(target == Target.STATUS) {
-            Area base = MoonFlowerCombatLayout.statusPreviewArea(sz, Coord.z);
+            Area base = MoonFlowerCombatLayout.statusPreviewArea(gui, Coord.z, 10);
             statusOffset = MoonFlowerCombatLayout.clampOffset(sz, base, proposed);
         } else {
-            Area base = MoonFlowerCombatLayout.actionDeckArea(sz, Coord.z, 10);
+            Area base = MoonFlowerCombatLayout.actionDeckArea(gui, Coord.z, 10);
             deckOffset = MoonFlowerCombatLayout.clampOffset(sz, base, proposed);
         }
     }

@@ -59,6 +59,7 @@ public class MapWnd extends Window implements Console.Directory {
     private final Locator player;
     private final Widget toolbar;
 	private final Widget toolbarTop;
+    private final CheckBox compactFishingSpots;
     private final Frame viewf;
     private final MarkerObjs mvmarks = new MarkerObjs(this);
     private GroupSelector colsel;
@@ -97,6 +98,11 @@ public class MapWnd extends Window implements Console.Directory {
 	viewf = add(new ViewFrame());
 	view = viewf.add(new View(file));
 	recenter();
+	compactFishingSpots = add(new CheckBox("Fishing spots"));
+	compactFishingSpots.state(() -> MiniMap.showFishingMarkers).changed(show -> {
+	    MiniMap.showFishingMarkers = show;
+	    Utils.setprefb("showFishingMarkers", show);
+	});
 	toolbarTop = add(new Widget(Coord.z));
 	toolbarTop.add(new Img(Resource.loadtex("gfx/hud/mmap/topfgwdg")) {
 		public boolean mousedown(MouseDownEvent ev) {
@@ -332,8 +338,8 @@ public class MapWnd extends Window implements Console.Directory {
 
 	private Toolbox() {
 	    super(UI.scale(200, 200));
-	    fishingMarkers = add(new CheckBox("Show fishing markers"), 0, UI.scale(2));
-	    fishingMarkers.a = MiniMap.showFishingMarkers;
+	    fishingMarkers = add(new CheckBox("Show fishing spots"), 0, UI.scale(2));
+	    fishingMarkers.state(() -> MiniMap.showFishingMarkers);
 	    fishingMarkers.changed(show -> {
 		MiniMap.showFishingMarkers = show;
 		Utils.setprefb("showFishingMarkers", show);
@@ -941,6 +947,7 @@ public class MapWnd extends Window implements Console.Directory {
 	}
 	view.resize(viewf.inner());
 	toolbar.c = viewf.c.add(0, viewf.sz.y - toolbar.sz.y).add(UI.scale(2), UI.scale(-2));
+	compactFishingSpots.c = viewf.c.add(viewf.sz.x - compactFishingSpots.sz.x - UI.scale(8), UI.scale(8));
     }
 
     private boolean compact() {
@@ -949,6 +956,7 @@ public class MapWnd extends Window implements Console.Directory {
 
     public void compact(boolean a) {
 	tool.show(!a);
+	compactFishingSpots.show(a);
 	if(a)
 	    delfocusable(tool);
 	else

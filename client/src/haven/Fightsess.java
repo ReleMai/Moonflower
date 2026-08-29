@@ -26,6 +26,11 @@
 
 package haven;
 
+import haven.combat.AnimalHealthCatalog;
+import haven.combat.AnimalHealthEstimate;
+import haven.combat.AnimalHealthEstimator;
+import haven.combat.CombatDamageSnapshot;
+import haven.combat.CombatDamageTracker;
 import haven.render.*;
 import haven.sprites.CombatRangeSprite;
 import haven.sprites.CurrentAggroSprite;
@@ -34,6 +39,8 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import java.awt.*;
+import java.awt.geom.Ellipse2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.*;
 import java.awt.event.KeyEvent;
@@ -70,6 +77,7 @@ public class Fightsess extends Widget {
 	private static final Tex[] openingValueTexCache = new Tex[101];
 	private static final Map<Integer, Tex> ipTexCache = new HashMap<>();
 	private static final Map<Integer, Tex> oipTexCache = new HashMap<>();
+	private final Map<String, Tex> circularIconCache = new HashMap<>();
 	private static final LinkedHashMap<String, Tex> timerTexCache = new LinkedHashMap<String, Tex>(100, 0.75f, true) {
 		@Override
 		protected boolean removeEldestEntry(Map.Entry<String, Tex> eldest) {
@@ -201,6 +209,139 @@ public class Fightsess extends Widget {
 			}
 			g.aimage(tex, position.add(imageSize).sub(1, 1), 1, 1);
 		}
+	}
+
+	private void drawIntegratedOpening(GOut g, Coord center, Tex icon, String resourceName,
+			int value, boolean player, int diameter, double reveal) {
+		if(reveal <= 0.01)
+			return;
+		Color base = OptWnd.improvedOpeningsImageColor.getOrDefault(resourceName, MoonFlowerHudTheme.GOLD_SOFT);
+		int alpha = (int)Math.round(255 * reveal);
+		int radius = Math.max(UI.scale(7), (diameter / 2) - UI.scale(2));
+		int inner = Math.max(UI.scale(4), radius - UI.scale(player ? 5 : 4));
+		g.chcolor(new Color(base.getRed(), base.getGreen(), base.getBlue(), (player ? 105 : 78) * alpha / 255));
+		g.fellipse(center, Coord.of(radius, radius));
+		if(value > 0) {
+			double sweep = Math.PI * 2 * Math.min(1.0, value / 100.0);
+			g.chcolor(new Color(base.getRed(), base.getGreen(), base.getBlue(), (player ? 245 : 205) * alpha / 255));
+			g.fellipse(center, Coord.of(radius, radius), -Math.PI / 2, -Math.PI / 2 + sweep);
+		}
+		g.chcolor(new Color(2, 11, 15, 225 * alpha / 255));
+		g.fellipse(center, Coord.of(inner, inner));
+		g.chcolor();
+		if(OptWnd.showCombatOpeningsAsLettersCheckBox.a) {
+			Coord iconSize = Coord.of(Math.max(UI.scale(10), diameter - UI.scale(12)),
+					Math.max(UI.scale(10), diameter - UI.scale(12)));
+			g.chcolor(255, 255, 255, Math.min(alpha, player ? 150 : 115));
+			g.image(icon, center.sub(iconSize.div(2)), iconSize);
+			g.chcolor();
+		}
+		int bounded = Math.max(0, Math.min(openingValueTexCache.length - 1, value));
+		Tex valueTex = openingValueTexCache[bounded];
+		if(valueTex == null) {
+			valueTex = Text.renderstroked(Integer.toString(bounded), openingAdditionalFont).tex();
+			openingValueTexCache[bounded] = valueTex;
+		}
+		g.chcolor(255, 255, 255, alpha);
+		g.aimage(valueTex, center, 0.5, 0.5);
+		g.chcolor();
+	}
+
+	private Tex circularCombatIcon(Resource resource, int diameter) {
+		int size = Math.max(UI.scale(12), diameter);
+		String key = resource.name + "@" + size;
+		Tex cached = circularIconCache.get(key);
+		if(cached != null)
+			return cached;
+		BufferedImage source = resource.flayer(Resource.imgc).img;
+		BufferedImage image = TexI.mkbuf(Coord.of(size, size));
+		Graphics2D graphics = image.createGraphics();
+		try {
+			graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			graphics.setClip(new Ellipse2D.Double(0, 0, size, size));
+			graphics.drawImage(source, 0, 0, size, size, null);
+		} finally {
+			graphics.dispose();
+		}
+		Tex result = new TexI(image);
+		circularIconCache.put(key, result);
+		return result;
+	}
+
+	private void drawRoundCombatIcon(GOut g, Resource resource, Coord center, int diameter, double reveal) {
+		if(resource == null || reveal <= 0.01)
+			return;
+		Tex icon = circularCombatIcon(resource, Math.max(UI.scale(12), diameter - UI.scale(6)));
+		g.chcolor(255, 255, 255, (int)Math.round(255 * reveal));
+		g.image(icon, center.sub(icon.sz().div(2)));
+		g.chcolor();
+	}
+
+	private void drawIntegratedInitiative(GOut g, Coord center, int value, boolean opponent,
+			double reveal) {
+		if(reveal <= 0.01)
+			return;
+		Map<Integer, Tex> cache = opponent ? oipTexCache : ipTexCache;
+		Color color = opponent ? OptWnd.enemyIPCombatColorOptionWidget.currentColor :
+				OptWnd.myIPCombatColorOptionWidget.currentColor;
+		Tex tex = cache.computeIfAbsent(value, key -> PUtils.strokeTex(Text.renderstroked(Integer.toString(key),
+				color, Color.BLACK, ipFoundry)));
+		g.chcolor(255, 255, 255, (int)Math.round(255 * reveal));
+		g.aimage(tex, center.add(0, UI.scale(2)), 0.5, 0.5);
+		g.chcolor();
+	}
+
+	private void drawIntegratedCooldown(GOut g, Coord center, int diameter, double start,
+			double end, double now, double reveal) {
+		if(reveal <= 0.01)
+			return;
+		int alpha = (int)Math.round(255 * reveal);
+		int radius = Math.max(UI.scale(8), diameter / 2 - UI.scale(3));
+		g.chcolor(new Color(4, 16, 20, 220 * alpha / 255));
+		g.fellipse(center, Coord.of(Math.max(1, radius - UI.scale(5)),
+				Math.max(1, radius - UI.scale(5))));
+		boolean cooling = now < end && end > start;
+		double progress = cooling ? Utils.clip((now - start) / (end - start), 0.0, 1.0) : 1.0;
+		drawSegmentedCooldownRing(g, center, radius, progress, alpha, 24, UI.scale(2));
+		if(cooling) {
+			if(reveal > 0.35) {
+				g.chcolor(255, 255, 255, alpha);
+				renderAttackTimer(g, end - now, center);
+				g.chcolor();
+			}
+		}
+	}
+
+	private void drawIntegratedActionCooldown(GOut g, Coord center, int diameter,
+			double progress, double reveal) {
+		int alpha = (int)Math.round(255 * reveal);
+		int radius = Math.max(UI.scale(7), (diameter / 2) - UI.scale(2));
+		drawSegmentedCooldownRing(g, center, radius, Utils.clip(progress, 0.0, 1.0),
+				alpha, 18, UI.scale(2));
+		g.chcolor();
+	}
+
+	private void drawSegmentedCooldownRing(GOut g, Coord center, int radius, double progress,
+			int alpha, int segments, int lineWidth) {
+		int completed = (int)Math.floor(Utils.clip(progress, 0.0, 1.0) * segments);
+		int inner = Math.max(1, radius - UI.scale(4));
+		for(int i = 0; i < segments; i++) {
+			double angle = (-Math.PI / 2) + ((Math.PI * 2 * i) / segments);
+			Coord from = center.add((int)Math.round(Math.cos(angle) * inner),
+					(int)Math.round(Math.sin(angle) * inner));
+			Coord to = center.add((int)Math.round(Math.cos(angle) * radius),
+					(int)Math.round(Math.sin(angle) * radius));
+			if(i < completed) {
+				g.chcolor(new Color(MoonFlowerHudTheme.TEAL_BRIGHT.getRed(),
+						MoonFlowerHudTheme.TEAL_BRIGHT.getGreen(), MoonFlowerHudTheme.TEAL_BRIGHT.getBlue(),
+						220 * alpha / 255));
+			} else {
+				g.chcolor(new Color(222, 178, 70, 225 * alpha / 255));
+			}
+			g.line(from, to, lineWidth);
+		}
+		g.chcolor();
 	}
 
 	private void renderRelationOpeningValue(GOut g, int openingValue, Coord topLeft, int openingOffsetX) {
@@ -344,6 +485,9 @@ public class Fightsess extends Widget {
 		fx.slot.remove();
 	}
 	curfx.clear();
+	for(Tex texture : circularIconCache.values())
+	    texture.dispose();
+	circularIconCache.clear();
 	super.destroy();
     }
 
@@ -374,14 +518,21 @@ public class Fightsess extends Widget {
 		} catch (Exception ignored) {}
 	}
 
-	Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(ui.gui.sz,
-			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z);
-	Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(ui.gui.sz,
-			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z);
+	Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(ui.gui,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z, actions.length);
+	Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(ui.gui,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z, actions.length);
 	int x = statusAnchor.x;
 	int y = statusAnchor.y;
 	int actionX = deckAnchor.x;
 	int bottom = deckAnchor.y;
+	MoonFlowerPortraitHub integratedHub = (MoonFlowerHudTheme.active() && ui.gui.moonFlowerHud != null &&
+			ui.gui.moonFlowerHud.visible()) ? ui.gui.moonFlowerHud : null;
+	if(integratedHub != null) {
+		integratedHub.drawCombatCrown(g);
+		g = integratedHub.combatClip(g);
+	}
+	double integratedReveal = integratedHub == null ? 1.0 : integratedHub.combatContentReveal();
 
 	double now = Utils.rtime();
 
@@ -402,27 +553,51 @@ public class Fightsess extends Widget {
 		} catch (Loading ignored) {
 		}
 	}
-	if (myManeuver != null && myOpenings.size() > 1) {
+	if(myManeuver != null) {
 		myOpenings.remove(myManeuver);
-		myOpenings.add(myOpenings.size(), myManeuver);
+		if(integratedHub == null)
+			myOpenings.add(myManeuver);
 	}
+
 	if(MoonFlowerHudTheme.active()) {
 		int enemyOpeningCount = (fv.current == null) ? 0 : fv.current.buffs.children(Buff.class).size();
 		int sideCount = Math.max(2, Math.max(myOpenings.size(), enemyOpeningCount));
 		int railWidth = UI.scale(190) + (sideCount * UI.scale(70));
-		MoonFlowerHudTheme.drawCombatStatusRail(g, Coord.of(x - (railWidth / 2), y - UI.scale(32)),
-				Coord.of(railWidth, UI.scale(68)));
+		if(integratedHub == null)
+			MoonFlowerHudTheme.drawCombatStatusRail(g, Coord.of(x - (railWidth / 2), y - UI.scale(43)),
+					Coord.of(railWidth, UI.scale(86)));
+		if(fv.current != null && (integratedHub == null || integratedReveal > 0.35)) {
+			OpponentHealth health = opponentHealth();
+			if(integratedHub != null) {
+				Area healthArea = integratedHub.combatHealthArea();
+				MoonFlowerHudTheme.drawOpponentHealthPlate(g, healthArea.ul, healthArea.sz(),
+						health.fraction, health.label);
+			} else {
+				Coord healthSize = Coord.of(Math.min(UI.scale(228), railWidth - UI.scale(36)), UI.scale(17));
+				MoonFlowerHudTheme.drawOpponentHealthPlate(g,
+						Coord.of(x - (healthSize.x / 2), y - UI.scale(40)), healthSize,
+						health.fraction, health.label);
+			}
+		}
 	}
+
 	int myLocation = - Buff.cframe.sz().x - UI.scale(80);
 	for (Buff buff : myOpenings) {
 		try {
 			Tex img = buff.res.get().flayer(Resource.imgc).tex();
 			Coord isz = img.sz();
-			g.chcolor(255, 255, 255, 255);
 			Double ameter = buff.ameteri.get();
-			int ameteri = 0; // Added
+			int ameteri = ameter == null ? 0 : (int)(100 * ameter);
+			if(integratedHub != null) {
+				String name = buff.res.get().name;
+				Coord center = integratedHub.combatOpeningCenter(name, false);
+				if(center != null)
+					drawIntegratedOpening(g, center, img, name, ameteri, true,
+							integratedHub.combatOpeningDiameter(), integratedReveal);
+				continue;
+			}
+			g.chcolor(255, 255, 255, 255);
 			if(ameter != null) {
-				ameteri = (int) (100*ameter); // Added
 				g.image(Buff.cframe, new Coord(x + myLocation - UI.scale(3), y - UI.scale(20) - UI.scale(3)));
 				g.chcolor(0, 0, 0, 255);
 				g.frect(new Coord(x + myLocation, y - UI.scale(20) + UI.scale(37) - UI.scale(3)), Buff.ametersz);
@@ -446,6 +621,13 @@ public class Fightsess extends Widget {
 		} catch (Loading ignored) {
 		}
 	}
+	if(integratedHub != null && myManeuver != null) {
+		try {
+			drawRoundCombatIcon(g, myManeuver.res.get(), integratedHub.combatDefenseCenter(false),
+					integratedHub.combatDefenseDiameter(), integratedReveal);
+		} catch(Loading ignored) {
+		}
+	}
 	if(fv.current != null) {
 //	    for(Buff buff : fv.current.buffs.children(Buff.class))
 //		buff.draw(g.reclip(pcc.add(buff.c.x + UI.scale(20), buff.c.y + pho - Buff.cframe.sz().y), buff.sz));
@@ -465,9 +647,10 @@ public class Fightsess extends Widget {
 			} catch (Loading ignored) {
 			}
 		}
-		if (maneuver != null && enemyOpenings.size() > 1) {
+		if(maneuver != null) {
 			enemyOpenings.remove(maneuver);
-			enemyOpenings.add(enemyOpenings.size(), maneuver);
+			if(integratedHub == null)
+				enemyOpenings.add(maneuver);
 		}
 		int location = UI.scale(80);
 		for (Buff buff : enemyOpenings) {
@@ -476,11 +659,17 @@ public class Fightsess extends Widget {
 				int meterValue = getOpeningValue(buff);
 				Tex img = buff.res.get().flayer(Resource.imgc).tex();
 				Coord isz = img.sz();
-				g.chcolor(255, 255, 255, 255);
 				Double ameter = buff.ameteri.get();
-				int ameteri = 0; // Added
+				int ameteri = ameter == null ? 0 : (int)(100 * ameter);
+				if(integratedHub != null) {
+					Coord center = integratedHub.combatOpeningCenter(name, true);
+					if(center != null)
+						drawIntegratedOpening(g, center, img, name, ameteri, false,
+								integratedHub.combatOpeningDiameter(), integratedReveal);
+					continue;
+				}
+				g.chcolor(255, 255, 255, 255);
 				if(ameter != null) {
-					ameteri = (int) (100*ameter); // Added
 					g.image(Buff.cframe, new Coord(x + location - UI.scale(3), y - UI.scale(20) - UI.scale(3)));
 					g.chcolor(0, 0, 0, 255);
 					g.frect(new Coord(x + location, y - UI.scale(20) + UI.scale(37) - UI.scale(3)), Buff.ametersz);
@@ -510,12 +699,27 @@ public class Fightsess extends Widget {
 			} catch (Loading ignored) {
 			}
 		}
+		if(integratedHub != null && maneuver != null) {
+			try {
+				drawRoundCombatIcon(g, maneuver.res.get(), integratedHub.combatDefenseCenter(true),
+						integratedHub.combatDefenseDiameter(), integratedReveal);
+			} catch(Loading ignored) {
+			}
+		}
 
 //	    g.aimage(ip.get().tex(), new Coord(x - UI.scale(40), y - UI.scale(30)), 1, 0.5);
-		renderPlayerIP(g, fv.current.ip, x, y);
+		if(integratedHub != null)
+			drawIntegratedInitiative(g, integratedHub.combatInitiativeCenter(false), fv.current.ip,
+					false, integratedReveal);
+		else
+			renderPlayerIP(g, fv.current.ip, x, y);
 
 //	    g.aimage(oip.get().tex(), new Coord(x + UI.scale(40), y - UI.scale(30)), 0, 0.5);
-		renderOpponentIP(g, fv.current.oip, x, y);
+		if(integratedHub != null)
+			drawIntegratedInitiative(g, integratedHub.combatInitiativeCenter(true), fv.current.oip,
+					true, integratedReveal);
+		else
+			renderOpponentIP(g, fv.current.oip, x, y);
 
 
 //	    if(fv.lsrel.size() > 1)
@@ -539,7 +743,10 @@ public class Fightsess extends Widget {
 	    Coord cdc = new Coord(x, y);
 		Coord cdc2 = new Coord(x, y - UI.scale(40));
 		Coord cdc3 = new Coord(x, y + UI.scale(34));
-	    if(now < fv.atkct) {
+	    if(integratedHub != null) {
+		drawIntegratedCooldown(g, cdc, integratedHub.combatCooldownDiameter(), fv.atkcs,
+				fv.atkct, now, integratedReveal);
+	    } else if(now < fv.atkct) {
 		double a = (now - fv.atkcs) / (fv.atkct - fv.atkcs);
 		g.chcolor(225, 0, 0, 220);
 		g.fellipse(cdc, UI.scale(new Coord(24, 24)), Math.PI / 2 - (Math.PI * 2 * Math.min(1.0 - a, 1.0)), Math.PI / 2);
@@ -547,7 +754,8 @@ public class Fightsess extends Widget {
 		double atkctValue = fv.atkct - now;
 		renderAttackTimer(g, atkctValue, cdc);
 	    }
-	    g.image(cdframe, new Coord(x, y).sub(cdframe.sz().div(2)));
+	    if(integratedHub == null)
+		g.image(cdframe, new Coord(x, y).sub(cdframe.sz().div(2)));
 
 	try {
 	    Indir<Resource> lastact = fv.lastact;
@@ -557,12 +765,18 @@ public class Fightsess extends Widget {
 	    }
 	    double lastuse = fv.lastuse;
 	    if(lastact != null) {
-		Tex ut = lastact.get().flayer(Resource.imgc).tex();
+		Resource lastResource = lastact.get();
+		Tex ut = lastResource.flayer(Resource.imgc).tex();
 		Coord useul = new Coord(x - UI.scale(69), y - UI.scale(80));
-		g.image(ut, useul);
-		g.image(useframe, useul.sub(useframeo));
+		if(integratedHub != null)
+			drawRoundCombatIcon(g, lastResource, integratedHub.combatMoveCenter(false),
+					integratedHub.combatMoveDiameter(), integratedReveal);
+		else {
+			g.image(ut, useul);
+			g.image(useframe, useul.sub(useframeo));
+		}
 		double a = now - lastuse;
-		if(a < 1) {
+		if(a < 1 && integratedHub == null) {
 		    Coord off = new Coord((int)(a * ut.sz().x / 2), (int)(a * ut.sz().y / 2));
 		    g.chcolor(255, 255, 255, (int)(255 * (1 - a)));
 		    g.image(ut, useul.sub(off), ut.sz().add(off.mul(2)));
@@ -645,9 +859,11 @@ public class Fightsess extends Widget {
 		}
 	} catch(Exception ignored) {
 	}
-	renderMoveCooldown(g, fv.lastMoveCooldownSeconds, cdc2);
+	if(integratedHub == null || integratedReveal > 0.35)
+		renderMoveCooldown(g, fv.lastMoveCooldownSeconds, integratedHub == null ? cdc2 :
+				integratedHub.combatMoveCenter(true).add(0, integratedHub.combatMoveDiameter() / 2));
 	if(fv.current != null) {
-		if (OptWnd.showEstimatedAgilityTextCheckBox.a) {
+		if (integratedHub == null && OptWnd.showEstimatedAgilityTextCheckBox.a) {
 			renderEstimatedAgilityLabel(g, cdc3);
 			if (fv.current.minAgi != 0 && fv.current.maxAgi != 2D) {
 				String agiText = "" + fv.current.minAgi + "x - " + fv.current.maxAgi + "x";
@@ -668,12 +884,18 @@ public class Fightsess extends Widget {
 		}
 		double lastuse = fv.current.lastuse;
 		if(lastact != null) {
-		    Tex ut = lastact.get().flayer(Resource.imgc).tex();
+		    Resource lastResource = lastact.get();
+		    Tex ut = lastResource.flayer(Resource.imgc).tex();
 		    Coord useul = new Coord(x + UI.scale(69) - ut.sz().x, y - UI.scale(80));
-		    g.image(ut, useul);
-		    g.image(useframe, useul.sub(useframeo));
+		    if(integratedHub != null)
+			drawRoundCombatIcon(g, lastResource, integratedHub.combatMoveCenter(true),
+					integratedHub.combatMoveDiameter(), integratedReveal);
+		    else {
+			g.image(ut, useul);
+			g.image(useframe, useul.sub(useframeo));
+		    }
 		    double a = now - lastuse;
-		    if(a < 1) {
+		    if(a < 1 && integratedHub == null) {
 			Coord off = new Coord((int)(a * ut.sz().x / 2), (int)(a * ut.sz().y / 2));
 			g.chcolor(255, 255, 255, (int)(255 * (1 - a)));
 			g.image(ut, useul.sub(off), ut.sz().add(off.mul(2)));
@@ -683,39 +905,56 @@ public class Fightsess extends Widget {
 	    } catch(Loading l) {
 	    }
 	}
-	if(MoonFlowerHudTheme.active() && actions.length > 0) {
-		int columns = Math.min(actions.length, OptWnd.singleRowCombatMovesCheckBox.a ? 10 : 5);
-		int rows = (actions.length + columns - 1) / columns;
-		Area deckArea = MoonFlowerCombatLayout.actionDeckArea(ui.gui.sz,
+	if(MoonFlowerHudTheme.active() && integratedHub == null && actions.length > 0) {
+		Area deckArea = MoonFlowerCombatLayout.actionDeckArea(ui.gui,
 				MoonFlowerHudSettings.combatDeckOffset(), actions.length);
 		MoonFlowerHudTheme.drawCombatActionDeck(g, deckArea.ul, deckArea.sz());
 		g.aimage(combatDeckTitle, deckArea.ul.add(deckArea.sz().x / 2, UI.scale(12)), 0.5, 0.5);
 	}
 	for(int i = 0; i < actions.length; i++) {
-	    Coord ca = new Coord(actionX - 16, bottom - UI.scale(150)).add(actc(i)) ;
 	    Action act = actions[i];
 	    try {
 		if(act != null) {
 		    Resource res = act.res.get();
-		    Tex img = res.flayer(Resource.imgc).tex();
-		    Coord ic = ca.sub(img.sz().div(2));
+		    Tex img = integratedHub == null ? res.flayer(Resource.imgc).tex() :
+				circularCombatIcon(res, Math.max(UI.scale(12), integratedHub.combatActionDiameter() - UI.scale(6)));
+		    Coord ca = integratedHub == null ?
+					new Coord(actionX - 16, bottom - UI.scale(150)).add(actc(i)) :
+					integratedHub.combatActionCenter(i).sub(img.sz().div(2));
 			Coord hsz = img.sz().div(2);
-			if(MoonFlowerHudTheme.active())
+			if(integratedHub != null)
+				MoonFlowerHudTheme.drawCombatActionSelection(g,
+						integratedHub.combatActionCenter(i).sub(integratedHub.combatActionDiameter() / 2,
+								integratedHub.combatActionDiameter() / 2),
+						Coord.of(integratedHub.combatActionDiameter(), integratedHub.combatActionDiameter()),
+						i == use, i == useb);
+			else if(MoonFlowerHudTheme.active())
 				MoonFlowerHudTheme.drawCombatActionSlot(g, ca.sub(UI.scale(3), UI.scale(3)),
 						img.sz().add(UI.scale(6), UI.scale(6)), i == use, i == useb);
+		    if(integratedHub != null)
+			g.chcolor(255, 255, 255, (int)Math.round(255 * integratedReveal));
 		    g.image(img, ca);
+		    g.chcolor();
 		    if(now < act.ct) {
 			double a = (now - act.cs) / (act.ct - act.cs);
-			g.chcolor(0, 0, 0, 132);
-			g.prect(ca.add(hsz), hsz.inv(), hsz, (1.0 - a) * Math.PI * 2);
-			g.chcolor();
+			if(integratedHub != null)
+				drawIntegratedActionCooldown(g, integratedHub.combatActionCenter(i),
+						integratedHub.combatActionDiameter(), a, integratedReveal);
+			else {
+				g.chcolor(0, 0, 0, 132);
+				g.prect(ca.add(hsz), hsz.inv(), hsz, (1.0 - a) * Math.PI * 2);
+				g.chcolor();
+			}
 		    }
 			int infoY = 0;
 			if (OptWnd.showCombatHotkeysUICheckBox.a) {
 				String keybindString = kb_acts[i].key().name();
 				infoY += 8;
 				Tex keybindTex = getKeybindTexture(keybindString);
+				if(integratedHub != null)
+					g.chcolor(255, 255, 255, (int)Math.round(255 * integratedReveal));
 				g.aimage(keybindTex, ca.add(img.sz().x/2, img.sz().y + UI.scale(infoY)), 0.5, 0.5);
+				g.chcolor();
 			}
 			if (OptWnd.showDamagePredictUICheckBox.a) {
 				String name = act.res.get().basename();
@@ -759,7 +998,10 @@ public class Fightsess extends Widget {
 				if(!damage.isEmpty()) {
 					infoY += 12;
 					Tex damageTex = getDamagePredictionTexture(damage);
+					if(integratedHub != null)
+						g.chcolor(255, 255, 255, (int)Math.round(255 * integratedReveal));
 					g.aimage(damageTex, ca.add((int)(img.sz().x/2), img.sz().y + UI.scale(infoY)), 0.5, 0.5);
+					g.chcolor();
 				}
 			}
 		    if(!MoonFlowerHudTheme.active()) {
@@ -774,7 +1016,7 @@ public class Fightsess extends Widget {
 		}
 	    } catch(Loading l) {}
 	}
-	if (!OptWnd.alwaysShowCombatUIStaminaBarCheckBox.a) { // ND: Check if we're already drawing it in the gui
+	if (!MoonFlowerHudTheme.active() && !OptWnd.alwaysShowCombatUIStaminaBarCheckBox.a) { // ND: Check if we're already drawing it in the gui
 		IMeter.Meter stam = ui.gui.getmeter("stam", 0);
 		if (stam != null) {
 			Coord msz = UI.scale(new Coord(234, 22));
@@ -783,7 +1025,7 @@ public class Fightsess extends Widget {
 		}
 	}
 
-	if (!OptWnd.alwaysShowCombatUIHealthBarCheckBox.a) { // ND: Check if we're already drawing it in the gui
+	if (!MoonFlowerHudTheme.active() && !OptWnd.alwaysShowCombatUIHealthBarCheckBox.a) { // ND: Check if we're already drawing it in the gui
 		IMeter.Meter hp = ui.gui.getmeter("hp", 0);
 		if (hp != null) {
 			Coord msz = UI.scale(new Coord(234, 22));
@@ -793,18 +1035,66 @@ public class Fightsess extends Widget {
 	}
     }
 
+    /** Target HP is deliberately evidence-based: the server does not expose a
+     * player opponent's exact HP, while catalogued animals can be estimated
+     * from native soft-damage events accumulated during this encounter. */
+    private OpponentHealth opponentHealth() {
+	if(fv == null || fv.current == null || ui == null || ui.sess == null)
+	    return new OpponentHealth(null, "NO TARGET");
+	Gob gob = ui.sess.glob.oc.getgob(fv.current.gobid);
+	String resourceName = null;
+	try {
+	    Resource resource = gob == null ? null : gob.getres();
+	    resourceName = resource == null ? null : resource.name;
+	} catch(Loading ignored) {
+	}
+	CombatDamageSnapshot damage = CombatDamageTracker.forGlob(ui.sess.glob).snapshot(
+		fv.current.gobid, resourceName, System.currentTimeMillis());
+	AnimalHealthCatalog.Entry animal = AnimalHealthCatalog.find(resourceName);
+	if(animal != null) {
+	    AnimalHealthEstimate estimate = AnimalHealthEstimator.estimate(animal, damage);
+	    return new OpponentHealth(estimate.fraction(),
+		    animal.displayName().toUpperCase(Locale.ROOT) + "  •  " + estimate.label());
+	}
+	String target = ((resourceName != null) && resourceName.equals("gfx/borka/body")) ?
+		"PLAYER" : targetName(resourceName);
+	if(damage.hasCombatSoftHpObservation())
+	    return new OpponentHealth(null, target + "  •  DAMAGE SEEN " + damage.combatSoftHp());
+	return new OpponentHealth(null, target + "  •  HEALTH NOT EXPOSED");
+    }
+
+    private static String targetName(String resourceName) {
+	if(resourceName == null || resourceName.isBlank())
+	    return "OPPONENT";
+	int split = resourceName.lastIndexOf('/');
+	String name = split < 0 ? resourceName : resourceName.substring(split + 1);
+	return name.replace('_', ' ').toUpperCase(Locale.ROOT);
+    }
+
+    private static final class OpponentHealth {
+	final Double fraction;
+	final String label;
+
+	OpponentHealth(Double fraction, String label) {
+	    this.fraction = fraction;
+	    this.label = label;
+	}
+    }
+
     private Widget prevtt = null;
     private Text acttip = null;
     public static final String[] keytips = {"1", "2", "3", "4", "5", "Shift+1", "Shift+2", "Shift+3", "Shift+4", "Shift+5"};
     public Object tooltip(Coord c, Widget prev) {
-	Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(ui.gui.sz,
-			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z);
-	Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(ui.gui.sz,
-			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z);
+	Coord statusAnchor = MoonFlowerCombatLayout.statusCenter(ui.gui,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatStatusOffset() : Coord.z, actions.length);
+	Coord deckAnchor = MoonFlowerCombatLayout.deckAnchor(ui.gui,
+			MoonFlowerHudTheme.active() ? MoonFlowerHudSettings.combatDeckOffset() : Coord.z, actions.length);
 	int x = statusAnchor.x;
 	int y = statusAnchor.y;
 	int actionX = deckAnchor.x;
 	int bottom = deckAnchor.y;
+	MoonFlowerPortraitHub integratedHub = (MoonFlowerHudTheme.active() && ui.gui.moonFlowerHud != null &&
+			ui.gui.moonFlowerHud.visible()) ? ui.gui.moonFlowerHud : null;
 
 	ArrayList<Buff> myOpenings = new ArrayList<>(fv.buffs.children(Buff.class));
 	myOpenings.sort((o2, o1) -> Integer.compare(getOpeningValue(o1), getOpeningValue(o2)));
@@ -821,20 +1111,37 @@ public class Fightsess extends Widget {
 		} catch (Loading ignored) {
 		}
 	}
-	if (myManeuver != null && myOpenings.size() > 1) {
+	if(myManeuver != null) {
 		myOpenings.remove(myManeuver);
-		myOpenings.add(myOpenings.size(), myManeuver);
+		if(integratedHub == null)
+			myOpenings.add(myManeuver);
 	}
 	int myLocation = - Buff.cframe.sz().x - UI.scale(80);
 	for(Buff buff : myOpenings) {
-	    Coord dc = new Coord(x + myLocation, y - UI.scale(20));
-	    if(c.isect(dc, buff.sz)) {
+	    Coord integratedCenter = integratedHub == null ? null :
+			integratedHub.combatOpeningCenter(buff.res.get().name, false);
+	    Coord hitSize = integratedCenter == null ? buff.sz :
+			Coord.of(integratedHub.combatOpeningDiameter(), integratedHub.combatOpeningDiameter());
+	    Coord dc = integratedCenter == null ? new Coord(x + myLocation, y - UI.scale(20)) :
+			integratedCenter.sub(hitSize.div(2));
+	    if(c.isect(dc, hitSize)) {
 		Object ret = buff.tooltip(c.sub(dc), prevtt);
 		if(ret != null) {
 		    prevtt = buff;
 		    return(ret);
 		}
 			myLocation -= UI.scale(40);
+	    }
+	}
+	if(integratedHub != null && myManeuver != null) {
+	    Coord hitSize = Coord.of(integratedHub.combatDefenseDiameter(), integratedHub.combatDefenseDiameter());
+	    Coord dc = integratedHub.combatDefenseCenter(false).sub(hitSize.div(2));
+	    if(c.isect(dc, hitSize)) {
+		Object ret = myManeuver.tooltip(c.sub(dc), prevtt);
+		if(ret != null) {
+		    prevtt = myManeuver;
+		    return ret;
+		}
 	    }
 	}
 	if(fv.current != null) {
@@ -853,14 +1160,20 @@ public class Fightsess extends Widget {
 			} catch (Loading ignored) {
 			}
 		}
-		if (maneuver != null && enemyOpenings.size() > 1) {
+		if(maneuver != null) {
 			enemyOpenings.remove(maneuver);
-			enemyOpenings.add(enemyOpenings.size(), maneuver);
+			if(integratedHub == null)
+				enemyOpenings.add(maneuver);
 		}
 		int location = UI.scale(80);
 	    for(Buff buff : enemyOpenings) {
-		Coord dc = new Coord(x + location, y - UI.scale(20));
-		if(c.isect(dc, buff.sz)) {
+		Coord integratedCenter = integratedHub == null ? null :
+				integratedHub.combatOpeningCenter(buff.res.get().name, true);
+		Coord hitSize = integratedCenter == null ? buff.sz :
+				Coord.of(integratedHub.combatOpeningDiameter(), integratedHub.combatOpeningDiameter());
+		Coord dc = integratedCenter == null ? new Coord(x + location, y - UI.scale(20)) :
+				integratedCenter.sub(hitSize.div(2));
+		if(c.isect(dc, hitSize)) {
 		    Object ret = buff.tooltip(c.sub(dc), prevtt);
 		    if(ret != null) {
 			prevtt = buff;
@@ -869,13 +1182,28 @@ public class Fightsess extends Widget {
 		}
 			location += UI.scale(40);
 	    }
+	    if(integratedHub != null && maneuver != null) {
+		Coord hitSize = Coord.of(integratedHub.combatDefenseDiameter(), integratedHub.combatDefenseDiameter());
+		Coord dc = integratedHub.combatDefenseCenter(true).sub(hitSize.div(2));
+		if(c.isect(dc, hitSize)) {
+		    Object ret = maneuver.tooltip(c.sub(dc), prevtt);
+		    if(ret != null) {
+			prevtt = maneuver;
+			return ret;
+		    }
+		}
+	    }
 	}
 	for(int i = 0; i < actions.length; i++) {
-	    Coord ca = new Coord(actionX - 16, bottom - UI.scale(150)).add(actc(i));
 	    Indir<Resource> act = (actions[i] == null) ? null : actions[i].res;
 	    if(act != null) {
 		Tex img = act.get().flayer(Resource.imgc).tex();
-		if(c.isect(ca, img.sz())) {
+		Coord hitSize = integratedHub == null ? img.sz() :
+				Coord.of(integratedHub.combatActionDiameter(), integratedHub.combatActionDiameter());
+		Coord ca = integratedHub == null ?
+				new Coord(actionX - 16, bottom - UI.scale(150)).add(actc(i)) :
+				integratedHub.combatActionCenter(i).sub(hitSize.div(2));
+		if(c.isect(ca, hitSize)) {
 		    String state = (i == use) ? "Selected action" : ((i == useb) ? "Queued backup action" : "Ready action");
             String tip = "$b{" + act.get().flayer(Resource.tooltip).t + "}\n" +
 			    "$col[239,225,185]{Hotkey: " + kb_acts[i].key().name() + "}\n" +
@@ -892,8 +1220,11 @@ public class Fightsess extends Widget {
 	{
 	    Indir<Resource> lastact = this.lastact1;
 	    if(lastact != null) {
-		Coord usesz = lastact.get().flayer(Resource.imgc).sz;
-		Coord lac = new Coord(x - UI.scale(69), y - UI.scale(80)).add(usesz.div(2));
+		Coord usesz = integratedHub == null ? lastact.get().flayer(Resource.imgc).sz :
+				Coord.of(integratedHub.combatMoveDiameter(), integratedHub.combatMoveDiameter());
+		Coord lac = integratedHub == null ?
+				new Coord(x - UI.scale(69), y - UI.scale(80)).add(usesz.div(2)) :
+				integratedHub.combatMoveCenter(false);
 		if(c.isect(lac.sub(usesz.div(2)), usesz)) {
 		    if(lastacttip1 == null)
 			lastacttip1 = Text.render(lastact.get().flayer(Resource.tooltip).t);
@@ -904,8 +1235,11 @@ public class Fightsess extends Widget {
 	{
 	    Indir<Resource> lastact = this.lastact2;
 	    if(lastact != null) {
-		Coord usesz = lastact.get().flayer(Resource.imgc).sz;
-		Coord lac = new Coord(x + UI.scale(69) - usesz.x, y - UI.scale(80)).add(usesz.div(2));
+		Coord usesz = integratedHub == null ? lastact.get().flayer(Resource.imgc).sz :
+				Coord.of(integratedHub.combatMoveDiameter(), integratedHub.combatMoveDiameter());
+		Coord lac = integratedHub == null ?
+				new Coord(x + UI.scale(69) - usesz.x, y - UI.scale(80)).add(usesz.div(2)) :
+				integratedHub.combatMoveCenter(true);
 		if(c.isect(lac.sub(usesz.div(2)), usesz)) {
 		    if(lastacttip2 == null)
 			lastacttip2 = Text.render(lastact.get().flayer(Resource.tooltip).t);

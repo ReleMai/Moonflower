@@ -627,6 +627,7 @@ public class MiniMap extends Widget {
 	public final MiniMap mm;
 	public final Marker m;
     public final Text tip;
+    private final Tex fishingChance;
     public static HashMap<String, Tex> titleTexMap = new HashMap<String, Tex>();
 	public Coord sc = null;
 
@@ -634,6 +635,9 @@ public class MiniMap extends Widget {
 	    this.mm = mm;
 	    this.m = marker;
         this.tip = Text.render(m.nm);
+        this.fishingChance = m instanceof FishingMapMarker ? Text.renderstroked(
+                ((FishingMapMarker)m).bestPercentageLabel(), new Color(220, 255, 250),
+                new Color(5, 25, 35), Text.num12boldFnd).tex() : null;
         if (!titleTexMap.containsKey(tip.text))
             titleTexMap.put(tip.text, Text.renderstroked(tip.text, Color.white, Color.BLACK, Text.num12boldFnd).tex());
 	}
@@ -651,11 +655,16 @@ public class MiniMap extends Widget {
 
 	public void draw(GOut g, Coord c) {
 	    if(m instanceof FishingMapMarker) {
+		FishingMapMarker fishing = (FishingMapMarker)m;
+		int outer = fishing.summary ? 18 : 12;
+		int inner = fishing.summary ? 13 : 8;
 		g.chcolor(25, 205, 235, 105);
-		g.fellipse(c, UI.scale(Coord.of(14, 14)));
+		g.fellipse(c, UI.scale(Coord.of(outer, outer)));
 		g.chcolor(5, 25, 35, 205);
-		g.fellipse(c, UI.scale(Coord.of(10, 10)));
+		g.fellipse(c, UI.scale(Coord.of(inner, inner)));
 		g.chcolor();
+		if(fishingChance != null)
+		    g.image(fishingChance, c.add(UI.scale(9), UI.scale(-20)));
 	    }
 	    try {
 		icon().draw(g, c);
@@ -1249,7 +1258,8 @@ public class MiniMap extends Widget {
 	    for(DisplayMarker mark : dgrid.markers(false)) {
 		if(mark.m instanceof FishingMapMarker &&
 			!filter(mark) &&
-			tc.sub(mark.m.tc).div(scalef()).dist(Coord.z) <= UI.scale(14))
+			tc.sub(mark.m.tc).div(scalef()).dist(Coord.z) <= UI.scale(
+				((FishingMapMarker)mark.m).summary ? 18 : 14))
 		    return(mark);
         try {
 		if(mark.icon().checkhit(tc.sub(mark.m.tc).div(scalef())) && !filter(mark))
@@ -1320,7 +1330,10 @@ public class MiniMap extends Widget {
     }
 
     public boolean filter(DisplayMarker marker) {
-	return(marker.m instanceof FishingMapMarker && !showFishingMarkers);
+	if(!(marker.m instanceof FishingMapMarker))
+	    return(false);
+	FishingMapMarker fishing = (FishingMapMarker)marker.m;
+	return(!showFishingMarkers || !fishing.visibleAt(compact, zoomlevel));
     }
 
     public boolean clickloc(Location loc, int button, boolean press) {

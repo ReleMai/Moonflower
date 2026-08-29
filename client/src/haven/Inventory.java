@@ -87,6 +87,10 @@ public class Inventory extends Widget implements DTarget {
     }
 
     public void draw(GOut g) {
+	/* Inventories are often first attached inside ExtInventory, before that
+	 * wrapper is added to its real Window. Resolve persistence once the full
+	 * parent chain exists so session reloads can restore protected cells. */
+	slotLocks.attached();
 	Coord c = new Coord();
 	int mo = 0;
 	boolean moonFlower = MoonFlowerHudTheme.active();
@@ -121,14 +125,17 @@ public class Inventory extends Widget implements DTarget {
 	}
 
 	public boolean toggleSlotLock(Coord slot) {
+		slotLocks.attached();
 		return slotLocks.toggle(slot);
 	}
 
 	public boolean isSlotLocked(Coord slot) {
+		slotLocks.attached();
 		return slotLocks.isLocked(slot);
 	}
 
 	public Set<Coord> lockedSlots() {
+		slotLocks.attached();
 		return slotLocks.snapshot();
 	}
 

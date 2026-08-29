@@ -18,9 +18,23 @@ public final class MoonFlowerCombatLayout {
         return Coord.of(screen.x / 2, y).add(offset);
     }
 
+    public static Coord statusCenter(GameUI gui, Coord offset, int actionCount) {
+        if(gui != null && MoonFlowerHudTheme.active() && gui.moonFlowerHud != null &&
+                gui.moonFlowerHud.visible())
+            return gui.moonFlowerHud.combatStatusCenter(actionCount);
+        return statusCenter(gui == null ? Coord.z : gui.sz, offset);
+    }
+
     public static Coord deckAnchor(Coord screen, Coord offset) {
         int bottom = (int)(screen.y - ((screen.y / 500.0) * deckSliderValue()));
         return Coord.of(screen.x / 2, bottom).add(offset);
+    }
+
+    public static Coord deckAnchor(GameUI gui, Coord offset, int actionCount) {
+        if(gui != null && MoonFlowerHudTheme.active() && gui.moonFlowerHud != null &&
+                gui.moonFlowerHud.visible())
+            return gui.moonFlowerHud.combatDeckAnchor(actionCount);
+        return deckAnchor(gui == null ? Coord.z : gui.sz, offset);
     }
 
     public static Coord actionCoord(int index) {
@@ -30,11 +44,18 @@ public final class MoonFlowerCombatLayout {
     }
 
     public static Area actionDeckArea(Coord screen, Coord offset, int actionCount) {
+        return actionDeckAreaAt(deckAnchor(screen, offset), actionCount);
+    }
+
+    public static Area actionDeckArea(GameUI gui, Coord offset, int actionCount) {
+        return actionDeckAreaAt(deckAnchor(gui, offset, actionCount), actionCount);
+    }
+
+    public static Area actionDeckAreaAt(Coord anchor, int actionCount) {
         int available = Math.max(1, actionCount);
         int maximumColumns = OptWnd.singleRowCombatMovesCheckBox != null && OptWnd.singleRowCombatMovesCheckBox.a ? 10 : 5;
         int columns = Math.min(available, maximumColumns);
         int rows = (available + columns - 1) / columns;
-        Coord anchor = deckAnchor(screen, offset);
         Coord first = anchor.add(-UI.scale(16), -UI.scale(150)).add(actionCoord(0));
         Coord origin = first.sub(UI.scale(13), UI.scale(25));
         Coord size = Coord.of(((columns - 1) * Fightsess.actpitch) + UI.scale(58),
@@ -45,6 +66,11 @@ public final class MoonFlowerCombatLayout {
     public static Area statusPreviewArea(Coord screen, Coord offset) {
         Coord size = UI.scale(430, 82);
         return Area.sized(statusCenter(screen, offset).sub(size.div(2)), size);
+    }
+
+    public static Area statusPreviewArea(GameUI gui, Coord offset, int actionCount) {
+        Coord size = UI.scale(430, 88);
+        return Area.sized(statusCenter(gui, offset, actionCount).sub(size.div(2)), size);
     }
 
     public static Coord clampOffset(Coord screen, Area baseArea, Coord proposedOffset) {
