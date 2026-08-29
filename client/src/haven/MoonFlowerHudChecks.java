@@ -46,6 +46,10 @@ public final class MoonFlowerHudChecks {
         require(clampedStatus.br.x <= combatScreen.x && clampedStatus.br.y <= combatScreen.y,
                 "combat ghost drag clamps to the visible screen");
         require(MoonFlowerHudAssets.complete(), "packaged portrait dock artwork");
+        require(MoonFlowerHudAssets.clockOrnament.getColorModel().hasAlpha() &&
+                        MoonFlowerHudAssets.clockOrnament.getWidth() >
+                                (MoonFlowerHudAssets.clockOrnament.getHeight() * 2),
+                "inverted world-clock artwork has transparent wide-screen geometry");
         require(MoonFlowerHudAssets.movementIcons.length == 4,
                 "four packaged movement-mode icons");
         require(MoonFlowerUiAssets.complete(), "packaged window frame, panel, and chat settings artwork");
@@ -71,14 +75,12 @@ public final class MoonFlowerHudChecks {
         require(MoonFlowerHudAssets.scaledEquipmentSlotCenter(0, dockSize).x <
                         MoonFlowerHudAssets.scaledEquipmentSlotCenter(5, dockSize).x,
                 "integrated equipment slots preserve painted left-to-right order");
-        Coord combatCrownSize = Coord.of(520, (int)Math.round(520 *
-                (MoonFlowerHudAssets.combatCrown.getHeight() /
-                        (double)MoonFlowerHudAssets.combatCrown.getWidth())));
+        Coord combatCrownSize = dockSize;
         require(MoonFlowerHudAssets.scaledCombatActionCenter(0, combatCrownSize).x <
                         MoonFlowerHudAssets.scaledCombatActionCenter(5, combatCrownSize).x &&
                         MoonFlowerHudAssets.scaledCombatActionCenter(4, combatCrownSize).x <
                                 MoonFlowerHudAssets.scaledCombatActionCenter(9, combatCrownSize).x,
-                "combat collar owns five action wells on each portrait shoulder");
+                "transformed portrait owns five action wells on each shoulder");
         Coord playerRed = MoonFlowerHudAssets.scaledCombatOpeningCenter(
                 "paginae/atk/cornered", false, combatCrownSize);
         Coord opponentRed = MoonFlowerHudAssets.scaledCombatOpeningCenter(
@@ -90,14 +92,14 @@ public final class MoonFlowerHudChecks {
                                 "paginae/atk/dizzy", true, combatCrownSize) != null &&
                         MoonFlowerHudAssets.scaledCombatOpeningCenter(
                                 "paginae/atk/reeling", true, combatCrownSize) != null,
-                "combat crown exposes separate player and opponent opening groups");
+                "transformed portrait exposes separate player and opponent opening groups");
         require(MoonFlowerHudAssets.scaledCombatDefenseCenter(false, combatCrownSize).x <
                         MoonFlowerHudAssets.scaledCombatDefenseCenter(true, combatCrownSize).x &&
                         MoonFlowerHudAssets.scaledCombatInitiativeCenter(false, combatCrownSize).x <
                                 MoonFlowerHudAssets.scaledCombatInitiativeCenter(true, combatCrownSize).x,
-                "combat crown owns mirrored defense and initiative sockets");
+                "transformed portrait owns mirrored defense and initiative sockets");
         Coord combatPortrait = MoonFlowerHudAssets.scaledCombatPortraitCenter(combatCrownSize);
-        int protectedRadius = 96;
+        int protectedRadius = 70;
         for(int i = 0; i < 10; i++)
             require(Math.abs(MoonFlowerHudAssets.scaledCombatActionCenter(i, combatCrownSize).x -
                             combatPortrait.x) > protectedRadius,
@@ -106,9 +108,15 @@ public final class MoonFlowerHudChecks {
                         combatPortrait.y - protectedRadius + 8 &&
                         MoonFlowerHudAssets.scaledCombatCooldownCenter(combatCrownSize).y < combatPortrait.y,
                 "health and cooldown remain in the shallow top seam");
-        require(combatCrownSize.x == 520 && combatCrownSize.y < 225 &&
-                        combatPortrait.y - protectedRadius <= 35,
-                "combat collar wraps the portrait with minimal height above it");
+        Coord leftUtility = MoonFlowerHudAssets.scaledCombatUtilityCenter(0, combatCrownSize);
+        Coord rightUtility = MoonFlowerHudAssets.scaledCombatUtilityCenter(3, combatCrownSize);
+        require(combatCrownSize.equals(dockSize) &&
+                        Math.abs(combatPortrait.x - portraitCenter.x) <= 3 &&
+                        Math.abs(combatPortrait.y - portraitCenter.y) <= 6,
+                "combat state transforms the same portrait footprint and center");
+        require(leftUtility.x < combatPortrait.x && rightUtility.x > combatPortrait.x &&
+                        leftUtility.y >= 0 && rightUtility.y < combatCrownSize.y,
+                "combat state retains mirrored on-screen utility rails");
         require(MoonFlowerVitalInfo.nearestRing(51, 46, 51, 56, 2) == MoonFlowerVitalInfo.STAMINA,
                 "stamina ring hover selection");
         require(MoonFlowerVitalInfo.nearestRing(40, 46, 51, 56, 2) == -1,

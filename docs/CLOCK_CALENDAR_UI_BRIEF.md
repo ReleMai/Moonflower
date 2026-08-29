@@ -35,8 +35,12 @@ new worlds make a fixed multiplier unreliable.
 
 - Reuse the portrait HUD's circular wells, curved vines, blossoms, ink, teal,
   aged gold, ivory, and layered dark-metal framing.
+- Use the approved inverted seasonal artwork with a flat top mounting rail and
+  all botanical ornament hanging downward into the game view.
 - The central circular sky aperture cross-fades midnight, dawn, day, sunset,
   and night.
+- Accurate analog hands and a compact digital time share the central aperture;
+  a gold arc identifies the active painted season quadrant.
 - Native sun and moon resources preserve Haven identity inside the MoonFlower
   frame.
 - Text and provenance labels supplement every color-coded state.
@@ -44,15 +48,16 @@ new worlds make a fixed multiplier unreliable.
 ## Layout
 
 - Anchor: existing top-center hide panel.
-- MoonFlower size: 450x151 logical pixels before UI scaling.
+- MoonFlower size: 520x182 logical pixels before UI scaling.
 - Classic size: original `Cal` size.
-- Visual hierarchy: one dominant celestial dial; a season/date leaf to its left;
-  a moon/area leaf to its right; one narrow contextual cradle below.
+- Visual hierarchy: one dominant hanging clock and four-season wheel; compact
+  left plaques for season/countdown and date; compact right plaques for
+  moon/area and the current context notice.
 - Silhouette: transparent around the ornament. Never enclose the component in a
   rectangular panel or arrange its content as a debug-style stack of rows.
-- The celestial dial reuses a carefully cropped and scaled portion of the
-  portrait dock artwork, keeping the two components in the same visual family
-  without introducing a second ornamental style.
+- The static frame is project-local generated raster art derived from the
+  approved Concept D mockup. Live sky, clock hands, text, and seasonal state are
+  rendered separately so no current data is baked into the artwork.
 - At 1280x720: one compact crest, clipped long text, no separate duplicate clock
   or status columns in MoonFlower mode.
 - At larger resolutions: remain top-center; do not expand simply to fill space.

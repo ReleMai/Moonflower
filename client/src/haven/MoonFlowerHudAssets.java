@@ -15,13 +15,15 @@ public final class MoonFlowerHudAssets {
     private static final String ICON_ATLAS = "/haven/hud/moonflower-hud-icons-v4-alpha.png";
     private static final String MOVEMENT_ICON_ATLAS = "/haven/hud/moonflower-movement-icons-v1-alpha.png";
     private static final String DOCK_ORNAMENT = "/haven/hud/moonflower-dock-integrated-v4-alpha.png";
-    private static final String COMBAT_CROWN = "/haven/hud/moonflower-combat-collar-v7-alpha.png";
+    private static final String CLOCK_ORNAMENT = "/haven/hud/moonflower-clock-inverted-hybrid-v1-alpha.png";
+    private static final String COMBAT_CROWN = "/haven/hud/moonflower-dock-combat-transform-v8-alpha.png";
     private static final int ICON_COLUMNS = 5;
     private static final int ICON_ROWS = 2;
     private static final int ICON_COUNT = ICON_COLUMNS * ICON_ROWS;
 
     public static final BufferedImage dockOrnament = trimTransparent(load(DOCK_ORNAMENT), 4);
-    public static final BufferedImage combatCrown = trimTransparent(load(COMBAT_CROWN), 4);
+    public static final BufferedImage clockOrnament = trimTransparent(load(CLOCK_ORNAMENT), 4);
+    public static final BufferedImage combatCrown = load(COMBAT_CROWN);
     public static final BufferedImage[] buttonIcons = sliceIconAtlas(load(ICON_ATLAS));
     public static final BufferedImage[] movementIcons = sliceHorizontalAtlas(load(MOVEMENT_ICON_ATLAS), 4);
     private static final IntegratedGeometry geometry = findIntegratedGeometry(dockOrnament);
@@ -34,44 +36,51 @@ public final class MoonFlowerHudAssets {
     public static final Coord buffOverflowCenter = geometry.buffOverflowCenter;
 
     /* Source-space centers measured from the intentionally transparent wells
-     * painted into moonflower-combat-collar-v7-alpha.png after its four-pixel
-     * transparent trim. Keeping them with the asset prevents combat layout
-     * code from drifting away from the artwork. */
+     * painted into the combat-state sibling of the portrait dock. Keeping the
+     * geometry with the art lets the hub transform in place without creating a
+     * second independently positioned combat panel. */
     private static final Coord[] combatActionCenters = {
-            Coord.of(308, 128), Coord.of(447, 142), Coord.of(254, 207), Coord.of(390, 215), Coord.of(228, 298),
-            Coord.of(1190, 128), Coord.of(1051, 143), Coord.of(1244, 207), Coord.of(1108, 215), Coord.of(1270, 298)
+            Coord.of(402, 246), Coord.of(335, 298), Coord.of(469, 298), Coord.of(362, 373), Coord.of(442, 373),
+            Coord.of(1281, 246), Coord.of(1216, 298), Coord.of(1348, 298), Coord.of(1242, 373), Coord.of(1321, 373)
     };
     private static final Coord[] combatPlayerOpeningCenters = {
-            Coord.of(228, 534), Coord.of(285, 544), Coord.of(342, 553), Coord.of(399, 562)
+            Coord.of(340, 457), Coord.of(390, 457), Coord.of(442, 457), Coord.of(493, 457)
     };
     private static final Coord[] combatOpponentOpeningCenters = {
-            Coord.of(1271, 534), Coord.of(1214, 544), Coord.of(1157, 553), Coord.of(1100, 562)
+            Coord.of(1343, 457), Coord.of(1293, 457), Coord.of(1242, 457), Coord.of(1192, 457)
     };
-    private static final Coord combatPortraitCenter = Coord.of(751, 342);
-    private static final Coord combatHealthOrigin = Coord.of(550, 10);
-    private static final Coord combatHealthSize = Coord.of(400, 34);
-    private static final Coord combatPlayerMoveCenter = Coord.of(105, 418);
-    private static final Coord combatOpponentMoveCenter = Coord.of(1392, 419);
-    private static final Coord combatPlayerDefenseCenter = Coord.of(355, 299);
-    private static final Coord combatOpponentDefenseCenter = Coord.of(1142, 299);
-    private static final Coord combatPlayerInitiativeCenter = Coord.of(355, 391);
-    private static final Coord combatOpponentInitiativeCenter = Coord.of(1143, 391);
-    private static final Coord combatCooldownCenter = Coord.of(751, 77);
-    private static final int combatActionDiameter = 54;
-    private static final int combatOpeningDiameter = 50;
-    private static final int combatMoveDiameter = 76;
-    private static final int combatDefenseDiameter = 56;
-    private static final int combatInitiativeDiameter = 56;
-    private static final int combatCooldownDiameter = 50;
+    private static final Coord[] combatUtilityCenters = {
+            Coord.of(114, 394), Coord.of(114, 512), Coord.of(114, 628),
+            Coord.of(1568, 394), Coord.of(1568, 512), Coord.of(1568, 628)
+    };
+    private static final Coord combatPortraitCenter = Coord.of(842, 350);
+    private static final Coord combatHealthOrigin = Coord.of(716, 54);
+    private static final Coord combatHealthSize = Coord.of(252, 24);
+    private static final Coord combatPlayerMoveCenter = Coord.of(366, 548);
+    private static final Coord combatOpponentMoveCenter = Coord.of(1318, 548);
+    private static final Coord combatPlayerDefenseCenter = Coord.of(438, 646);
+    private static final Coord combatOpponentDefenseCenter = Coord.of(1248, 646);
+    private static final Coord combatPlayerInitiativeCenter = Coord.of(535, 646);
+    private static final Coord combatOpponentInitiativeCenter = Coord.of(1149, 646);
+    private static final Coord combatCooldownCenter = Coord.of(842, 105);
+    private static final int combatActionDiameter = 60;
+    private static final int combatOpeningDiameter = 42;
+    private static final int combatMoveDiameter = 72;
+    private static final int combatDefenseDiameter = 58;
+    private static final int combatInitiativeDiameter = 42;
+    private static final int combatCooldownDiameter = 42;
 
     private MoonFlowerHudAssets() {
     }
 
     public static boolean complete() {
         if(dockOrnament.getWidth() <= 1 || dockOrnament.getHeight() <= 1 ||
-                !hasTransparency(dockOrnament) || buttonIcons.length != ICON_COUNT ||
+                !hasTransparency(dockOrnament) || clockOrnament.getWidth() <= 1 ||
+                clockOrnament.getHeight() <= 1 || !hasTransparency(clockOrnament) ||
+                buttonIcons.length != ICON_COUNT ||
                 movementIcons.length != 4 || socketCenters.length != 6 || buffSocketCenters.length != 4 ||
                 equipmentSlotCenters.length != 6 || movementSocketCenters.length != 4 || portraitOpeningDiameter <= 1 ||
+                combatUtilityCenters.length != 6 || combatActionCenters.length != 10 ||
                 combatCrown.getWidth() <= 1 || combatCrown.getHeight() <= 1 || !hasTransparency(combatCrown))
             return false;
         for(BufferedImage icon : buttonIcons) {
@@ -111,6 +120,10 @@ public final class MoonFlowerHudAssets {
 
     public static Coord scaledCombatActionCenter(int index, Coord targetSize) {
         return scaledCombatPoint(combatActionCenters[index], targetSize);
+    }
+
+    public static Coord scaledCombatUtilityCenter(int index, Coord targetSize) {
+        return scaledCombatPoint(combatUtilityCenters[index], targetSize);
     }
 
     public static Coord scaledCombatOpeningCenter(String resourceName, boolean opponent, Coord targetSize) {

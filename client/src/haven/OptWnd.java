@@ -1175,7 +1175,7 @@ public class OptWnd extends Window {
 						ui.gui.refreshMoonFlowerHud();
 				}
 			}, prev.pos("bl").adds(0, 5));
-			prev.tooltip = RichText.render("Outside combat, translucent Combat Status and Combat Deck previews appear for positioning. Each action bar also shows an M/L badge.", UI.scale(380));
+			prev.tooltip = RichText.render("Outside combat, the portrait previews its transformed combat state. Each action bar also shows an M/L badge.", UI.scale(380));
 
 			Widget lockAll = add(new Button(UI.scale(125), "Lock all bars", () -> {
 				if(ui != null && ui.gui != null)
@@ -1215,6 +1215,14 @@ public class OptWnd extends Window {
 				}
 			}, prev.pos("bl").adds(0, 7));
 			prev.tooltip = RichText.render("Freezes the clock's decorative sun animation while keeping live Haven time and sky state current.", UI.scale(360));
+
+			prev = add(new CheckBox("Reduce portrait and combat HUD motion") {
+				{a = MoonFlowerHudSettings.hudReducedMotion();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.HUD_REDUCED_MOTION, val);
+				}
+			}, prev.pos("bl").adds(0, 7));
+			prev.tooltip = RichText.render("Switches the portrait between normal and combat layouts without the crossfade or folding side-rail animation.", UI.scale(380));
 
 			prev = add(new Label("Portrait hub size:"), prev.pos("bl").adds(0, 12));
 			Label portraitScale = new Label(MoonFlowerHudSettings.portraitScale() + "%");

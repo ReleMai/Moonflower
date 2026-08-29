@@ -16,6 +16,7 @@ public final class MoonFlowerHudSettings {
     public static final String FEATURE_VINE_EXPANDED = "moonflower-hud-feature-vine-expanded";
     public static final String SHOW_VITAL_NUMBERS = "moonflower-hud-show-vital-numbers";
     public static final String CLOCK_REDUCED_MOTION = "moonflower-clock-reduced-motion";
+    public static final String HUD_REDUCED_MOTION = "moonflower-hud-reduced-motion";
     public static final String ACTION_BAR_SCALE = "moonflower-action-bar-scale";
     public static final String CHAT_TEXT_SIZE = "moonflower-chat-text-size";
     public static final String CHAT_BACKGROUND_ALPHA = "moonflower-chat-background-alpha";
@@ -65,6 +66,10 @@ public final class MoonFlowerHudSettings {
 
     public static boolean clockReducedMotion() {
         return Utils.getprefb(CLOCK_REDUCED_MOTION, false);
+    }
+
+    public static boolean hudReducedMotion() {
+        return Utils.getprefb(HUD_REDUCED_MOTION, false);
     }
 
     public static int actionBarScale() {

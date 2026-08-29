@@ -175,15 +175,12 @@ public class MoonFlowerPortraitHub extends Widget {
         equipmentScrollCover.resize(sz);
         equipmentScrollCover.move(Coord.z);
 
-        int buttonSize = scaled(34);
         int iconSize = scaled(23);
         for(int i = 0; i < mainButtons.size(); i++) {
             HudIconButton button = mainButtons.get(i);
-            Coord center = MoonFlowerHudAssets.scaledSocketCenter(i, ornamentSize).add(0, dockY);
-            button.resize(buttonSize, buttonSize);
-            button.move(center.sub(buttonSize / 2, buttonSize / 2));
             button.rebuildIcon(iconSize);
         }
+        layoutMainButtons();
         buffMoreButton.resize(scaled(30), scaled(30));
         Coord overflowCenter = MoonFlowerHudAssets.scaledBuffOverflowCenter(ornamentSize).add(0, dockY);
         buffMoreButton.move(overflowCenter.sub(buffMoreButton.sz.div(2)));
@@ -396,20 +393,11 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     public Coord combatCrownSize() {
-        int width = scaled(520);
-        int height = (int)Math.round(width * (MoonFlowerHudAssets.combatCrown.getHeight() /
-                (double)MoonFlowerHudAssets.combatCrown.getWidth()));
-        return Coord.of(width, Math.max(1, height));
+        return ornamentSize();
     }
 
     public Area combatCrownArea() {
-        Coord size = combatCrownSize();
-        Coord collarPortrait = MoonFlowerHudAssets.scaledCombatPortraitCenter(size);
-        Coord expanded = combatCrownAnchor().sub(collarPortrait);
-        int travel = scaled(72);
-        double reveal = Utils.smoothstep(effectiveCombatReveal());
-        Coord origin = expanded.add(0, (int)Math.round((1.0 - reveal) * travel));
-        return Area.sized(origin, size);
+        return Area.sized(c.add(0, dockY), combatCrownSize());
     }
 
     /** The collar wraps beside the portrait, so its live wells use the full HUD
@@ -428,55 +416,9 @@ public class MoonFlowerPortraitHub extends Widget {
         return Utils.smoothstep(Utils.clip((effectiveCombatReveal() - 0.34) / 0.66, 0.0, 1.0));
     }
 
-    /** Draws the collar in the caller's coordinate space. The live fight
-     * session invokes this after the portrait, while the artwork's transparent
-     * center keeps the portrait face and vital rings unobstructed. */
-    private void drawCombatFrame(GOut g, Coord rootOffset) {
-        if(combatCrownTexture == null)
-            return;
-        double reveal = effectiveCombatReveal();
-        if(reveal <= 0.01)
-            return;
-        int alpha = (int)Math.round(255 * Utils.smoothstep(reveal));
-        Area crown = combatCrownArea();
-        Coord crownOrigin = crown.ul.sub(rootOffset);
-        g.chcolor(new Color(2, 11, 15, (242 * alpha) / 255));
-        Area health = combatHealthArea();
-        g.frect(health.ul.sub(rootOffset), health.sz());
-        int actionRadius = Math.max(1, combatActionDiameter() / 2);
-        for(int i = 0; i < 10; i++)
-            g.fellipse(combatActionCenter(i).sub(rootOffset), Coord.of(actionRadius, actionRadius));
-        int openingRadius = Math.max(1, combatOpeningDiameter() / 2);
-        String[] openings = {"paginae/atk/cornered", "paginae/atk/offbalance",
-                "paginae/atk/dizzy", "paginae/atk/reeling"};
-        for(String opening : openings) {
-            Coord player = combatOpeningCenter(opening, false);
-            Coord opponent = combatOpeningCenter(opening, true);
-            if(player != null)
-                g.fellipse(player.sub(rootOffset), Coord.of(openingRadius, openingRadius));
-            if(opponent != null)
-                g.fellipse(opponent.sub(rootOffset), Coord.of(openingRadius, openingRadius));
-        }
-        int moveRadius = Math.max(1, combatMoveDiameter() / 2);
-        g.fellipse(combatMoveCenter(false).sub(rootOffset), Coord.of(moveRadius, moveRadius));
-        g.fellipse(combatMoveCenter(true).sub(rootOffset), Coord.of(moveRadius, moveRadius));
-        int defenseRadius = Math.max(1, combatDefenseDiameter() / 2);
-        g.fellipse(combatDefenseCenter(false).sub(rootOffset), Coord.of(defenseRadius, defenseRadius));
-        g.fellipse(combatDefenseCenter(true).sub(rootOffset), Coord.of(defenseRadius, defenseRadius));
-        int initiativeRadius = Math.max(1, combatInitiativeDiameter() / 2);
-        g.fellipse(combatInitiativeCenter(false).sub(rootOffset), Coord.of(initiativeRadius, initiativeRadius));
-        g.fellipse(combatInitiativeCenter(true).sub(rootOffset), Coord.of(initiativeRadius, initiativeRadius));
-        int cooldownRadius = Math.max(1, combatCooldownDiameter() / 2);
-        g.fellipse(combatCooldownCenter().sub(rootOffset), Coord.of(cooldownRadius, cooldownRadius));
-        g.chcolor();
-        g.chcolor(255, 255, 255, alpha);
-        g.image(combatCrownTexture, crownOrigin);
-        g.chcolor();
-    }
-
-    /** The fight session draws the collar and labels in the combat foreground. */
+    /** Fightsess paints only live values here. The combat ornament itself is a
+     * sibling skin drawn by this widget below the portrait and utility buttons. */
     public void drawCombatCrown(GOut g) {
-        drawCombatFrame(g, Coord.z);
         int openingRadius = Math.max(1, combatOpeningDiameter() / 2);
         if(combatContentReveal() > 0.45) {
             FastText.aprintfstroked(g, combatOpeningGroupCenter(false).add(0, -openingRadius - scaled(7)),
@@ -595,8 +537,7 @@ public class MoonFlowerPortraitHub extends Widget {
     public void draw(GOut g) {
         if(!GameUI.showUI)
             return;
-        if(gui.fs == null && MoonFlowerHudSettings.editMode())
-            drawCombatFrame(g, c);
+        layoutMainButtons();
         layoutBuffs();
         layoutEquipment();
         if(MoonFlowerHudSettings.editMode())
@@ -612,11 +553,34 @@ public class MoonFlowerPortraitHub extends Widget {
          * drives the same cover, not only clicks on the portrait button. */
         setEquipmentWindowOpen(gui.isEquipmentWindowOpen());
         double target = gui.fs == null ? 0.0 : 1.0;
-        double step = Math.max(0.0, dt) / COMBAT_REVEAL_SECONDS;
-        if(combatReveal < target)
-            combatReveal = Math.min(target, combatReveal + step);
-        else if(combatReveal > target)
-            combatReveal = Math.max(target, combatReveal - step);
+        if(MoonFlowerHudSettings.hudReducedMotion()) {
+            combatReveal = target;
+        } else {
+            double step = Math.max(0.0, dt) / COMBAT_REVEAL_SECONDS;
+            if(combatReveal < target)
+                combatReveal = Math.min(target, combatReveal + step);
+            else if(combatReveal > target)
+                combatReveal = Math.max(target, combatReveal - step);
+        }
+        layoutMainButtons();
+    }
+
+    private void layoutMainButtons() {
+        if(mainButtons.isEmpty())
+            return;
+        Coord size = ornamentSize();
+        double reveal = Utils.smoothstep(effectiveCombatReveal());
+        int buttonSize = scaled(34);
+        for(int i = 0; i < mainButtons.size(); i++) {
+            Coord normal = MoonFlowerHudAssets.scaledSocketCenter(i, size);
+            Coord combat = MoonFlowerHudAssets.scaledCombatUtilityCenter(i, size);
+            Coord center = Coord.of(
+                    (int)Math.round(normal.x + ((combat.x - normal.x) * reveal)),
+                    (int)Math.round(normal.y + ((combat.y - normal.y) * reveal))).add(0, dockY);
+            HudIconButton button = mainButtons.get(i);
+            button.resize(buttonSize, buttonSize);
+            button.move(center.sub(buttonSize / 2, buttonSize / 2));
+        }
     }
 
     private void drawRings(GOut g) {
@@ -972,13 +936,34 @@ public class MoonFlowerPortraitHub extends Widget {
                 g.fellipse(MoonFlowerHudAssets.scaledMovementSocketCenter(i, sz), Coord.of(scaled(7), scaled(7)));
             g.fellipse(MoonFlowerHudAssets.scaledBuffOverflowCenter(sz), Coord.of(scaled(15), scaled(15)));
             g.chcolor();
+
+            double reveal = Utils.smoothstep(effectiveCombatReveal());
+            if(reveal > 0.01) {
+                g.chcolor(new Color(3, 15, 18, (int)Math.round(238 * reveal)));
+                for(int i = 0; i < 10; i++) {
+                    int radius = Math.max(1, combatActionDiameter() / 2);
+                    g.fellipse(MoonFlowerHudAssets.scaledCombatActionCenter(i, sz), Coord.of(radius, radius));
+                }
+                for(int i = 0; i < mainButtons.size(); i++)
+                    g.fellipse(MoonFlowerHudAssets.scaledCombatUtilityCenter(i, sz), Coord.of(scaled(17), scaled(17)));
+                g.chcolor();
+            }
         }
     }
 
     private class DockOrnament extends Widget {
         @Override
         public void draw(GOut g) {
-            g.image(dockTexture, Coord.z);
+            double reveal = Utils.smoothstep(effectiveCombatReveal());
+            if(reveal < 0.99) {
+                g.chcolor(255, 255, 255, (int)Math.round(255 * (1.0 - reveal)));
+                g.image(dockTexture, Coord.z);
+            }
+            if(reveal > 0.01) {
+                g.chcolor(255, 255, 255, (int)Math.round(255 * reveal));
+                g.image(combatCrownTexture, Coord.z);
+            }
+            g.chcolor();
         }
     }
 

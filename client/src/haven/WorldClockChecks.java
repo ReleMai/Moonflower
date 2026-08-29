@@ -41,6 +41,12 @@ public final class WorldClockChecks {
         Color nightSky = MoonFlowerClockWidget.skyColor(0.95);
         require(!dawnSky.equals(noonSky) && !noonSky.equals(nightSky),
                 "sunrise, daylight, and night palettes remain distinct");
+        require(close(MoonFlowerClockWidget.hourHandAngle(0, 0), -Math.PI / 2) &&
+                        close(MoonFlowerClockWidget.minuteHandAngle(15, 0), 0),
+                "analog hands map midnight and quarter-past correctly");
+        require(close(MoonFlowerClockWidget.seasonStartAngle(0), Math.PI) &&
+                        close(MoonFlowerClockWidget.seasonStartAngle(2), Math.PI * 2),
+                "spring and autumn highlights map to the painted seasonal quadrants");
         System.out.println("World clock checks passed.");
     }
 
@@ -53,5 +59,9 @@ public final class WorldClockChecks {
     private static void require(boolean condition, String message) {
         if(!condition)
             throw new AssertionError(message);
+    }
+
+    private static boolean close(double left, double right) {
+        return Math.abs(left - right) < 0.00001;
     }
 }
