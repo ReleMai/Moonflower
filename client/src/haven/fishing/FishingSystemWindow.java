@@ -9,9 +9,8 @@ import haven.automated.FishingBot;
 
 /** One home for autonomous fishing controls and the local fishing journal. */
 public final class FishingSystemWindow extends Window {
-    private static final Coord HELPER_SIZE = UI.scale(610, 350);
-    private static final Coord JOURNAL_SIZE = UI.scale(820, 610);
-    private static final long RESIZE_DURATION_MS = 260;
+    private static final Coord SYSTEM_SIZE = UI.scale(820, 610);
+    private static final Coord TAB_SIZE = SYSTEM_SIZE.sub(UI.scale(20, 50));
     private final FishingBot helper;
     private final FishingJournalWindow journal;
     private final Tabs tabs;
@@ -19,40 +18,34 @@ public final class FishingSystemWindow extends Window {
     private final Tabs.Tab journalTab;
     private FishingTabButton helperButton;
     private FishingTabButton journalButton;
-    private Coord resizeFrom = JOURNAL_SIZE;
-    private Coord resizeTarget = HELPER_SIZE;
-    private long resizeStartedAt;
 
     public FishingSystemWindow(FishingBot helper, FishingJournalWindow journal) {
-        super(JOURNAL_SIZE, "Fishing System");
+        super(SYSTEM_SIZE, "Fishing System");
         this.helper = helper;
         this.journal = journal;
         journal.bindHelper(helper);
-        tabs = new Tabs(UI.scale(10, 40), JOURNAL_SIZE.sub(UI.scale(20, 50)), this) {
+        tabs = new Tabs(UI.scale(10, 40), TAB_SIZE, this) {
             @Override
             public void changed(Tab from, Tab to) {
-                animateTo(to == helperTab ? HELPER_SIZE : JOURNAL_SIZE);
                 updateTabButtons();
+                if(to == helperTab)
+                    helper.opened();
+                else if(to == journalTab) {
+                    journal.setTideglassVisible(haven.MoonFlowerHudTheme.active());
+                    journal.refresh();
+                }
             }
         };
         helperTab = tabs.add();
         journalTab = tabs.add();
         helperButton = add(new FishingTabButton(UI.scale(150), "Helper", helperTab), UI.scale(10, 4));
         journalButton = add(new FishingTabButton(UI.scale(150), "Fish Guide", journalTab), UI.scale(165, 4));
-        helperTab.add(helper, Coord.z);
+        Coord helperPosition = Coord.of(Math.max(0, (TAB_SIZE.x - helper.sz.x) / 2),
+                Math.max(0, (TAB_SIZE.y - helper.sz.y) / 2));
+        helperTab.add(helper, helperPosition);
         journalTab.add(journal, Coord.z);
-        resize(HELPER_SIZE);
-        tabs.resize(HELPER_SIZE.sub(UI.scale(20, 50)));
         updateTabButtons();
         reqclose(this::hide);
-    }
-
-    private void animateTo(Coord target) {
-        if(target == null || target.equals(resizeTarget) && sz.equals(target))
-            return;
-        resizeFrom = sz;
-        resizeTarget = target;
-        resizeStartedAt = System.currentTimeMillis();
     }
 
     private void updateTabButtons() {
@@ -62,41 +55,17 @@ public final class FishingSystemWindow extends Window {
             journalButton.updateState();
     }
 
-    @Override
-    public void tick(double dt) {
-        super.tick(dt);
-        if(!sz.equals(resizeTarget)) {
-            double progress = Math.min(1.0,
-                    (System.currentTimeMillis() - resizeStartedAt) / (double)RESIZE_DURATION_MS);
-            double eased = progress * progress * (3.0 - 2.0 * progress);
-            Coord center = c.add(sz.div(2));
-            Coord next = Coord.of(
-                    (int)Math.round(resizeFrom.x + (resizeTarget.x - resizeFrom.x) * eased),
-                    (int)Math.round(resizeFrom.y + (resizeTarget.y - resizeFrom.y) * eased));
-            resize(next);
-            tabs.resize(next.sub(UI.scale(20, 50)));
-            c = center.sub(next.div(2));
-            if(parent != null) {
-                Coord limit = parent.sz.sub(sz).max(Coord.z);
-                c = Coord.of(Math.max(0, Math.min(c.x, limit.x)),
-                        Math.max(0, Math.min(c.y, limit.y)));
-            }
-        }
-    }
 
     public void showHelper() {
         tabs.showtab(helperTab);
         show();
         raise();
-        helper.opened();
     }
 
     public void showJournal() {
         tabs.showtab(journalTab);
-        journal.setTideglassVisible(haven.MoonFlowerHudTheme.active());
         show();
         raise();
-        journal.refresh();
     }
 
     public void showSpot(FishingMapMarker marker) {

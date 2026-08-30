@@ -85,11 +85,16 @@ final class FishingTacklePane extends Widget {
         }
 
         private void cycle(Stage stage, int direction) {
-            if(helper == null)
+            if(helper == null) {
+                listener.notifyUser("The fishing helper is unavailable, so tackle cannot be changed.");
                 return;
+            }
             List<String> values = stage.values(current);
-            if(values.isEmpty())
+            if(values.isEmpty()) {
+                listener.notifyUser("No reachable " + stage.label.toLowerCase(Locale.ROOT) +
+                        " was found in your inventories, belt, or hands.");
                 return;
+            }
             String selected = stage.value(current);
             int index = Math.max(0, values.indexOf(selected));
             String next = values.get(Math.floorMod(index + direction, values.size()));

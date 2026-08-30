@@ -86,6 +86,7 @@ final class FishingNavigatorWindow extends Widget {
     }
 
     void refresh() {
+        status = "Refreshing learned fishing knowledge...";
         queryDirty = true;
         refreshCatalog(true);
     }
@@ -105,6 +106,7 @@ final class FishingNavigatorWindow extends Widget {
         spotGridId = null;
         spotObservationIds = Collections.emptyList();
         allLocations.hide();
+        status = "Showing all learned fishing records...";
         queryDirty = true;
     }
 
@@ -197,6 +199,7 @@ final class FishingNavigatorWindow extends Widget {
         if(fish == null || fish.key.equals(selectedFishKey))
             return;
         selectedFishKey = fish.key;
+        status = "Showing the best learned locations for " + fish.name + ".";
         rebuildSnapshot();
     }
 
@@ -230,10 +233,6 @@ final class FishingNavigatorWindow extends Widget {
         FastText.aprintfstroked(g, UI.scale(610, 96), 0, 1, "PRESET CRESTS");
         super.draw(g);
     }
-
-    public boolean checkhit(Coord c) { return(true); }
-
-    public boolean mousedown(MouseDownEvent event) { return(true); }
 
     private void notifyUser(String message) {
         status = message;

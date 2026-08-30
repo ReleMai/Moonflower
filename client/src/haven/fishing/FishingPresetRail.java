@@ -90,8 +90,14 @@ final class FishingPresetRail extends Widget {
     }
 
     private void selectPreset() {
-        if(selected == null || helper == null)
+        if(selected == null) {
+            listener.notifyUser("Choose a saved preset first.");
             return;
+        }
+        if(helper == null) {
+            listener.notifyUser("The fishing helper is unavailable, so the preset cannot be selected.");
+            return;
+        }
         if(helper.selectTackle(selected.pole, selected.line, selected.hook,
                 selected.consumableKind, selected.consumable)) {
             listener.catalogChanged();
@@ -102,8 +108,14 @@ final class FishingPresetRail extends Widget {
     }
 
     private void applySelected() {
-        if(selected == null || helper == null)
+        if(selected == null) {
+            listener.notifyUser("Choose a saved preset first.");
             return;
+        }
+        if(helper == null) {
+            listener.notifyUser("The fishing helper is unavailable, so the preset cannot be prepared.");
+            return;
+        }
         if(!helper.selectTackle(selected.pole, selected.line, selected.hook,
                 selected.consumableKind, selected.consumable)) {
             listener.notifyUser("Preset components are not all reachable; nothing was moved.");
@@ -115,8 +127,10 @@ final class FishingPresetRail extends Widget {
     }
 
     private void deleteSelected() {
-        if(selected == null)
+        if(selected == null) {
+            listener.notifyUser("Choose a saved preset first.");
             return;
+        }
         String deleted = selected.name;
         setPresets(store.delete(presets, selected));
         selected = null;
