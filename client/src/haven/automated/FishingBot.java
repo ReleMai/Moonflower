@@ -17,6 +17,7 @@ import haven.automated.helpers.FishingAtlas;
 import haven.fishing.FishingJournalWindow;
 import haven.fishing.FishingAnalytics;
 import haven.fishing.FishingObservation;
+import haven.fishing.FishingTackleCatalog;
 import haven.widgets.MultiSelectList;
 import haven.widgets.SingleSelectList;
 
@@ -237,6 +238,55 @@ public class FishingBot extends Widget implements Runnable {
         refreshInventoryChoices();
         if(!active)
             setStatus("Choose tackle, then click Prepare or Start.");
+    }
+
+    /** Exposes only the names already discovered by the helper's reachable-inventory scan. */
+    public synchronized FishingTackleCatalog tackleCatalog() {
+        refreshInventoryChoices();
+        FishingSelections selected = selections;
+        return(new FishingTackleCatalog(
+                availableChoices.getOrDefault(FishingAtlas.Part.POLE, List.of()),
+                availableChoices.getOrDefault(FishingAtlas.Part.LINE, List.of()),
+                availableChoices.getOrDefault(FishingAtlas.Part.HOOK, List.of()),
+                availableChoices.getOrDefault(FishingAtlas.Part.BAIT, List.of()),
+                availableChoices.getOrDefault(FishingAtlas.Part.LURE, List.of()),
+                selected.pole, first(selected.lines), first(selected.hooks),
+                first(selected.lure ? selected.lures : selected.baits), selected.lure));
+    }
+
+    /** Applies one exact visible preset without starting any fishing action. */
+    public synchronized boolean selectTackle(String pole, String line, String hook,
+                                              String consumableKind, String consumable) {
+        if(active)
+            return(false);
+        refreshInventoryChoices();
+        boolean lure = "lure".equalsIgnoreCase(consumableKind);
+        if(!contains(FishingAtlas.Part.POLE, pole) || !contains(FishingAtlas.Part.LINE, line) ||
+                !contains(FishingAtlas.Part.HOOK, hook) ||
+                !contains(lure ? FishingAtlas.Part.LURE : FishingAtlas.Part.BAIT, consumable) ||
+                lure != "Primitive Casting-Rod".equals(pole))
+            return(false);
+        fishingPoleChoice.setItems(availableChoices.getOrDefault(FishingAtlas.Part.POLE, List.of()), pole);
+        selectOnly(FishingAtlas.Part.LINE, fishLineChoice, line);
+        selectOnly(FishingAtlas.Part.HOOK, hookChoice, hook);
+        selectOnly(FishingAtlas.Part.BAIT, baitChoice, lure ? null : consumable);
+        selectOnly(FishingAtlas.Part.LURE, lureChoice, lure ? consumable : null);
+        updateFishingMode();
+        updateSelectionSnapshot();
+        setStatus("Tideglass preset selected. Review it or prepare the pole.");
+        return(true);
+    }
+
+    /** User-invoked preparation uses the existing bounded, verified transaction. */
+    public synchronized void prepareSelectedTackle() {
+        if(active)
+            setStatus("Stop the current fishing run before swapping presets.");
+        else
+            startPreparation();
+    }
+
+    public String visibleStatus() {
+        return(desiredStatus);
     }
 
     public void stopAutomation() {
@@ -711,6 +761,38 @@ public class FishingBot extends Widget implements Runnable {
                 selected.add(item);
         }
         list.setItems(available, selected);
+    }
+
+    private void selectOnly(FishingAtlas.Part part, MultiSelectList<String> list, String selected) {
+        List<String> available = availableChoices.getOrDefault(part, List.of());
+        Set<String> excluded = excludedChoices.get(part);
+        excluded.clear();
+        excluded.addAll(available);
+        List<String> wanted = new ArrayList<>();
+        if(selected != null) {
+            for(String value : available) {
+                if(FishingAtlas.sameDisplayName(value, selected)) {
+                    excluded.remove(value);
+                    wanted.add(value);
+                    break;
+                }
+            }
+        }
+        list.setItems(available, wanted);
+    }
+
+    private boolean contains(FishingAtlas.Part part, String wanted) {
+        if(wanted == null || wanted.isBlank())
+            return(false);
+        for(String value : availableChoices.getOrDefault(part, List.of())) {
+            if(FishingAtlas.sameDisplayName(value, wanted))
+                return(true);
+        }
+        return(false);
+    }
+
+    private static String first(List<String> values) {
+        return(values == null || values.isEmpty() ? "" : values.get(0));
     }
 
     private void updateFishingMode() {

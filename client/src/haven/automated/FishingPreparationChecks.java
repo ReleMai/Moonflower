@@ -51,6 +51,16 @@ public final class FishingPreparationChecks {
         check(!unknown.ready(FishingPoleInspector.Kind.BAIT) && unknown.unknown.contains("Mystery Tackle"),
                 "unknown pole contents must remain visible and fail verification");
 
+        check(state.compatible(List.of("Fine Fishline"), List.of("Bone Hook"),
+                        List.of("Earthworm"), FishingPoleInspector.Kind.BAIT),
+                "a preset must accept a pole carrying exactly its selected component types");
+        check(!state.compatible(List.of("Fine Fishline"), List.of("Chitin Hook"),
+                        List.of("Earthworm"), FishingPoleInspector.Kind.BAIT),
+                "a same-named pole with different installed tackle must be rejected");
+        check(!state.compatible(List.of("Fine Fishline"), List.of("Bone Hook"),
+                        List.of("Rock Lobster"), FishingPoleInspector.Kind.LURE),
+                "bait and lure presets must not cross-match the wrong pole mode");
+
         System.out.println("Fishing preparation checks passed.");
     }
 

@@ -4,6 +4,7 @@ import haven.GItem;
 import haven.GameUI;
 import haven.WItem;
 
+import java.util.Comparator;
 import java.util.List;
 
 /** Coordinates the verified phases required to prepare and equip one fishing rig. */
@@ -30,18 +31,21 @@ final class FishingEquipment {
             return(fail("Clear the cursor before attaching tackle; the helper will not move the fishing rod."));
 
         phase = Phase.LOCATE_POLE;
-        WItem pole = items.findPole(poleName, null);
-        if(pole == null)
+        FishingPoleInspector.Kind consumable = lure ?
+                FishingPoleInspector.Kind.LURE : FishingPoleInspector.Kind.BAIT;
+        PoleCandidate candidate = choosePole(poleName, linePriority, hookPriority,
+                consumablePriority, consumable);
+        if(candidate == null)
             return(fail("No reachable " + poleName + " was found in inventory, belt, or hands."));
-
-        FishingPoleInspector.State state = inspector.inspect(pole);
-        if(state.loading)
+        if(candidate.loading)
             return(waiting("Waiting for fishing-pole contents."));
+        if(!candidate.compatible)
+            return(fail("Reachable " + poleName + " poles contain different tackle than the selected preset."));
+        WItem pole = candidate.pole;
+        FishingPoleInspector.State state = candidate.state;
         if(!state.unknown.isEmpty())
             return(fail("Unknown fishing-pole contents: " + String.join(", ", state.unknown)));
 
-        FishingPoleInspector.Kind consumable = lure ?
-                FishingPoleInspector.Kind.LURE : FishingPoleInspector.Kind.BAIT;
         if(!state.ready(consumable)) {
             phase = Phase.ASSEMBLE;
             FishingPoleAssembler.Outcome assembled = assembler.assemble(poleName, pole,
@@ -54,8 +58,9 @@ final class FishingEquipment {
 
         phase = Phase.VERIFY;
         FishingPoleInspector.State verifiedState = inspector.inspect(pole);
-        if(verifiedState.loading || !verifiedState.ready(consumable))
-            return(fail("The fishing pole did not retain its verified tackle."));
+        if(verifiedState.loading || !verifiedState.ready(consumable) ||
+                !verifiedState.compatible(linePriority, hookPriority, consumablePriority, consumable))
+            return(fail("The fishing pole did not retain the selected verified tackle."));
 
         phase = Phase.READY;
         boolean equipped = items.findPoleInHands(poleName, pole.item) != null;
@@ -71,6 +76,38 @@ final class FishingEquipment {
         return(Result.ready(new Snapshot(FishingItemMetadata.describe(pole), verifiedState.line,
                 verifiedState.hook, verifiedState.consumable(consumable),
                 lure ? "lure" : "bait", equipped)));
+    }
+
+    private PoleCandidate choosePole(String poleName, List<String> lines, List<String> hooks,
+                                     List<String> consumables, FishingPoleInspector.Kind consumableKind) {
+        List<PoleCandidate> candidates = new java.util.ArrayList<>();
+        boolean loading = false;
+        for(WItem pole : items.matchingPoles(poleName)) {
+            FishingPoleInspector.State state = inspector.inspect(pole);
+            if(state.loading) {
+                loading = true;
+                continue;
+            }
+            boolean compatible = state.compatible(lines, hooks, consumables, consumableKind);
+            if(compatible)
+                candidates.add(new PoleCandidate(pole, state, true, false));
+        }
+        candidates.sort(Comparator
+                .comparingInt((PoleCandidate value) -> value.state.ready(consumableKind) ? 0 : 1)
+                .thenComparingInt(value -> missing(value.state, consumableKind)));
+        if(!candidates.isEmpty())
+            return(candidates.get(0));
+        if(loading)
+            return(new PoleCandidate(null, null, false, true));
+        return(items.matchingPoles(poleName).isEmpty() ? null :
+                new PoleCandidate(null, null, false, false));
+    }
+
+    private static int missing(FishingPoleInspector.State state, FishingPoleInspector.Kind consumable) {
+        int missing = state.line == null ? 1 : 0;
+        missing += state.hook == null ? 1 : 0;
+        missing += state.consumable(consumable) == null ? 1 : 0;
+        return(missing);
     }
 
     synchronized boolean restoreDisplacedHands() throws InterruptedException {
@@ -159,5 +196,19 @@ final class FishingEquipment {
         static Result waiting(String message) { return(new Result(null, message, true)); }
         static Result error(String message) { return(new Result(null, message, false)); }
         boolean ready() { return(snapshot != null); }
+    }
+
+    private static final class PoleCandidate {
+        final WItem pole;
+        final FishingPoleInspector.State state;
+        final boolean compatible;
+        final boolean loading;
+
+        PoleCandidate(WItem pole, FishingPoleInspector.State state, boolean compatible, boolean loading) {
+            this.pole = pole;
+            this.state = state;
+            this.compatible = compatible;
+            this.loading = loading;
+        }
     }
 }

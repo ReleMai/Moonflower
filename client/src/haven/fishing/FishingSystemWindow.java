@@ -27,6 +27,7 @@ public final class FishingSystemWindow extends Window {
         super(JOURNAL_SIZE, "Fishing System");
         this.helper = helper;
         this.journal = journal;
+        journal.bindHelper(helper);
         tabs = new Tabs(UI.scale(10, 40), JOURNAL_SIZE.sub(UI.scale(20, 50)), this) {
             @Override
             public void changed(Tab from, Tab to) {
@@ -123,7 +124,8 @@ public final class FishingSystemWindow extends Window {
         }
 
         void updateState() {
-            change(tabs.curtab == tab ? "◆  " + label.toUpperCase() : label);
+            String shown = label.equals("Journal") && haven.MoonFlowerHudTheme.active() ? "Navigator" : label;
+            change(tabs.curtab == tab ? "◆  " + shown.toUpperCase() : shown);
         }
 
         @Override

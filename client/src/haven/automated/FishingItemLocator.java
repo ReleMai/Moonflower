@@ -40,7 +40,7 @@ final class FishingItemLocator {
         return(matches.isEmpty() ? null : matches.get(0));
     }
 
-    private List<WItem> matchingPoles(String poleName) {
+    List<WItem> matchingPoles(String poleName) {
         List<WItem> matches = new ArrayList<>();
         Set<GItem> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         Equipory equipory = gui.getequipory();

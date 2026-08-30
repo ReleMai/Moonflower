@@ -130,6 +130,26 @@ final class FishingPoleInspector {
             return(line != null && hook != null && consumable(consumable) != null && unknown.isEmpty());
         }
 
+        boolean compatible(java.util.List<String> lines, java.util.List<String> hooks,
+                           java.util.List<String> consumables, Kind consumableKind) {
+            if(!unknown.isEmpty() || !selected(line, lines) || !selected(hook, hooks) ||
+                    !selected(consumable(consumableKind), consumables))
+                return(false);
+            return(consumableKind == Kind.LURE ? bait == null : lure == null);
+        }
+
+        private static boolean selected(FishingEquipment.ItemData item, java.util.List<String> allowed) {
+            if(item == null)
+                return(true);
+            if(allowed == null || allowed.isEmpty())
+                return(false);
+            for(String value : allowed) {
+                if(FishingAtlas.sameDisplayName(value, item.displayName))
+                    return(true);
+            }
+            return(false);
+        }
+
         String summary() {
             java.util.List<String> parts = new java.util.ArrayList<>();
             if(line != null) parts.add("line=" + line.displayName);

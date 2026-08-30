@@ -7,6 +7,7 @@ import haven.GOut;
 import haven.Indir;
 import haven.Label;
 import haven.Loading;
+import haven.MoonFlowerHudTheme;
 import haven.PUtils;
 import haven.Resource;
 import haven.RichText;
@@ -18,6 +19,7 @@ import haven.UI;
 import haven.Utils;
 import haven.WItem;
 import haven.Widget;
+import haven.automated.FishingBot;
 import org.json.JSONArray;
 
 import java.awt.Color;
@@ -83,6 +85,7 @@ public final class FishingJournalWindow extends Widget {
     private int spotTileY;
     private List<Long> spotObservationIds = Collections.emptyList();
     private final Set<String> bookmarkedFish = new LinkedHashSet<>();
+    private final FishingNavigatorWindow navigator;
     private View view = View.FISH;
 
     public FishingJournalWindow(FishingJournalService service, FishingMapMarkers mapMarkers) {
@@ -143,10 +146,17 @@ public final class FishingJournalWindow extends Widget {
         locationDetails.hide();
         mapLinkButton.hide();
         setView(View.FISH);
+        navigator = add(new FishingNavigatorWindow(service, mapMarkers), Coord.z);
+        navigator.hide();
+    }
+
+    public void bindHelper(FishingBot helper) {
+        navigator.bindHelper(helper);
     }
 
     public void refresh() {
         queryDirty = true;
+        navigator.refresh();
     }
 
     private void addViewButton(View target, int x, int width) {
@@ -169,6 +179,7 @@ public final class FishingJournalWindow extends Widget {
         clearSelection();
         setView(View.FISH);
         queryDirty = true;
+        navigator.showSpot(marker);
         show();
         raise();
     }
@@ -189,6 +200,13 @@ public final class FishingJournalWindow extends Widget {
     public void tick(double dt) {
         super.tick(dt);
         if(!visible())
+            return;
+        boolean tideglass = MoonFlowerHudTheme.active();
+        if(tideglass)
+            navigator.show();
+        else
+            navigator.hide();
+        if(tideglass)
             return;
         if(displayedGeneration != service.generation())
             queryDirty = true;
