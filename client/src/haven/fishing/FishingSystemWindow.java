@@ -38,7 +38,7 @@ public final class FishingSystemWindow extends Window {
         helperTab = tabs.add();
         journalTab = tabs.add();
         helperButton = add(new FishingTabButton(UI.scale(150), "Helper", helperTab), UI.scale(10, 4));
-        journalButton = add(new FishingTabButton(UI.scale(150), "Journal", journalTab), UI.scale(165, 4));
+        journalButton = add(new FishingTabButton(UI.scale(150), "Fish Guide", journalTab), UI.scale(165, 4));
         helperTab.add(helper, Coord.z);
         journalTab.add(journal, Coord.z);
         resize(HELPER_SIZE);
@@ -69,11 +69,13 @@ public final class FishingSystemWindow extends Window {
             double progress = Math.min(1.0,
                     (System.currentTimeMillis() - resizeStartedAt) / (double)RESIZE_DURATION_MS);
             double eased = progress * progress * (3.0 - 2.0 * progress);
+            Coord center = c.add(sz.div(2));
             Coord next = Coord.of(
                     (int)Math.round(resizeFrom.x + (resizeTarget.x - resizeFrom.x) * eased),
                     (int)Math.round(resizeFrom.y + (resizeTarget.y - resizeFrom.y) * eased));
             resize(next);
             tabs.resize(next.sub(UI.scale(20, 50)));
+            c = center.sub(next.div(2));
             if(parent != null) {
                 Coord limit = parent.sz.sub(sz).max(Coord.z);
                 c = Coord.of(Math.max(0, Math.min(c.x, limit.x)),
@@ -91,6 +93,7 @@ public final class FishingSystemWindow extends Window {
 
     public void showJournal() {
         tabs.showtab(journalTab);
+        journal.setTideglassVisible(haven.MoonFlowerHudTheme.active());
         show();
         raise();
         journal.refresh();
@@ -99,6 +102,7 @@ public final class FishingSystemWindow extends Window {
     public void showSpot(FishingMapMarker marker) {
         tabs.showtab(journalTab);
         journal.showSpot(marker);
+        journal.setTideglassVisible(haven.MoonFlowerHudTheme.active());
         show();
         raise();
     }
@@ -124,8 +128,8 @@ public final class FishingSystemWindow extends Window {
         }
 
         void updateState() {
-            String shown = label.equals("Journal") && haven.MoonFlowerHudTheme.active() ? "Navigator" : label;
-            change(tabs.curtab == tab ? "◆  " + shown.toUpperCase() : shown);
+            String shown = label;
+            change(tabs.curtab == tab ? "*  " + shown.toUpperCase() : shown);
         }
 
         @Override

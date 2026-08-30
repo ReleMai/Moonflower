@@ -80,11 +80,17 @@ final class FishingFishCarousel extends Widget {
 
     @Override
     public void draw(GOut g) {
-        MoonFlowerHudTheme.drawPanel(g, Coord.z, sz, 198);
-        g.chcolor(MoonFlowerHudTheme.GOLD);
-        g.line(UI.scale(8, 4), Coord.of(sz.x - UI.scale(8), UI.scale(4)), Math.max(1, UI.scale(1)));
-        g.chcolor();
-        super.draw(g);
+        GOut viewport = g.reclip(Coord.z, sz);
+        MoonFlowerHudTheme.drawPanel(viewport, Coord.z, sz, 198);
+        viewport.chcolor(MoonFlowerHudTheme.GOLD);
+        viewport.line(UI.scale(8, 4), Coord.of(sz.x - UI.scale(8), UI.scale(4)), Math.max(1, UI.scale(1)));
+        viewport.chcolor();
+        super.draw(viewport);
+        /* Explicit edge masks keep animated labels from leaking through transparent chrome. */
+        viewport.chcolor(new java.awt.Color(4, 18, 24, 245));
+        viewport.frect(Coord.z, Coord.of(UI.scale(3), sz.y));
+        viewport.frect(Coord.of(sz.x - UI.scale(3), 0), Coord.of(UI.scale(3), sz.y));
+        viewport.chcolor();
     }
 
     @Override

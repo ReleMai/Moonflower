@@ -30,6 +30,7 @@ final class FishingNavigatorWindow extends Widget {
     private final FishingTacklePane tacklePane;
     private final FishingPresetRail presetRail;
     private final Button allLocations;
+    private final Button refreshButton;
     private final List<FishingObservation> observations = new ArrayList<>();
     private Future<List<FishingObservation>> query;
     private boolean queryDirty = true;
@@ -71,6 +72,9 @@ final class FishingNavigatorWindow extends Widget {
             public void click() { clearSpotFilter(); }
         }, UI.scale(10, 73));
         allLocations.hide();
+        refreshButton = add(new Button(UI.scale(72), "Refresh") {
+            public void click() { refresh(); }
+        }, UI.scale(122, 70));
     }
 
     void bindHelper(FishingBot helper) {
@@ -209,7 +213,7 @@ final class FishingNavigatorWindow extends Widget {
         MoonFlowerHudTheme.drawPanel(g, Coord.z, sz, 228);
         g.image(FishingNavigatorAssets.tideglassMark, UI.scale(8, 3));
         FastText.aprintfstroked(g, UI.scale(78, 18), 0, 0.5, "%s",
-                previewPreset == null ? "FISH NAVIGATOR" : "PRESET OVERVIEW");
+                previewPreset == null ? "FISH GUIDE" : "PRESET OVERVIEW");
         FastText.aprintfstroked(g, UI.scale(78, 40), 0, 0.5,
                 previewPreset == null ? "Navigate learned tides and refine your rig" :
                         "Reviewing " + FishingNavigatorUi.shortText(previewPreset.name, 34) +

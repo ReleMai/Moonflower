@@ -61,6 +61,7 @@ public final class FishingJournalWindow extends Widget {
     private final Label catchesHeading;
     private final Label detailsHeading;
     private final Button allCatches;
+    private final Button refreshButton;
     private final Button bookmarkButton;
     private final Map<View, JournalTabButton> viewButtons = new EnumMap<>(View.class);
     private final FishGroupList groupList;
@@ -87,6 +88,7 @@ public final class FishingJournalWindow extends Widget {
     private final Set<String> bookmarkedFish = new LinkedHashSet<>();
     private final FishingNavigatorWindow navigator;
     private View view = View.FISH;
+    private boolean tideglassVisible;
 
     public FishingJournalWindow(FishingJournalService service, FishingMapMarkers mapMarkers) {
         super(UI.scale(800, 560));
@@ -99,7 +101,7 @@ public final class FishingJournalWindow extends Widget {
         addViewButton(View.SPOTS, 275, 90);
         addViewButton(View.TIMES, 370, 75);
         addViewButton(View.BOOKMARKS, 450, 100);
-        add(new Button(UI.scale(75), "Refresh") {
+        refreshButton = add(new Button(UI.scale(75), "Refresh") {
             @Override
             public void click() {
                 queryDirty = true;
@@ -202,10 +204,7 @@ public final class FishingJournalWindow extends Widget {
         if(!visible())
             return;
         boolean tideglass = MoonFlowerHudTheme.active();
-        if(tideglass)
-            navigator.show();
-        else
-            navigator.hide();
+        setTideglassVisible(tideglass);
         if(tideglass)
             return;
         if(displayedGeneration != service.generation())
@@ -221,6 +220,31 @@ public final class FishingJournalWindow extends Widget {
                     "Loading catches at this map spot...");
         } else if(query == null && markerStatusChanged()) {
             updateStatus();
+        }
+    }
+
+    void setTideglassVisible(boolean enabled) {
+        if(tideglassVisible == enabled)
+            return;
+        tideglassVisible = enabled;
+        navigator.show(enabled);
+        refreshButton.show(!enabled);
+        allCatches.show(!enabled && spotGridId != null);
+        status.show(!enabled);
+        if(enabled) {
+            fishTypesHeading.hide();
+            catchesHeading.hide();
+            groupList.hide();
+            catchList.hide();
+            detailsHeading.hide();
+            details.hide();
+            bookmarkButton.hide();
+            analysisInfo.hide();
+            locationList.hide();
+            locationDetails.hide();
+            mapLinkButton.hide();
+        } else {
+            setView(view);
         }
     }
 

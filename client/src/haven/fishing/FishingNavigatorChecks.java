@@ -14,6 +14,9 @@ public final class FishingNavigatorChecks {
                 "all three transparent Tideglass production assets must load at UI scale");
         check(FishingNavigatorUi.safe("angler ‹ tide — ★").equals("angler ? tide ? ?"),
                 "FastText labels must sanitize glyphs outside its 256-entry atlas");
+        check("Perch".equals(FishingNavigatorModel.fishLabel("Perch, stack of 17")) &&
+                        "Perch".equals(FishingNavigatorModel.fishLabel("A stack of Perch")),
+                "fish navigator must collapse stack-labelled items to one fish type");
         FishingObservation pikeLow = observation(1, 10, 10, "Pike", 20,
                 "Fine Fishline", "Bone Hook", "Rock Lobster", "lure");
         FishingObservation pikeBest = observation(2, 40, 20, "Pike", 44,
@@ -29,6 +32,14 @@ public final class FishingNavigatorChecks {
 
         FishingNavigatorModel.RigSpec rig = new FishingNavigatorModel.RigSpec(
                 "Primitive Casting-Rod", "Fine Fishline", "Chitin Hook", "lure", "Rock Lobster");
+        FishingObservation perchSingle = observation(7, 90, 20, "Perch", 33,
+                "Fine Fishline", "Chitin Hook", "Rock Lobster", "lure");
+        FishingObservation perchStack = observation(8, 91, 20, "Perch, stack of 17", 31,
+                "Fine Fishline", "Chitin Hook", "Rock Lobster", "lure");
+        FishingNavigatorModel.Snapshot stackSnapshot = FishingNavigatorModel.build(
+                List.of(perchSingle, perchStack), "perch", rig);
+        check(stackSnapshot.fish.size() == 1 && stackSnapshot.fish.get(0).catchCount == 2,
+                "stacked and single catches must render as one fish carousel entry");
         FishingNavigatorModel.Snapshot snapshot = FishingNavigatorModel.build(
                 List.of(pikeLow, pikeBest, pikeNearby, aspGlobalBest, unknownMap), "pike", rig);
 

@@ -25,10 +25,10 @@ public final class FishingNavigatorModel {
                 continue;
             if(FishingAnalytics.isCatch(observation) && !observation.fishName.isBlank())
                 fishByKey.computeIfAbsent(fishKey(observation.fishName), ignored ->
-                        new MutableFish(observation.fishName, observation.fishResource)).addCatch(observation);
+                        new MutableFish(fishLabel(observation.fishName), observation.fishResource)).addCatch(observation);
             for(FishingChoice choice : FishingChanceTable.parse(observation.choiceRowsJson))
                 fishByKey.computeIfAbsent(fishKey(choice.fishName), ignored ->
-                        new MutableFish(choice.fishName, resourceFor(observations, choice.fishName)))
+                        new MutableFish(fishLabel(choice.fishName), resourceFor(observations, choice.fishName)))
                         .addOffer(choice.finalPercent, observation.observedAt);
         }
         List<FishSummary> fish = new ArrayList<>();
@@ -96,11 +96,11 @@ public final class FishingNavigatorModel {
                 continue;
             for(FishingChoice choice : FishingChanceTable.parse(observation.choiceRowsJson))
                 results.computeIfAbsent(fishKey(choice.fishName), ignored ->
-                        new MutableRigFish(choice.fishName, resourceFor(observations, choice.fishName)))
+                        new MutableRigFish(fishLabel(choice.fishName), resourceFor(observations, choice.fishName)))
                         .addOffer(choice.finalPercent);
             if(FishingAnalytics.isCatch(observation) && !observation.fishName.isBlank())
                 results.computeIfAbsent(fishKey(observation.fishName), ignored ->
-                        new MutableRigFish(observation.fishName, observation.fishResource)).catches++;
+                        new MutableRigFish(fishLabel(observation.fishName), observation.fishResource)).catches++;
         }
         List<RigFishResult> result = new ArrayList<>();
         for(MutableRigFish value : results.values())
@@ -131,7 +131,22 @@ public final class FishingNavigatorModel {
     }
 
     static String fishKey(String name) {
-        return(name == null ? "" : name.trim().toLowerCase(Locale.ROOT));
+        return(fishLabel(name).toLowerCase(Locale.ROOT));
+    }
+
+    /** Server item labels can describe a fish stack; the guide is a fish-type rail. */
+    static String fishLabel(String name) {
+        String value = name == null ? "" : name.trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+        if(lower.startsWith("a stack of "))
+            value = value.substring("a stack of ".length()).trim();
+        else if(lower.startsWith("stack of "))
+            value = value.substring("stack of ".length()).trim();
+        lower = value.toLowerCase(Locale.ROOT);
+        int marker = lower.indexOf(", stack of");
+        if(marker >= 0)
+            value = value.substring(0, marker).trim();
+        return(value);
     }
 
     private static String clean(String value) {
