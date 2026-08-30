@@ -36,7 +36,17 @@ final class FishingNavigatorUi {
     static String safe(String value) {
         if(value == null)
             return("");
-        return(value.replace('\n', ' ').replace('\r', ' '));
+        StringBuilder result = new StringBuilder(value.length());
+        for(int index = 0; index < value.length(); index++) {
+            char ch = value.charAt(index);
+            if(ch == '\n' || ch == '\r')
+                result.append(' ');
+            else if(ch >= 32 && ch < 256)
+                result.append(ch);
+            else
+                result.append('?');
+        }
+        return(result.toString());
     }
 
     static String waterLabel(String resource) {

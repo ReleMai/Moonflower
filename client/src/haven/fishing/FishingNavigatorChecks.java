@@ -12,6 +12,8 @@ public final class FishingNavigatorChecks {
     public static void main(String[] args) {
         check(FishingNavigatorAssets.complete(),
                 "all three transparent Tideglass production assets must load at UI scale");
+        check(FishingNavigatorUi.safe("angler ‹ tide — ★").equals("angler ? tide ? ?"),
+                "FastText labels must sanitize glyphs outside its 256-entry atlas");
         FishingObservation pikeLow = observation(1, 10, 10, "Pike", 20,
                 "Fine Fishline", "Bone Hook", "Rock Lobster", "lure");
         FishingObservation pikeBest = observation(2, 40, 20, "Pike", 44,

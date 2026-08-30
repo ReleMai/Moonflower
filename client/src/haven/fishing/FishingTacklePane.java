@@ -135,7 +135,7 @@ final class FishingTacklePane extends Widget {
                 FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(48)), 0.5, 0.5, "%s",
                         FishingNavigatorUi.shortText(stage.value(current).isBlank() ?
                                 "Unavailable" : stage.value(current), 18));
-                FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(64)), 0.5, 0.5, "‹   ›");
+                FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(64)), 0.5, 0.5, "<   >");
             }
 
             @Override
@@ -214,7 +214,7 @@ final class FishingTacklePane extends Widget {
                         "Choose one reachable pole, line, hook, and lure or bait.");
             } else if(results.isEmpty()) {
                 FastText.aprintfstroked(g, UI.scale(9, 49), 0, 0.5,
-                        "No observations for this rig — unknown, not zero.");
+                        "No observations for this rig - unknown, not zero.");
             } else {
                 int shown = Math.min(6, results.size());
                 int cell = (sz.x - UI.scale(14)) / shown;
