@@ -44,6 +44,14 @@ final class FishingTacklePane extends Widget {
         evidence.setResults(results, complete, presetPreview);
     }
 
+    @Override
+    public void draw(GOut g) {
+        /* The list renders one virtual row beyond its viewport for smooth scrolling.
+         * An opaque section surface prevents that row from bleeding into the rig controls. */
+        MoonFlowerHudTheme.drawPanel(g, Coord.z, sz, 224);
+        super.draw(g);
+    }
+
     private final class TackleTimeline extends Widget {
         private FishingTackleCatalog current = emptyCatalog();
         private final TackleStage[] stages = new TackleStage[4];

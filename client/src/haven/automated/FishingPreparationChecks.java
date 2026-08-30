@@ -60,6 +60,10 @@ public final class FishingPreparationChecks {
         check(!state.compatible(List.of("Fine Fishline"), List.of("Bone Hook"),
                         List.of("Rock Lobster"), FishingPoleInspector.Kind.LURE),
                 "bait and lure presets must not cross-match the wrong pole mode");
+        check(FishingBot.retainChoiceSelection(true, true),
+                "an open choice window must remain protected from duplicate selection");
+        check(!FishingBot.retainChoiceSelection(true, false),
+                "closing a selected choice window must re-arm autonomous selection for the next fish");
 
         System.out.println("Fishing preparation checks passed.");
     }

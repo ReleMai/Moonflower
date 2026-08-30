@@ -380,7 +380,9 @@ public class FishingBot extends Widget implements Runnable {
         }
 
         if(state == State.FISHING) {
-            if(!choiceSelected)
+            boolean choiceWindowPresent = FishingChoiceWindow.present(gui, this, journalWindow);
+            choiceSelected = retainChoiceSelection(choiceSelected, choiceWindowPresent);
+            if(choiceWindowPresent && !choiceSelected)
                 selectBestFishingChoice();
             if(now - attemptStartedAt > ATTEMPT_TIMEOUT_MS) {
                 timeoutCount++;
@@ -393,7 +395,7 @@ public class FishingBot extends Widget implements Runnable {
                 return;
             }
             if(!fishingPose && now - attemptStartedAt > 5000 && now - lastFishingPoseAt > 3500 &&
-                    !FishingChoiceWindow.present(gui, this, journalWindow)) {
+                    !choiceWindowPresent) {
                 clearAttempt();
                 state = State.PREPARING;
                 setStatus("Fishing ended; checking for consumed or lost tackle.");
@@ -534,6 +536,10 @@ public class FishingBot extends Widget implements Runnable {
             setStatus("Aiming for " + selection.choice.fishName + " at " +
                     selection.choice.finalPercent + "%. Choice and rig recorded." + targetNote);
         });
+    }
+
+    static boolean retainChoiceSelection(boolean choiceSelected, boolean choiceWindowPresent) {
+        return(choiceSelected && choiceWindowPresent);
     }
 
     private boolean refreshKnowledge() {

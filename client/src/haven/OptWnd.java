@@ -501,7 +501,6 @@ public class OptWnd extends Window {
 			public void changed() { // ND: I hate hardcoding stuff but OH WELL
 				if (GameUI.cabinThemeClip != null) ((Audio.VolAdjust) GameUI.cabinThemeClip).vol = val/100d;
 				if (GameUI.caveThemeClip != null) ((Audio.VolAdjust) GameUI.caveThemeClip).vol = val/100d;
-				if (GameUI.fishingThemeClip != null) ((Audio.VolAdjust) GameUI.fishingThemeClip).vol = val/100d;
 				if (GameUI.hookahThemeClip != null) ((Audio.VolAdjust) GameUI.hookahThemeClip).vol = val/100d;
 				if (GameUI.feastingThemeClip != null) ((Audio.VolAdjust) GameUI.feastingThemeClip).vol = val/100d;
 				Utils.setprefi("customClientMusicVolume", val);

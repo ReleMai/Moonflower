@@ -54,7 +54,7 @@ final class FishingNavigatorWindow extends Widget {
         this.mapMarkers = mapMarkers;
         presetStore = new FishingPresetStore(service.worldId());
         fishCarousel = add(new FishingFishCarousel(UI.scale(575, 70), this::selectFish), UI.scale(215, 4));
-        locationPane = add(new FishingLocationPane(UI.scale(590, 238), this::showOnMap), UI.scale(10, 102));
+        locationPane = add(new FishingLocationPane(UI.scale(590, 230), this::showOnMap), UI.scale(10, 110));
         tacklePane = add(new FishingTacklePane(UI.scale(590, 200), new FishingTacklePane.Listener() {
             public void catalogChanged() { clearPresetPreviewAndRefresh(); }
             public void notifyUser(String message) { FishingNavigatorWindow.this.notifyUser(message); }
@@ -67,14 +67,14 @@ final class FishingNavigatorWindow extends Widget {
                         previewPreset = preset;
                         rebuildSnapshot();
                     }
-                }), UI.scale(610, 102));
+                }), UI.scale(610, 110));
         allLocations = add(new Button(UI.scale(104), "All records") {
             public void click() { clearSpotFilter(); }
-        }, UI.scale(10, 73));
+        }, UI.scale(10, 75));
         allLocations.hide();
         refreshButton = add(new Button(UI.scale(72), "Refresh") {
             public void click() { refresh(); }
-        }, UI.scale(122, 70));
+        }, UI.scale(122, 72));
     }
 
     void bindHelper(FishingBot helper) {
@@ -218,19 +218,18 @@ final class FishingNavigatorWindow extends Widget {
         FastText.aprintfstroked(g, UI.scale(78, 18), 0, 0.5, "%s",
                 previewPreset == null ? "FISH GUIDE" : "PRESET OVERVIEW");
         FastText.aprintfstroked(g, UI.scale(78, 40), 0, 0.5,
-                previewPreset == null ? "Navigate learned tides and refine your rig" :
-                        "Reviewing " + FishingNavigatorUi.shortText(previewPreset.name, 34) +
-                                " · no items moved");
+                previewPreset == null ? "Fish, spots & rigs" :
+                        "Preview: " + FishingNavigatorUi.shortText(previewPreset.name, 13));
         g.chcolor(MUTED);
         g.line(UI.scale(76, 56), UI.scale(205, 56), Math.max(1, UI.scale(1)));
         g.chcolor();
-        FastText.aprintfstroked(g, UI.scale(120, 86), 0, 0.5, "%s",
-                FishingNavigatorUi.shortText(status, 88));
-        FastText.aprintfstroked(g, UI.scale(10, 96), 0, 1, "%s LOCATIONS",
+        FastText.aprintfstroked(g, UI.scale(210, 86), 0, 0.5, "%s",
+                FishingNavigatorUi.shortText(status, 70));
+        FastText.aprintfstroked(g, UI.scale(10, 104), 0, 1, "%s LOCATIONS",
                 snapshot.selectedFish == null ? "FISH" :
                         FishingNavigatorUi.safe(snapshot.selectedFish.name.toUpperCase(Locale.ROOT)));
-        FastText.aprintfstroked(g, UI.scale(310, 96), 0, 1, "LOCATION PREVIEW · LEARNED");
-        FastText.aprintfstroked(g, UI.scale(610, 96), 0, 1, "PRESET CRESTS");
+        FastText.aprintfstroked(g, UI.scale(310, 104), 0, 1, "LOCATION PREVIEW · LEARNED");
+        FastText.aprintfstroked(g, UI.scale(610, 104), 0, 1, "PRESET CRESTS");
         super.draw(g);
     }
 

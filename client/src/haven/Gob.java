@@ -1380,18 +1380,11 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 				archeryRadius = null;
 			}
 			if (isMe != null && isMe) {
-				if (poses.contains("fishidle") || poses.contains("napp1")) {
-					GameUI.playingPoseSong = true;
-					GameUI.backgroundPoseSong = "fishing";
-					GameUI.delayedMusicStopTime = System.currentTimeMillis();
-				} else if (poses.contains("hookah-sittan") || poses.contains("hookah-puffin")) {
+				if (poses.contains("hookah-sittan") || poses.contains("hookah-puffin")) {
 					GameUI.playingPoseSong = true;
 					GameUI.backgroundPoseSong = "hookah";
 				} else {
-					if (GameUI.backgroundPoseSong.equals("fishing"))
-						GameUI.delayedMusicStopTime = System.currentTimeMillis();
-					else
-						GameUI.backgroundPoseSong = "";
+					GameUI.backgroundPoseSong = "";
 				}
 			}
 		}

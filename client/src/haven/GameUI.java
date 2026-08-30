@@ -149,7 +149,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public static long leaderTargetPing = -1;
 	public MiniStudy miniStudy;
 	public static String backgroundSong = "";
-	public static long delayedMusicStopTime;
 	static public final Resource caveTheme = Resource.local().loadwait("customclient/sfx/cavetheme");
 	static public final Resource caveThemeLegacy = Resource.local().loadwait("customclient/sfx/cavetheme_legacy");
 	static public Audio.CS caveThemeClip = null;
@@ -158,9 +157,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	static public Audio.CS cabinThemeClip = null;
 	public static boolean playingPoseSong = false;
 	public static String backgroundPoseSong = "";
-	static public final Resource fishingTheme = Resource.local().loadwait("customclient/sfx/fishingtheme");
-	static public final Resource fishingThemeLegacy = Resource.local().loadwait("customclient/sfx/fishingtheme_legacy");
-	static public Audio.CS fishingThemeClip = null;
 	static public final Resource hookahTheme = Resource.local().loadwait("customclient/sfx/hookahtheme");
 	static public final Resource hookahThemeLegacy = Resource.local().loadwait("customclient/sfx/hookahtheme_legacy");
 	static public Audio.CS hookahThemeClip = null;
@@ -3972,21 +3968,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		}
 	}
 
-	public static void playFishingTheme(UI ui) {
-		if (fishingThemeClip == null || !ui.globalSfxIsPlaying(fishingThemeClip)) {
-			Audio.CS klippi = fromres(fishingTheme);
-			if (Utils.getprefi("backgroundMusicTheme", 0) == 0) klippi = fromres(fishingTheme);
-			else if (Utils.getprefi("backgroundMusicTheme", 0) == 1) klippi = fromres(fishingThemeLegacy);
-			fishingThemeClip = new Audio.VolAdjust(klippi, Utils.getprefi("customClientMusicVolume", 40)/100d);
-            ui.globalSfxPlay(fishingThemeClip);
-		}
-	}
-	public static void stopFishingTheme(UI ui) {
-		if(fishingThemeClip != null){
-            ui.globalSfxStop(fishingThemeClip);
-		}
-	}
-
 	public static void playHookahTheme(UI ui) {
 		if (hookahThemeClip == null || !ui.globalSfxIsPlaying(hookahThemeClip)) {
 			Audio.CS klippi = fromres(hookahTheme);
@@ -4022,7 +4003,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		backgroundPoseSong = "";
 		stopCabinTheme(ui);
 		stopCaveTheme(ui);
-		stopFishingTheme(ui);
 		stopHookahTheme(ui);
 		stopFeastingTheme(ui);
 	}
@@ -4030,7 +4010,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public static void settingStopAllThemes(UI ui){
 		stopCabinTheme(ui);
 		stopCaveTheme(ui);
-		stopFishingTheme(ui);
 		stopHookahTheme(ui);
 		stopFeastingTheme(ui);
 	}
@@ -4052,7 +4031,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			playingPoseSong = true;
 		}
 		if (!playingPoseSong) {
-			stopFishingTheme(ui);
 			stopHookahTheme(ui);
 			stopFeastingTheme(ui);
 			if (backgroundSong.equals("cabin")) {
@@ -4068,26 +4046,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		} else {
 			stopCaveTheme(ui);
 			stopCabinTheme(ui);
-			if (backgroundPoseSong.equals("fishing")){
-				playFishingTheme(ui);
-				stopHookahTheme(ui);
-				stopFeastingTheme(ui);
-				long rightnow = System.currentTimeMillis();
-				if ((rightnow - GameUI.delayedMusicStopTime) > 15000){ // ND: 20 seconds ought to be enough?
-					GameUI.playingPoseSong = false;
-					backgroundPoseSong = "";
-				}
-			} else if (backgroundPoseSong.equals("hookah")){
+			if (backgroundPoseSong.equals("hookah")){
 				playHookahTheme(ui);
-				stopFishingTheme(ui);
 				stopFeastingTheme(ui);
 			} else if (feasting) {
 				playFeastingTheme(ui);
-				stopFishingTheme(ui);
 				stopHookahTheme(ui);
 			} else {
 				GameUI.playingPoseSong = false;
-				stopFishingTheme(ui);
 				stopHookahTheme(ui);
 				stopFeastingTheme(ui);
 			}

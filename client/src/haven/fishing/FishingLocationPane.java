@@ -28,8 +28,11 @@ final class FishingLocationPane extends Widget {
     FishingLocationPane(Coord size, Function<FishingNavigatorModel.SpotSummary, Boolean> mapAction) {
         super(size);
         this.mapAction = mapAction;
-        spotList = add(new SpotList(UI.scale(290, 238)), Coord.z);
-        preview = add(new LocationPreview(UI.scale(290, 238)), UI.scale(300, 0));
+        int gap = UI.scale(10);
+        int columnWidth = (size.x - gap) / 2;
+        spotList = add(new SpotList(Coord.of(columnWidth, size.y)), Coord.z);
+        preview = add(new LocationPreview(Coord.of(size.x - gap - columnWidth, size.y)),
+                Coord.of(columnWidth + gap, 0));
     }
 
     void setSpots(List<FishingNavigatorModel.SpotSummary> values) {
@@ -171,9 +174,9 @@ final class FishingLocationPane extends Widget {
             } else {
                 FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(87)), 0.5, 0.5,
                         "%d%%", spot.bestChance);
-                FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(174)), 0.5, 0.5,
+                FastText.aprintfstroked(g, Coord.of(sz.x / 2, sz.y - UI.scale(64)), 0.5, 0.5,
                         "Grid %d · tile %d,%d", spot.gridId, spot.tileX, spot.tileY);
-                FastText.aprintfstroked(g, Coord.of(sz.x / 2, UI.scale(191)), 0.5, 0.5,
+                FastText.aprintfstroked(g, Coord.of(sz.x / 2, sz.y - UI.scale(47)), 0.5, 0.5,
                         "%s · %s", FishingNavigatorUi.waterLabel(spot.waterResource),
                         CLOCK.format(Instant.ofEpochMilli(spot.latestObservedAt)));
             }
