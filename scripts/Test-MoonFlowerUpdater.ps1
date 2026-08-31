@@ -107,6 +107,11 @@ try {
     if ($feedTwo.schemaVersion -ne 2 -or [string]$feedTwo.previous.commit -ne $commitOne) {
         throw 'Schema 2 feed did not preserve the previous verified build.'
     }
+    $feedTwoRaw = Get-Content -LiteralPath $feedTwoPath -Raw
+    $isoTimestamps = [regex]::Matches($feedTwoRaw, '"publishedAt"\s*:\s*"\d{4}-\d{2}-\d{2}T[^" ]+(?:Z|[+-]\d{2}:\d{2})"')
+    if ($isoTimestamps.Count -ne 2) {
+        throw 'Schema 2 feed timestamps are not normalized ISO-8601 values.'
+    }
     $feedTwo.package.url = $archiveTwoPath
     $feedTwo.previous.package.url = $archiveOnePath
     Write-Feed $feedTwo $feedTwoPath

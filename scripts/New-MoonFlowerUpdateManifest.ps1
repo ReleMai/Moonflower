@@ -33,19 +33,21 @@ $manifest = [ordered]@{
 
 if (-not [string]::IsNullOrWhiteSpace($PreviousFeedPath)) {
     $previous = Get-Content -LiteralPath $PreviousFeedPath -Raw | ConvertFrom-Json
+    $previousPublishedAt = [DateTimeOffset]::MinValue
     if ($previous.schemaVersion -notin @(1, 2) -or
         [string]$previous.channel -ne $Channel -or
         [string]$previous.repository -ne $Repository -or
         [string]$previous.commit -notmatch '^[0-9a-f]{40}$' -or
         [string]$previous.package.url -notmatch '^https://github\.com/' -or
         [string]$previous.package.sha256 -notmatch '^[0-9a-f]{64}$' -or
-        [int64]$previous.package.size -lt 1) {
+        [int64]$previous.package.size -lt 1 -or
+        -not [DateTimeOffset]::TryParse([string]$previous.publishedAt, [ref]$previousPublishedAt)) {
         throw 'The previous update feed is invalid or incompatible.'
     }
     if ([string]$previous.commit -ne $manifest.commit) {
         $manifest['previous'] = [ordered]@{
             commit = [string]$previous.commit
-            publishedAt = [string]$previous.publishedAt
+            publishedAt = $previousPublishedAt.ToUniversalTime().ToString('o')
             package = [ordered]@{
                 url = [string]$previous.package.url
                 size = [int64]$previous.package.size
