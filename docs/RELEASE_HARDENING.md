@@ -92,8 +92,10 @@ build at `897256b1877429a5c2a862b9d6fe66a36199fd72`.
 - Protected `main` advanced to that validated SHA. Main secret-scan run
   `33359312034` and rolling-publication run `33359312109` both passed, with
   zero open GitHub secret-scanning alerts.
-- The schema 2 stable feed identifies the current commit-addressed package and
-  its immediate predecessor with normalized ISO-8601 timestamps. Both feed
+- The backward-compatible schema 1 feed extension identifies the current
+  commit-addressed package and its immediate predecessor with normalized
+  ISO-8601 timestamps. Older launchers ignore the optional `previous` field
+  while current launchers validate it for rollback. Both feed
   sizes and SHA-256 values exactly match GitHub's release-asset metadata.
 - The final ZIP is `182759267` bytes with SHA-256
   `8e3be91bdf8a697d5b04dfcafe65e0b6bd1e3f41f70dfae6466b68c6c6520047`.

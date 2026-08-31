@@ -12,6 +12,7 @@ $archiveTwoPath = Join-Path $testRoot 'moonflower-two.zip'
 $publishedFeedOnePath = Join-Path $testRoot 'published-one.json'
 $feedOnePath = Join-Path $testRoot 'feed-one.json'
 $feedTwoPath = Join-Path $testRoot 'feed-two.json'
+$schemaTwoFeedPath = Join-Path $testRoot 'schema-two-feed.json'
 $legacyFeedPath = Join-Path $testRoot 'legacy-feed.json'
 $corruptFeedPath = Join-Path $testRoot 'corrupt-feed.json'
 $commitOne = '0123456789abcdef0123456789abcdef01234567'
@@ -78,8 +79,8 @@ try {
         -Repository 'ReleMai/Moonflower'
 
     $publishedOne = Read-Feed $publishedFeedOnePath
-    if ($publishedOne.schemaVersion -ne 2 -or $null -ne $publishedOne.previous) {
-        throw 'A first schema 2 feed must not invent a previous build.'
+    if ($publishedOne.schemaVersion -ne 1 -or $null -ne $publishedOne.previous) {
+        throw 'A first backward-compatible feed must not invent a previous build.'
     }
 
     $localOne = Read-Feed $publishedFeedOnePath
@@ -104,13 +105,13 @@ try {
         -PreviousFeedPath $publishedFeedOnePath
 
     $feedTwo = Read-Feed $feedTwoPath
-    if ($feedTwo.schemaVersion -ne 2 -or [string]$feedTwo.previous.commit -ne $commitOne) {
-        throw 'Schema 2 feed did not preserve the previous verified build.'
+    if ($feedTwo.schemaVersion -ne 1 -or [string]$feedTwo.previous.commit -ne $commitOne) {
+        throw 'The schema 1 extension did not preserve the previous verified build.'
     }
     $feedTwoRaw = Get-Content -LiteralPath $feedTwoPath -Raw
     $isoTimestamps = [regex]::Matches($feedTwoRaw, '"publishedAt"\s*:\s*"\d{4}-\d{2}-\d{2}T[^" ]+(?:Z|[+-]\d{2}:\d{2})"')
     if ($isoTimestamps.Count -ne 2) {
-        throw 'Schema 2 feed timestamps are not normalized ISO-8601 values.'
+        throw 'Extended feed timestamps are not normalized ISO-8601 values.'
     }
     $feedTwo.package.url = $archiveTwoPath
     $feedTwo.previous.package.url = $archiveOnePath
@@ -118,8 +119,13 @@ try {
 
     Invoke-UpdaterCheck -FeedPath $feedTwoPath
     if ((Read-StateCommit) -ne $commitTwo) {
-        throw 'Stable schema 2 install did not activate the new build.'
+        throw 'Stable extended-feed install did not activate the new build.'
     }
+
+    $schemaTwo = Read-Feed $feedTwoPath
+    $schemaTwo.schemaVersion = 2
+    Write-Feed $schemaTwo $schemaTwoFeedPath
+    Invoke-UpdaterCheck -FeedPath $schemaTwoFeedPath -CheckOnly
 
     Invoke-UpdaterCheck -FeedPath $feedTwoPath -Rollback -CheckOnly
     Invoke-UpdaterCheck -FeedPath $feedTwoPath -Rollback

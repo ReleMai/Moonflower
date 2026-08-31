@@ -19,7 +19,9 @@ if ($outputParent) {
 }
 
 $manifest = [ordered]@{
-    schemaVersion = 2
+    # Keep schema 1 for installed launchers that predate rollback metadata.
+    # JSON consumers ignore the optional previous field they do not understand.
+    schemaVersion = 1
     channel = $Channel
     repository = $Repository
     commit = $Commit.ToLowerInvariant()

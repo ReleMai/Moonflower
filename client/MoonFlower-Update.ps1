@@ -91,9 +91,6 @@ function Assert-UpdateFeed {
     Assert-PackageDescriptor $Feed.package 'stable'
 
     if ($null -ne $Feed.previous) {
-        if ($Feed.schemaVersion -ne 2) {
-            throw 'Only schema 2 feeds may declare a previous build.'
-        }
         if ([string]$Feed.previous.commit -notmatch '^[0-9a-f]{40}$' -or
             [string]$Feed.previous.commit -eq [string]$Feed.commit) {
             throw 'The update feed has an invalid previous commit identifier.'
@@ -128,7 +125,7 @@ function Assert-PackageDescriptor {
 function Get-RollbackFeed {
     param($Feed)
 
-    if ($Feed.schemaVersion -ne 2 -or $null -eq $Feed.previous) {
+    if ($null -eq $Feed.previous) {
         throw 'The stable feed does not provide a previous verified build.'
     }
     return [pscustomobject][ordered]@{

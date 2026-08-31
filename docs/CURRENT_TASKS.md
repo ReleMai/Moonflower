@@ -17,8 +17,9 @@ Acceptance criteria:
    `moonflower-latest`, Steam, or local caches.
 4. `Play.bat -Rollback` verifies and runs the previous build from cache or its
    immutable GitHub asset without changing ordinary automatic startup.
-5. Deterministic tests cover schema 1 compatibility, schema 2 previous-build
-   metadata, cached rollback, downloaded rollback, and failed verification.
+5. Deterministic tests cover legacy schema 1 compatibility, optional
+   previous-build metadata, cached rollback, downloaded rollback, and failed
+   verification.
 6. Required feature checks, the protected production push, rolling release,
    remote immutable asset, stable feed, and launcher check all pass.
 

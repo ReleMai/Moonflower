@@ -55,6 +55,12 @@ otherwise it downloads that immutable package and applies the same size, hash,
 safe-extraction, and required-file checks as a normal update. Rollback affects
 that launch selection only—an ordinary later launch follows stable again.
 
+The feed deliberately remains `schemaVersion: 1` and adds `previous` as an
+optional extension. Launchers installed before rollback support ignore that
+unknown JSON field and continue updating normally; current launchers validate
+and use it for `-Rollback`. Schema 2 remains accepted by the current updater so
+the short-lived initial schema 2 feed does not invalidate cached test data.
+
 Setting `MOONFLOWER_UPDATE_DISABLED=1` also skips the network check.
 
 ## Steam And Workshop Builds
