@@ -70,7 +70,7 @@ public final class InventoryQolChecks {
 				"inventory-actions title control stays visible beside Close on narrow inventories");
 		check(decoration.inventorycontrolbtn.c.y >= 0,
 				"inventory-tools control stays inside the title frame");
-		check(decoration.inventorycontrolbtn.sz.equals(UI.scale(34, 18)) &&
+		check(decoration.inventorycontrolbtn.sz.equals(UI.scale(76, 14)) &&
 				decoration.inventorycontrolbtn.c.y + decoration.inventorycontrolbtn.sz.y <= UI.scale(30),
 				"engraved inventory-tools tab scales inside the title rail");
 		checkLayout(InventoryControlPanel.layout(false));
@@ -88,8 +88,8 @@ public final class InventoryQolChecks {
 					action.br.y <= layout.panelSize.y,
 					"inventory-tools action remains inside the slide-out panel");
 		}
-		check(layout.panelSize.x <= UI.scale(224) && layout.panelSize.y <= UI.scale(270),
-				"inventory-tools panel respects its maximum scaled footprint");
+		check(layout.panelSize.equals(UI.scale(260, 320)),
+				"inventory-tools panel matches the generated frame footprint");
 	}
 
     private static void check(boolean condition, String message) {

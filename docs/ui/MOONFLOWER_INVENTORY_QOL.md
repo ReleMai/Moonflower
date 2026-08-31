@@ -33,18 +33,22 @@ panel instead of disappearing or changing their server messages.
 
 ## Visual System
 
-The attached panel reuses `MoonFlowerHudTheme.drawPanel`, leaf buttons, ink,
-teal, gold, ivory, ruby, and blossom geometry. The title rail paints one
-low-profile engraved Inventory Tools tab into the frame beside Close. The drawer
-shares a directional living-vine hinge with that tab, eliminating floating art.
+The attached panel uses project-local generated artwork derived from the
+MoonFlower portrait dock: blackened carved metal, dark wood, navy enamel,
+restrained antique gold, teal leaves, and ivory moonflowers. A transparent
+portrait drawer frame surrounds live labels and controls; a matching generated
+handle is integrated into the Inventory title rail beside Close. No text or
+state is baked into either bitmap. The drawer shares a directional living-vine
+hinge with that handle, eliminating floating art.
 
 ## Layout
 
 Anchor or default position: Attached to the Inventory window's right edge;
 falls back to its left edge when the screen has insufficient room.
 
-Minimum and preferred size: Up to 224 by 270 scaled pixels, using two equal columns
-for paired actions and full-width rows for Extended View and Stop.
+Minimum and preferred size: Fixed 260 by 320 scaled pixels so the controls stay
+inside the generated frame's carved opening, using two equal columns for paired
+actions and full-width rows for Extended View and Stop.
 
 Behavior at 1280x720: Clamp to the GameUI bounds and choose the side with room.
 
@@ -83,20 +87,23 @@ acknowledgement, action timeout, or detached inventory.
 
 ## Motion And Accessibility
 
-Motion used: Smoothstep easing combines a short positional slide with a clipped
-horizontal reveal. A gold-and-teal vine hinge grows from the attached edge and
-blooms as the panel reaches its open position.
+Motion used: Smoothstep easing plus a restrained lead-in combines a 240 ms
+positional slide with a clipped horizontal reveal. A gold-and-teal vine hinge
+grows from the attached edge and blooms as the panel reaches its open position.
 
 Reduced-motion behavior: With reduced HUD motion enabled, the panel and hinge
 snap directly to their final position.
 
 Non-color state cue: Controls and status text name Idle, Running, Stopping, and
 completion states. Slot locking changes its label between `Lock slots` and
-`Locking (R-click)`; color is supplementary.
+`Locking`; color is supplementary.
 
 ## Code Boundaries
 
 Presentation file: `client/src/haven/inventoryqol/InventoryControlPanel.java`
+
+Generated artwork: `client/src/haven/hud/moonflower-inventory-tools-frame-v1-alpha.png`
+and `client/src/haven/hud/moonflower-inventory-tools-tab-v1-alpha.png`.
 
 Immutable state/snapshot file: Bulk action definitions in
 `InventoryBulkActionController`.

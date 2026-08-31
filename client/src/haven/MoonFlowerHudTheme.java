@@ -75,30 +75,31 @@ public final class MoonFlowerHudTheme {
                                             boolean active, boolean hover, boolean pressed) {
         if(size.x <= 2 || size.y <= 2)
             return;
-        int cut = Math.min(UI.scale(4), size.y / 3);
-        Color surface = pressed ? new Color(16, 70, 76, 245) :
-                (active ? new Color(13, 54, 60, 242) : INK_DEEP);
-        g.chcolor(surface);
-        g.frect(origin.add(cut, 0), Coord.of(size.x - cut * 2, size.y));
-        g.frect(origin.add(0, cut), Coord.of(size.x, size.y - cut * 2));
-        g.chcolor(hover || active ? GOLD : GOLD_SOFT);
-        g.line(origin.add(cut, 0), origin.add(size.x - cut - 1, 0), Math.max(1, UI.scale(1)));
-        g.line(origin.add(0, cut), origin.add(0, size.y - cut - 1), Math.max(1, UI.scale(1)));
-        g.line(origin.add(size.x - 1, cut), origin.add(size.x - 1, size.y - cut - 1),
-                Math.max(1, UI.scale(1)));
-        g.line(origin.add(cut, size.y - 1), origin.add(size.x - cut - 1, size.y - 1),
-                Math.max(1, UI.scale(1)));
-        Coord from = origin.add(UI.scale(5), size.y / 2);
-        Coord to = origin.add(size.x - UI.scale(5), size.y / 2);
-        drawCurvedVine(g, from, to, 1.0);
-        drawBlossom(g, origin.add(size.div(2)), Math.max(UI.scale(2), size.y / 5));
-        if(active) {
-            g.chcolor(IVORY);
-            g.line(origin.add(cut + UI.scale(2), size.y - UI.scale(2)),
-                    origin.add(size.x - cut - UI.scale(2), size.y - UI.scale(2)),
-                    Math.max(1, UI.scale(1)));
+        g.chcolor(255, 255, 255, pressed ? 215 : 255);
+        g.image(MoonFlowerUiAssets.inventoryToolsTab, origin, size);
+        if(hover || active) {
+            int inset = UI.scale(9);
+            g.chcolor(active ? IVORY : GOLD);
+            g.line(origin.add(inset, size.y - UI.scale(2)),
+                    origin.add(size.x - inset, size.y - UI.scale(2)), Math.max(1, UI.scale(1)));
         }
         g.chcolor();
+    }
+
+    /** Generated portrait-matched frame with live content painted beneath it. */
+    public static void drawInventoryToolsDrawer(GOut g, Coord size) {
+        if(size.x <= 0 || size.y <= 0)
+            return;
+        /* These insets follow the transparent frame's actual carved opening. */
+        int side = UI.scale(57);
+        int top = UI.scale(68);
+        int bottom = UI.scale(50);
+        Coord bodyOrigin = Coord.of(side, top);
+        Coord bodySize = Coord.of(Math.max(1, size.x - side * 2), Math.max(1, size.y - top - bottom));
+        g.chcolor(255, 255, 255, 238);
+        g.image(MoonFlowerUiAssets.panelTexture, bodyOrigin, bodySize);
+        g.chcolor();
+        g.image(MoonFlowerUiAssets.inventoryToolsFrame, Coord.z, size);
     }
 
     /** Directional living hinge connecting the inventory frame to its tools drawer. */
