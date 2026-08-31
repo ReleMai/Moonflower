@@ -57,14 +57,14 @@ public final class InventoryQolChecks {
                         (86_400L + 2L * 3_600L + 3L * 60L + 4L) * 1000L)),
                 "countdown formatting is stable");
 
-		Window inventoryWindow = new Window(Coord.of(100, 100), "Inventory");
+		Window inventoryWindow = new Window(UI.scale(100, 100), "Inventory");
 		inventoryWindow.add(new Inventory(Coord.of(4, 4)), Coord.z);
 		Window.DefaultDeco decoration = inventoryWindow.getchild(Window.DefaultDeco.class);
 		check(decoration != null && decoration.inventorycontrolbtn != null,
 				"inventory attachment creates the inventory-actions title control");
 		check(decoration.inventorycontrolbtn.visible,
 				"inventory-actions title control is visible on inventory windows");
-		inventoryWindow.resize(Coord.of(100, 100));
+		inventoryWindow.resize(UI.scale(100, 100));
 		check(decoration.inventorycontrolbtn.c.x >= 0 &&
 				decoration.inventorycontrolbtn.c.x < decoration.cbtn.c.x,
 				"inventory-actions title control stays visible beside Close on narrow inventories");
@@ -88,8 +88,14 @@ public final class InventoryQolChecks {
 					action.br.y <= layout.panelSize.y,
 					"inventory-tools action remains inside the slide-out panel");
 		}
-		check(layout.panelSize.equals(UI.scale(260, 320)),
-				"inventory-tools panel matches the generated frame footprint");
+		check(layout.panelSize.equals(UI.scale(220, 198)),
+				"inventory-tools wing keeps a compact shared-frame footprint");
+		Coord right = InventoryControlPanel.dockPosition(Coord.of(100, 100), UI.scale(200, 180),
+				layout.panelSize, UI.scale(1280, 720), true, 1.0);
+		check(right.x == 100 + UI.scale(200) - UI.scale(18),
+				"open inventory-tools wing overlaps the inventory frame at its right seam");
+		check(right.y == 100 + ((UI.scale(180) - layout.panelSize.y) / 2),
+				"inventory-tools wing remains vertically centered on the inventory");
 	}
 
     private static void check(boolean condition, String message) {

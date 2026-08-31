@@ -86,20 +86,13 @@ public final class MoonFlowerHudTheme {
         g.chcolor();
     }
 
-    /** Generated portrait-matched frame with live content painted beneath it. */
-    public static void drawInventoryToolsDrawer(GOut g, Coord size) {
+    /** Compact inventory wing using the same generated frame as its host window. */
+    public static void drawInventoryToolsDock(GOut g, Coord size, boolean attachedLeft, double reveal) {
         if(size.x <= 0 || size.y <= 0)
             return;
-        /* These insets follow the transparent frame's actual carved opening. */
-        int side = UI.scale(57);
-        int top = UI.scale(68);
-        int bottom = UI.scale(50);
-        Coord bodyOrigin = Coord.of(side, top);
-        Coord bodySize = Coord.of(Math.max(1, size.x - side * 2), Math.max(1, size.y - top - bottom));
-        g.chcolor(255, 255, 255, 238);
-        g.image(MoonFlowerUiAssets.panelTexture, bodyOrigin, bodySize);
-        g.chcolor();
-        g.image(MoonFlowerUiAssets.inventoryToolsFrame, Coord.z, size);
+        drawWindowBackground(g, Coord.z, size, 244);
+        drawWindowFrame(g, Coord.z, size);
+        drawInventoryPanelHinge(g, size, attachedLeft, reveal);
     }
 
     /** Directional living hinge connecting the inventory frame to its tools drawer. */

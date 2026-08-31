@@ -20,9 +20,9 @@ import java.util.function.BooleanSupplier;
 
 /** Attached slide-out home for every inventory utility and bulk action. */
 public final class InventoryControlPanel extends Widget {
-    private static final int ATTACH_OVERLAP = UI.scale(10);
-    private static final int SLIDE_TRAVEL = UI.scale(28);
-    private static final int ANIM_MS = 240;
+    private static final int ATTACH_OVERLAP = UI.scale(18);
+    private static final int SLIDE_TRAVEL = UI.scale(34);
+    private static final int ANIM_MS = 210;
     private final Window target;
     private final Inventory inventory;
     private final InventoryBulkActionController controller;
@@ -136,13 +136,18 @@ public final class InventoryControlPanel extends Widget {
     private void followTarget() {
         Coord host = parent == null ? Coord.z : parent.sz;
         placeRight = target.c.x + target.sz.x - ATTACH_OVERLAP + sz.x <= host.x;
-        int openX = placeRight ? target.c.x + target.sz.x - ATTACH_OVERLAP :
-                target.c.x - sz.x + ATTACH_OVERLAP;
+        move(dockPosition(target.c, target.sz, sz, host, placeRight, slideProgress()));
+    }
+
+    static Coord dockPosition(Coord targetPosition, Coord targetSize, Coord panelSize, Coord hostSize,
+                              boolean placeRight, double motion) {
+        int openX = placeRight ? targetPosition.x + targetSize.x - ATTACH_OVERLAP :
+                targetPosition.x - panelSize.x + ATTACH_OVERLAP;
         int closedX = openX + (placeRight ? -SLIDE_TRAVEL : SLIDE_TRAVEL);
-        double motion = slideProgress();
-        int x = (int)Math.round(closedX + ((openX - closedX) * motion));
-        int y = Math.max(0, Math.min(target.c.y + UI.scale(18), Math.max(0, host.y - sz.y)));
-        move(Coord.of(Math.max(0, Math.min(x, Math.max(0, host.x - sz.x))), y));
+        int x = (int)Math.round(closedX + ((openX - closedX) * Utils.clip(motion, 0.0, 1.0)));
+        int y = targetPosition.y + ((targetSize.y - panelSize.y) / 2);
+        return(Coord.of(Utils.clip(x, 0, Math.max(0, hostSize.x - panelSize.x)),
+                Utils.clip(y, 0, Math.max(0, hostSize.y - panelSize.y))));
     }
 
     private double visualProgress() {
@@ -168,14 +173,13 @@ public final class InventoryControlPanel extends Widget {
         Coord clipOrigin = placeRight ? Coord.z : Coord.of(sz.x - visibleWidth, 0);
         GOut clipped = g.reclip(clipOrigin, Coord.of(visibleWidth, sz.y));
         GOut full = clipped.reclip(clipOrigin.inv(), sz);
-        MoonFlowerHudTheme.drawInventoryToolsDrawer(full, sz);
-        MoonFlowerHudTheme.drawInventoryPanelHinge(full, sz, placeRight, reveal);
+        MoonFlowerHudTheme.drawInventoryToolsDock(full, sz, placeRight, reveal);
         full.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
-        full.line(Coord.of(UI.scale(58), UI.scale(86)), Coord.of(sz.x - UI.scale(58), UI.scale(86)), UI.scale(1));
-        full.line(Coord.of(UI.scale(58), layout.processingRuleY),
-                Coord.of(sz.x - UI.scale(58), layout.processingRuleY), UI.scale(1));
+        full.line(Coord.of(UI.scale(17), UI.scale(29)), Coord.of(sz.x - UI.scale(17), UI.scale(29)), UI.scale(1));
+        full.line(Coord.of(UI.scale(17), layout.processingRuleY),
+                Coord.of(sz.x - UI.scale(17), layout.processingRuleY), UI.scale(1));
         full.chcolor();
-        full.aimage(heading, Coord.of(sz.x / 2, UI.scale(77)), 0.5, 0.5);
+        full.aimage(heading, Coord.of(sz.x / 2, UI.scale(16)), 0.5, 0.5);
         full.image(organizeHeading, layout.organizeHeading);
         full.image(processingHeading, layout.processingHeading);
         drawStatus(full);
@@ -195,7 +199,7 @@ public final class InventoryControlPanel extends Widget {
             if(statusTex != null)
                 statusTex.dispose();
             lastStatus = status;
-            String shown = status.length() <= 22 ? status : status.substring(0, 19) + "...";
+            String shown = status.length() <= 30 ? status : status.substring(0, 27) + "...";
             statusTex = Text.render(shown, controller.running() ? MoonFlowerHudTheme.TEAL_BRIGHT :
                     MoonFlowerHudTheme.IVORY).tex();
         }
@@ -215,34 +219,35 @@ public final class InventoryControlPanel extends Widget {
     }
 
     static Layout layout(boolean extended) {
-        int width = UI.scale(260);
-        int margin = UI.scale(58);
-        int gap = UI.scale(4);
-        int rowHeight = UI.scale(21);
+        int width = UI.scale(220);
+        int margin = UI.scale(17);
+        int gap = UI.scale(5);
+        int rowGap = UI.scale(4);
+        int rowHeight = UI.scale(19);
         int columnWidth = (width - (margin * 2) - gap) / 2;
-        int y = UI.scale(104);
+        int y = UI.scale(43);
         Area sort = Area.sized(Coord.of(margin, y), Coord.of(columnWidth, rowHeight));
         Area stack = Area.sized(Coord.of(margin + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
-        y += rowHeight + gap;
+        y += rowHeight + rowGap;
         Area unstack = Area.sized(Coord.of(margin, y), Coord.of(columnWidth, rowHeight));
         Area lock = Area.sized(Coord.of(margin + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
-        y += rowHeight + gap;
+        y += rowHeight + rowGap;
         Area extendedArea = null;
         if(extended) {
             extendedArea = Area.sized(Coord.of(margin, y), Coord.of(width - margin * 2, rowHeight));
         }
-        /* Keep both variants aligned to the generated frame, even when Extended view is unavailable. */
-        y += rowHeight + gap;
+        /* Keep the wing stable when Extended view is unavailable on a container. */
+        y += rowHeight + rowGap;
         int ruleY = y + UI.scale(3);
-        Coord processingHeading = Coord.of(margin, ruleY + UI.scale(8));
-        y = ruleY + UI.scale(22);
+        Coord processingHeading = Coord.of(margin, ruleY + UI.scale(5));
+        y = ruleY + UI.scale(19);
         Area butcher = Area.sized(Coord.of(margin, y), Coord.of(columnWidth, rowHeight));
         Area crack = Area.sized(Coord.of(margin + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
-        y += rowHeight + gap;
+        y += rowHeight + rowGap;
         Area stop = Area.sized(Coord.of(margin, y), Coord.of(width - margin * 2, rowHeight));
         int statusY = y + rowHeight + UI.scale(15);
-        Coord panelSize = UI.scale(260, 320);
-        return(new Layout(panelSize, Coord.of(margin, UI.scale(90)), processingHeading, ruleY, statusY,
+        Coord panelSize = UI.scale(220, 198);
+        return(new Layout(panelSize, Coord.of(margin, UI.scale(31)), processingHeading, ruleY, statusY,
                 sort, stack, unstack, lock, extendedArea, butcher, crack, stop));
     }
 

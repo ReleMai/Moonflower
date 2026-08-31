@@ -33,22 +33,21 @@ panel instead of disappearing or changing their server messages.
 
 ## Visual System
 
-The attached panel uses project-local generated artwork derived from the
-MoonFlower portrait dock: blackened carved metal, dark wood, navy enamel,
-restrained antique gold, teal leaves, and ivory moonflowers. A transparent
-portrait drawer frame surrounds live labels and controls; a matching generated
-handle is integrated into the Inventory title rail beside Close. No text or
-state is baked into either bitmap. The drawer shares a directional living-vine
-hinge with that handle, eliminating floating art.
+The attached control wing uses the same scalable generated MoonFlower window
+frame and panel texture as the Inventory itself: ink, navy, antique gold, teal
+vines, and ivory blossoms. A matching generated handle remains integrated into
+the Inventory title rail beside Close. The two surfaces overlap at a living-vine
+seam so they read as one dock instead of separate ornamental windows.
 
 ## Layout
 
 Anchor or default position: Attached to the Inventory window's right edge;
 falls back to its left edge when the screen has insufficient room.
 
-Minimum and preferred size: Fixed 260 by 320 scaled pixels so the controls stay
-inside the generated frame's carved opening, using two equal columns for paired
-actions and full-width rows for Extended View and Stop.
+Minimum and preferred size: Fixed 220 by 198 scaled pixels, using two equal
+columns for paired actions and full-width rows for Extended View and Stop. The
+wing is vertically centered on the Inventory and overlaps its frame by 18 scaled
+pixels.
 
 Behavior at 1280x720: Clamp to the GameUI bounds and choose the side with room.
 
@@ -87,7 +86,7 @@ acknowledgement, action timeout, or detached inventory.
 
 ## Motion And Accessibility
 
-Motion used: Smoothstep easing plus a restrained lead-in combines a 240 ms
+Motion used: Smoothstep easing plus a restrained lead-in combines a 210 ms
 positional slide with a clipped horizontal reveal. A gold-and-teal vine hinge
 grows from the attached edge and blooms as the panel reaches its open position.
 
@@ -102,8 +101,10 @@ completion states. Slot locking changes its label between `Lock slots` and
 
 Presentation file: `client/src/haven/inventoryqol/InventoryControlPanel.java`
 
-Generated artwork: `client/src/haven/hud/moonflower-inventory-tools-frame-v1-alpha.png`
-and `client/src/haven/hud/moonflower-inventory-tools-tab-v1-alpha.png`.
+Generated handle artwork:
+`client/src/haven/hud/moonflower-inventory-tools-tab-v1-alpha.png`. The wing
+reuses the shared generated MoonFlower window frame rather than carrying a
+second, unrelated portrait frame.
 
 Immutable state/snapshot file: Bulk action definitions in
 `InventoryBulkActionController`.
