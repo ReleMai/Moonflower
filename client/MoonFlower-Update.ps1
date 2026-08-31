@@ -4,6 +4,7 @@ param(
     [switch]$CheckOnly,
     [switch]$NoLaunch,
     [switch]$Steam,
+    [switch]$Rollback,
     [string]$FeedUri = 'https://github.com/ReleMai/Moonflower/releases/download/moonflower-latest/moonflower-update.json',
     [string]$FeedPath,
     [string]$CacheRoot,
@@ -75,7 +76,7 @@ function Test-MissingUpdateFeed {
 function Assert-UpdateFeed {
     param($Feed)
 
-    if ($Feed.schemaVersion -ne 1) {
+    if ($Feed.schemaVersion -notin @(1, 2)) {
         throw "Unsupported update-feed schema: $($Feed.schemaVersion)"
     }
     if ($Feed.channel -ne 'stable') {
@@ -87,23 +88,56 @@ function Assert-UpdateFeed {
     if ([string]$Feed.commit -notmatch '^[0-9a-f]{40}$') {
         throw 'The update feed has an invalid commit identifier.'
     }
-    if ([string]$Feed.package.sha256 -notmatch '^[0-9a-f]{64}$') {
-        throw 'The update feed has an invalid package hash.'
+    Assert-PackageDescriptor $Feed.package 'stable'
+
+    if ($null -ne $Feed.previous) {
+        if ($Feed.schemaVersion -ne 2) {
+            throw 'Only schema 2 feeds may declare a previous build.'
+        }
+        if ([string]$Feed.previous.commit -notmatch '^[0-9a-f]{40}$' -or
+            [string]$Feed.previous.commit -eq [string]$Feed.commit) {
+            throw 'The update feed has an invalid previous commit identifier.'
+        }
+        Assert-PackageDescriptor $Feed.previous.package 'previous'
+    }
+}
+
+function Assert-PackageDescriptor {
+    param($Package, [string]$Label)
+
+    if ([string]$Package.sha256 -notmatch '^[0-9a-f]{64}$') {
+        throw "The $Label update package has an invalid hash."
     }
 
-    $packageSize = [int64]$Feed.package.size
+    $packageSize = [int64]$Package.size
     if ($packageSize -lt 1 -or $packageSize -gt 1073741824) {
-        throw "The update package size is outside the allowed range: $packageSize"
+        throw "The $Label update package size is outside the allowed range: $packageSize"
     }
 
     if ([string]::IsNullOrWhiteSpace($FeedPath)) {
-        $packageUri = [Uri]$Feed.package.url
+        $packageUri = [Uri]$Package.url
         if ($packageUri.Scheme -ne 'https' -or $packageUri.Host -ne 'github.com') {
-            throw "The update package must use the approved GitHub HTTPS host: $packageUri"
+            throw "The $Label update package must use the approved GitHub HTTPS host: $packageUri"
         }
         if (-not $packageUri.AbsolutePath.StartsWith('/ReleMai/Moonflower/releases/download/', [StringComparison]::OrdinalIgnoreCase)) {
-            throw "The update package is outside the approved MoonFlower release path: $packageUri"
+            throw "The $Label update package is outside the approved MoonFlower release path: $packageUri"
         }
+    }
+}
+
+function Get-RollbackFeed {
+    param($Feed)
+
+    if ($Feed.schemaVersion -ne 2 -or $null -eq $Feed.previous) {
+        throw 'The stable feed does not provide a previous verified build.'
+    }
+    return [pscustomobject][ordered]@{
+        schemaVersion = 1
+        channel = [string]$Feed.channel
+        repository = [string]$Feed.repository
+        commit = [string]$Feed.previous.commit
+        publishedAt = [string]$Feed.previous.publishedAt
+        package = $Feed.previous.package
     }
 }
 
@@ -264,16 +298,20 @@ function Write-ActiveVersion {
         activatedAt = [DateTimeOffset]::UtcNow.ToString('o')
     }
     $temporaryStatePath = "$StatePath.$([Guid]::NewGuid().ToString('N')).tmp"
+    $backupStatePath = "$StatePath.$([Guid]::NewGuid().ToString('N')).bak"
     try {
         $state | ConvertTo-Json | Set-Content -LiteralPath $temporaryStatePath -Encoding UTF8
         if (Test-Path -LiteralPath $StatePath -PathType Leaf) {
-            [System.IO.File]::Replace($temporaryStatePath, $StatePath, $null)
+            [System.IO.File]::Replace($temporaryStatePath, $StatePath, $backupStatePath, $true)
         } else {
             Move-Item -LiteralPath $temporaryStatePath -Destination $StatePath
         }
     } finally {
         if (Test-Path -LiteralPath $temporaryStatePath) {
             Remove-Item -LiteralPath $temporaryStatePath -Force
+        }
+        if (Test-Path -LiteralPath $backupStatePath) {
+            Remove-Item -LiteralPath $backupStatePath -Force
         }
     }
 }
@@ -330,6 +368,10 @@ $statePath = Join-Path $CacheRoot 'current.json'
 New-Item -ItemType Directory -Path $CacheRoot -Force | Out-Null
 
 $selectedRoot = Read-ActiveVersion $statePath
+if ($Rollback -and ($NoUpdate -or $env:MOONFLOWER_UPDATE_DISABLED -eq '1')) {
+    Write-Warning 'MoonFlower rollback requires access to the stable update feed; remove -NoUpdate and enable update checks.'
+    exit 2
+}
 if ($NoUpdate -or $env:MOONFLOWER_UPDATE_DISABLED -eq '1') {
     Write-MoonFlowerStatus 'automatic update check skipped.'
 } else {
@@ -346,15 +388,22 @@ if ($NoUpdate -or $env:MOONFLOWER_UPDATE_DISABLED -eq '1') {
                 $selectedRoot = Read-ActiveVersion $statePath
                 $feed = Read-UpdateFeed
                 Assert-UpdateFeed $feed
-                $commit = [string]$feed.commit
+                $requestedFeed = $feed
+                $buildLabel = 'stable'
+                if ($Rollback) {
+                    $requestedFeed = Get-RollbackFeed $feed
+                    Assert-UpdateFeed $requestedFeed
+                    $buildLabel = 'previous'
+                }
+                $commit = [string]$requestedFeed.commit
                 if ($CheckOnly) {
                     $installed = if (Test-InstalledVersion (Join-Path $versionsRoot $commit) $commit) { 'installed' } else { 'available' }
-                    Write-MoonFlowerStatus "stable build $($commit.Substring(0, 12)) is $installed."
+                    Write-MoonFlowerStatus "$buildLabel build $($commit.Substring(0, 12)) is $installed."
                     exit 0
                 }
-                $selectedRoot = Install-Update $feed $versionsRoot $downloadsRoot
+                $selectedRoot = Install-Update $requestedFeed $versionsRoot $downloadsRoot
                 Write-ActiveVersion $statePath $selectedRoot $commit
-                Write-MoonFlowerStatus "using stable build $($commit.Substring(0, 12))."
+                Write-MoonFlowerStatus "using $buildLabel build $($commit.Substring(0, 12))."
             } catch {
                 if (Test-MissingUpdateFeed $_.Exception) {
                     Write-MoonFlowerStatus 'the stable update feed has not been published yet.'

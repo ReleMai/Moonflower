@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{40}$')][string]$Commit,
     [Parameter(Mandatory = $true)][ValidatePattern('^https://github\.com/')][string]$AssetUrl,
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')][string]$Repository,
-    [ValidateSet('stable')][string]$Channel = 'stable'
+    [ValidateSet('stable')][string]$Channel = 'stable',
+    [string]$PreviousFeedPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +19,7 @@ if ($outputParent) {
 }
 
 $manifest = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     channel = $Channel
     repository = $Repository
     commit = $Commit.ToLowerInvariant()
@@ -30,5 +31,29 @@ $manifest = [ordered]@{
     }
 }
 
-$manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $outputFullPath -Encoding UTF8
+if (-not [string]::IsNullOrWhiteSpace($PreviousFeedPath)) {
+    $previous = Get-Content -LiteralPath $PreviousFeedPath -Raw | ConvertFrom-Json
+    if ($previous.schemaVersion -notin @(1, 2) -or
+        [string]$previous.channel -ne $Channel -or
+        [string]$previous.repository -ne $Repository -or
+        [string]$previous.commit -notmatch '^[0-9a-f]{40}$' -or
+        [string]$previous.package.url -notmatch '^https://github\.com/' -or
+        [string]$previous.package.sha256 -notmatch '^[0-9a-f]{64}$' -or
+        [int64]$previous.package.size -lt 1) {
+        throw 'The previous update feed is invalid or incompatible.'
+    }
+    if ([string]$previous.commit -ne $manifest.commit) {
+        $manifest['previous'] = [ordered]@{
+            commit = [string]$previous.commit
+            publishedAt = [string]$previous.publishedAt
+            package = [ordered]@{
+                url = [string]$previous.package.url
+                size = [int64]$previous.package.size
+                sha256 = [string]$previous.package.sha256
+            }
+        }
+    }
+}
+
+$manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $outputFullPath -Encoding UTF8
 Write-Host "Created MoonFlower update feed for $($manifest.commit.Substring(0, 12))."

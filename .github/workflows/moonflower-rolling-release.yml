@@ -84,48 +84,127 @@ jobs:
           $releaseRoot = Join-Path $env:RUNNER_TEMP "moonflower-release"
           New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
           $archive = Join-Path $releaseRoot "moonflower-client.zip"
+          $manifest = Join-Path $releaseRoot "moonflower-update.json"
+          $previousFeed = Join-Path $releaseRoot "previous-update.json"
+          $buildTag = "moonflower-build-${{ github.sha }}"
           Compress-Archive -Path "client/bin/*" -DestinationPath $archive -CompressionLevel Optimal
-          $assetUrl = "https://github.com/${{ github.repository }}/releases/download/moonflower-latest/moonflower-client.zip"
-          & ./scripts/New-MoonFlowerUpdateManifest.ps1 `
-            -PackagePath $archive `
-            -OutputPath (Join-Path $releaseRoot "moonflower-update.json") `
-            -Commit "${{ github.sha }}" `
-            -AssetUrl $assetUrl `
-            -Repository "${{ github.repository }}" `
-            -Channel stable
-          "release_root=$releaseRoot" >> $env:GITHUB_OUTPUT
+          $assetUrl = "https://github.com/${{ github.repository }}/releases/download/$buildTag/moonflower-client.zip"
 
-      - name: Publish rolling stable release
+          try {
+            Invoke-WebRequest `
+              -Uri "https://github.com/${{ github.repository }}/releases/download/moonflower-latest/moonflower-update.json" `
+              -OutFile $previousFeed `
+              -UseBasicParsing `
+              -TimeoutSec 30
+          } catch {
+            $statusCode = if ($null -ne $_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+            if ($statusCode -ne 404) { throw }
+            Remove-Item -LiteralPath $previousFeed -Force -ErrorAction SilentlyContinue
+          }
+
+          $manifestParameters = @{
+            PackagePath = $archive
+            OutputPath = $manifest
+            Commit = "${{ github.sha }}"
+            AssetUrl = $assetUrl
+            Repository = "${{ github.repository }}"
+            Channel = 'stable'
+          }
+          if (Test-Path -LiteralPath $previousFeed -PathType Leaf) {
+            $manifestParameters.PreviousFeedPath = $previousFeed
+          }
+          & ./scripts/New-MoonFlowerUpdateManifest.ps1 @manifestParameters
+          "release_root=$releaseRoot" >> $env:GITHUB_OUTPUT
+          "build_tag=$buildTag" >> $env:GITHUB_OUTPUT
+
+      - name: Publish immutable build and stable feed
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_ROOT: ${{ steps.package.outputs.release_root }}
+          BUILD_TAG: ${{ steps.package.outputs.build_tag }}
         run: |
-          $tag = "moonflower-latest"
-          gh release view $tag --repo "${{ github.repository }}" *> $null
+          $archive = Join-Path $env:RELEASE_ROOT "moonflower-client.zip"
+          $manifest = Join-Path $env:RELEASE_ROOT "moonflower-update.json"
+          $buildTag = $env:BUILD_TAG
+
+          gh release view $buildTag --repo "${{ github.repository }}" *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag `
+            gh release create $buildTag `
+              --repo "${{ github.repository }}" `
+              --target "${{ github.sha }}" `
+              --title "MoonFlower build ${{ github.sha }}" `
+              --notes "Immutable, CI-verified MoonFlower build from the protected main branch." `
+              --latest=false
+            if ($LASTEXITCODE -ne 0) { throw "Creating immutable build release failed." }
+
+            gh release upload $buildTag `
+              $archive `
+              $manifest `
+              --repo "${{ github.repository }}"
+            if ($LASTEXITCODE -ne 0) { throw "Uploading immutable build assets failed." }
+          } else {
+            $immutable = gh release view $buildTag `
+              --repo "${{ github.repository }}" `
+              --json assets,targetCommitish | ConvertFrom-Json
+            $assetNames = @($immutable.assets | ForEach-Object name)
+            if ($assetNames -notcontains 'moonflower-client.zip' -or
+                $assetNames -notcontains 'moonflower-update.json') {
+              throw "Existing immutable release $buildTag is incomplete; refusing to overwrite it."
+            }
+            $reuseRoot = Join-Path $env:RUNNER_TEMP "moonflower-existing-manifest"
+            New-Item -ItemType Directory -Path $reuseRoot -Force | Out-Null
+            gh release download $buildTag `
+              --repo "${{ github.repository }}" `
+              --pattern "moonflower-update.json" `
+              --dir $reuseRoot
+            if ($LASTEXITCODE -ne 0) { throw "Downloading the immutable manifest for reuse failed." }
+            Copy-Item -LiteralPath (Join-Path $reuseRoot 'moonflower-update.json') -Destination $manifest -Force
+          }
+
+          $publishedFeed = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ([string]$publishedFeed.commit -ne "${{ github.sha }}" -or
+              -not ([string]$publishedFeed.package.url).Contains("/$buildTag/")) {
+            throw "The immutable manifest does not identify this build."
+          }
+
+          $stableTag = "moonflower-latest"
+          gh release view $stableTag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $stableTag `
               --repo "${{ github.repository }}" `
               --target "${{ github.sha }}" `
               --title "MoonFlower stable auto-update" `
-              --notes "Rolling, CI-verified MoonFlower build from the main branch."
+              --notes "Rolling pointer to the latest protected, CI-verified MoonFlower build."
+            if ($LASTEXITCODE -ne 0) { throw "Creating the stable release failed." }
           } else {
             gh api `
               --method PATCH `
-              "repos/${{ github.repository }}/git/refs/tags/$tag" `
+              "repos/${{ github.repository }}/git/refs/tags/$stableTag" `
               -f sha="${{ github.sha }}" `
               -F force=true *> $null
-            if ($LASTEXITCODE -ne 0) { throw "Moving the rolling release tag failed." }
+            if ($LASTEXITCODE -ne 0) { throw "Moving the stable release tag failed." }
           }
-          gh release upload $tag `
-            (Join-Path $env:RELEASE_ROOT "moonflower-client.zip") `
-            --repo "${{ github.repository }}" `
-            --clobber
-          if ($LASTEXITCODE -ne 0) { throw "Uploading the client package failed." }
 
-          # Publish the feed last so clients never see a new hash before its ZIP.
-          gh release upload $tag `
-            (Join-Path $env:RELEASE_ROOT "moonflower-update.json") `
+          # Publish the feed last so clients never see a package before its
+          # immutable asset exists. The legacy rolling ZIP is intentionally
+          # retained as the first rollback package and is never clobbered.
+          gh release upload $stableTag `
+            $manifest `
             --repo "${{ github.repository }}" `
             --clobber
           if ($LASTEXITCODE -ne 0) { throw "Uploading the update feed failed." }
+
+          $immutableBuilds = @(gh release list `
+            --repo "${{ github.repository }}" `
+            --limit 100 `
+            --json tagName,createdAt | ConvertFrom-Json |
+              Where-Object { $_.tagName -like 'moonflower-build-*' } |
+              Sort-Object createdAt -Descending)
+          foreach ($staleBuild in @($immutableBuilds | Select-Object -Skip 5)) {
+            gh release delete $staleBuild.tagName `
+              --repo "${{ github.repository }}" `
+              --cleanup-tag `
+              --yes
+            if ($LASTEXITCODE -ne 0) { throw "Deleting stale immutable build $($staleBuild.tagName) failed." }
+          }
