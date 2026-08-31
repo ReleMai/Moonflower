@@ -28,6 +28,17 @@ ant clean deftgt
 Run `Play.bat` from `client/bin` after a successful build. Linux users can use
 `Play_Linux.sh`.
 
+On Windows, `Play.bat` checks the public MoonFlower stable release feed before
+each launch. A verified build is installed under
+`%LOCALAPPDATA%\MoonFlower\AutoUpdate\versions` and used without replacing a
+JAR that is already running. If GitHub is unavailable or verification fails,
+the launcher uses the last verified download or the packaged client.
+
+Use `Play.bat -NoUpdate` for one offline launch, or set
+`MOONFLOWER_UPDATE_DISABLED=1` to disable checks for the current environment.
+See [the auto-update guide](../docs/MOONFLOWER_AUTO_UPDATE.md) for release and
+Steam behavior.
+
 ## Local Data
 
 Preferences are stored in `%APPDATA%\Haven and Hearth\MoonFlower-prefs.xml`.

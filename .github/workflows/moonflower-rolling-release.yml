@@ -1,0 +1,117 @@
+name: MoonFlower rolling release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "client/**"
+      - "scripts/New-MoonFlowerUpdateManifest.ps1"
+      - ".github/workflows/moonflower-rolling-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: moonflower-stable-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Ensure Apache Ant is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ant -ErrorAction SilentlyContinue)) {
+            choco install ant --yes --no-progress
+          }
+          ant -version
+
+      - name: Build packaged client
+        shell: pwsh
+        working-directory: client
+        run: ant clean deftgt
+
+      - name: Run deterministic packaged checks
+        shell: pwsh
+        working-directory: client
+        run: |
+          java -cp "bin/*" haven.MoonFlowerChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.MoonFlowerHudChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.WorldClockChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.InventorySlotLockChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.ContainerWindowPlacementChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.cookbook.CookbookChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.fishing.FishingChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.feasting.FeastingChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.combat.CombatAssistChecks
+          java -Dhaven.uiscale=1 -cp "bin/*" haven.wiki.WikiChecks
+
+      - name: Create update package and feed
+        id: package
+        shell: pwsh
+        run: |
+          $releaseRoot = Join-Path $env:RUNNER_TEMP "moonflower-release"
+          New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
+          $archive = Join-Path $releaseRoot "moonflower-client.zip"
+          Compress-Archive -Path "client/bin/*" -DestinationPath $archive -CompressionLevel Optimal
+          $assetUrl = "https://github.com/${{ github.repository }}/releases/download/moonflower-latest/moonflower-client.zip"
+          & ./scripts/New-MoonFlowerUpdateManifest.ps1 `
+            -PackagePath $archive `
+            -OutputPath (Join-Path $releaseRoot "moonflower-update.json") `
+            -Commit "${{ github.sha }}" `
+            -AssetUrl $assetUrl `
+            -Repository "${{ github.repository }}" `
+            -Channel stable
+          "release_root=$releaseRoot" >> $env:GITHUB_OUTPUT
+
+      - name: Publish rolling stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ROOT: ${{ steps.package.outputs.release_root }}
+        run: |
+          $tag = "moonflower-latest"
+          gh release view $tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag `
+              --repo "${{ github.repository }}" `
+              --target "${{ github.sha }}" `
+              --title "MoonFlower stable auto-update" `
+              --notes "Rolling, CI-verified MoonFlower build from the main branch."
+          } else {
+            gh api `
+              --method PATCH `
+              "repos/${{ github.repository }}/git/refs/tags/$tag" `
+              -f sha="${{ github.sha }}" `
+              -F force=true *> $null
+            if ($LASTEXITCODE -ne 0) { throw "Moving the rolling release tag failed." }
+          }
+          gh release upload $tag `
+            (Join-Path $env:RELEASE_ROOT "moonflower-client.zip") `
+            --repo "${{ github.repository }}" `
+            --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Uploading the client package failed." }
+
+          # Publish the feed last so clients never see a new hash before its ZIP.
+          gh release upload $tag `
+            (Join-Path $env:RELEASE_ROOT "moonflower-update.json") `
+            --repo "${{ github.repository }}" `
+            --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Uploading the update feed failed." }

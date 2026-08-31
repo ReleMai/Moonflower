@@ -233,6 +233,7 @@
     <copy file="Play.bat" todir="bin"/>
     <copy file="Play_Linux.sh" todir="bin"/>
     <copy file="Play_WithSteam.bat" todir="bin"/>
+    <copy file="MoonFlower-Update.ps1" todir="bin"/>
     <copy file="workshop-client.properties" todir="bin"/>
     <copy file="steam-client-image.jpg" todir="bin"/>
     <copy file="steam-banner.jpg" todir="bin"/>

@@ -1,5 +1,17 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
+
+set "MOONFLOWER_UPDATER=%~dp0MoonFlower-Update.ps1"
+if exist "%MOONFLOWER_UPDATER%" (
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%MOONFLOWER_UPDATER%" %*
+    set "MOONFLOWER_EXIT_CODE=!ERRORLEVEL!"
+    if not "!MOONFLOWER_EXIT_CODE!"=="0" (
+        echo.
+        echo MoonFlower exited with code !MOONFLOWER_EXIT_CODE!.
+        pause
+    )
+    exit /b !MOONFLOWER_EXIT_CODE!
+)
 
 set "MOONFLOWER_LAUNCH_DIR=%~dp0"
 if not exist "%MOONFLOWER_LAUNCH_DIR%hafen.jar" set "MOONFLOWER_LAUNCH_DIR=%~dp0bin\"
