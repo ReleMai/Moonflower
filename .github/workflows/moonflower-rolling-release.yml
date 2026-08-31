@@ -62,6 +62,10 @@ jobs:
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.feasting.FeastingChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.combat.CombatAssistChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.wiki.WikiChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.foraging.ForagingChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.inventoryqol.InventoryQolChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.multisession.SessionConservatoryChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.automated.FishingPreparationChecks
 
       - name: Create update package and feed
         id: package

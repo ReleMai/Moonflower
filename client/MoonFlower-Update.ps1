@@ -49,7 +49,11 @@ function Read-UpdateFeed {
     }
 
     $response = Invoke-WebRequest -Uri $FeedUri -UseBasicParsing -TimeoutSec 12
-    return $response.Content | ConvertFrom-Json
+    $content = $response.Content
+    if ($content -is [byte[]]) {
+        $content = [System.Text.Encoding]::UTF8.GetString($content)
+    }
+    return $content | ConvertFrom-Json
 }
 
 function Test-MissingUpdateFeed {
