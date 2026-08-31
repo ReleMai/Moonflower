@@ -25,12 +25,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -53,15 +53,15 @@ jobs:
         working-directory: client
         run: |
           java -cp "bin/*" haven.MoonFlowerChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.MoonFlowerHudChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.WorldClockChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.InventorySlotLockChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.ContainerWindowPlacementChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.cookbook.CookbookChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.fishing.FishingChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.feasting.FeastingChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.combat.CombatAssistChecks
-          java -Dhaven.uiscale=1 -cp "bin/*" haven.wiki.WikiChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.MoonFlowerHudChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.WorldClockChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.InventorySlotLockChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.ContainerWindowPlacementChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.cookbook.CookbookChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.fishing.FishingChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.feasting.FeastingChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.combat.CombatAssistChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.wiki.WikiChecks
 
       - name: Create update package and feed
         id: package
