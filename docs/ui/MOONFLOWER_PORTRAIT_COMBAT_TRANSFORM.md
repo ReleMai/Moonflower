@@ -38,6 +38,9 @@ slot, circular-control, stitched-leather, and engraved-metal vocabulary. The
 combat-state artwork is a project-local transparent raster sibling of the
 normal portrait ornament. Ruby remains limited to danger and the red opening;
 combat state is also identified by shield/weapon shapes and labels.
+Player openings use a teal identity rim and a `PLAYER` badge; opponent openings
+use a ruby identity rim and an `ENEMY` badge, so ownership is not communicated
+by position or color alone.
 
 ## Layout
 
@@ -45,7 +48,9 @@ Anchor or default position: Existing saved portrait-hub position, centered at
 the bottom by default.
 
 Minimum and preferred size: Same logical `520 x 288` ornament footprint as the
-normal portrait HUD; no combat-only height is added.
+normal portrait HUD; no combat-only height is added. Combat wells use the
+available painted sockets more fully so action icons, opening values, and
+cooldown timers remain readable without enlarging the footprint.
 
 Behavior at 1280x720: Keep every painted and interactive element inside the
 portrait widget bounds. The side rails fold inward rather than growing upward.
@@ -124,6 +129,8 @@ combat state.
 7. Focused HUD and combat checks pass at 1280x720 and larger reference sizes.
 8. Live appearance and server behavior remain explicitly unverified until a
    supervised client combat check.
+9. Action labels stay inside their painted wells, while buffs and movement
+   controls interpolate to the combat artwork's measured socket centers.
 
 ## Verification
 

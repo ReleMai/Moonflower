@@ -1,6 +1,7 @@
 package haven;
 
 import java.awt.Color;
+import java.util.Collection;
 
 import static java.lang.Math.PI;
 
@@ -8,8 +9,7 @@ import static java.lang.Math.PI;
 public final class MoonFlowerClockWidget extends Widget {
     private static final Coord FACE_SIZE = UI.scale(Coord.of(520, 182));
     private static final Coord CLOCK_CENTER = UI.scale(Coord.of(260, 84));
-    private static final int CLOCK_RADIUS = UI.scale(35);
-    private static final int SEASON_RADIUS = UI.scale(82);
+    private static final int CLOCK_RADIUS = UI.scale(31);
     private static final Color MIDNIGHT = new Color(4, 12, 31, 255);
     private static final Color DAWN = new Color(159, 76, 76, 255);
     private static final Color DAY = new Color(53, 135, 150, 255);
@@ -21,7 +21,6 @@ public final class MoonFlowerClockWidget extends Widget {
     private boolean moonFlower;
     private long nextRefresh;
     private WorldClockSnapshot snapshot = WorldClockSnapshot.unavailable("", "", "");
-    private Tex timeTex;
     private Tex dateTex;
     private Tex seasonTex;
     private Tex seasonCountdownTex;
@@ -100,12 +99,10 @@ public final class MoonFlowerClockWidget extends Widget {
         snapshot = service.capture();
         disposeText();
         if(!snapshot.available) {
-            timeTex = render("--:--", MoonFlowerHudTheme.IVORY, Text.num12boldFnd);
             dateTex = render("Awaiting astronomy", MoonFlowerHudTheme.IVORY, Text.std);
             seasonTex = seasonCountdownTex = moonTex = areaTex = null;
-            noticeTex = render("LIVE  ·  Waiting for world data", MoonFlowerHudTheme.TEAL_BRIGHT, Text.std);
+            noticeTex = render("Waiting for sky data", MoonFlowerHudTheme.TEAL_BRIGHT, Text.std);
         } else {
-            timeTex = render(snapshot.timeLabel(false), MoonFlowerHudTheme.IVORY, Text.num12boldFnd);
             dateTex = render(String.format("Day %d  ·  M%d  ·  Y%d",
                     snapshot.calendarDay, snapshot.calendarMonth, snapshot.calendarYear),
                     MoonFlowerHudTheme.IVORY, Text.std);
@@ -114,7 +111,7 @@ public final class MoonFlowerClockWidget extends Widget {
             seasonCountdownTex = render(compactSeasonCountdown(snapshot), MoonFlowerHudTheme.IVORY, Text.std);
             moonTex = render(snapshot.moonPhase, MoonFlowerHudTheme.TEAL_BRIGHT, Text.num12boldFnd);
             areaTex = render(compactArea(snapshot), MoonFlowerHudTheme.IVORY, Text.std);
-            noticeTex = render(compactNotice(snapshot),
+            noticeTex = render(compactNotice(snapshot, weatherLabel()),
                     "LIVE".equals(snapshot.noticeProvenance) ? MoonFlowerHudTheme.TEAL_BRIGHT :
                             MoonFlowerHudTheme.GOLD, Text.std);
         }
@@ -129,29 +126,21 @@ public final class MoonFlowerClockWidget extends Widget {
 
     private void drawMoonFlower(GOut g) {
         g.image(frameTex, Coord.z);
-        if(snapshot.available)
-            drawSeasonHighlight(g);
         drawClockFace(g);
 
-        int plaqueWidth = UI.scale(96);
-        drawCenteredClipped(g, seasonTex, UI.scale(Coord.of(90, 21)), plaqueWidth, UI.scale(14));
-        drawCenteredClipped(g, seasonCountdownTex, UI.scale(Coord.of(90, 34)), plaqueWidth, UI.scale(12));
-        drawCenteredClipped(g, moonTex, UI.scale(Coord.of(430, 21)), plaqueWidth, UI.scale(14));
-        drawCenteredClipped(g, areaTex, UI.scale(Coord.of(430, 34)), plaqueWidth, UI.scale(12));
-        drawCenteredClipped(g, dateTex, UI.scale(Coord.of(90, 70)), plaqueWidth, UI.scale(13));
-        drawCenteredClipped(g, noticeTex, UI.scale(Coord.of(430, 70)), plaqueWidth, UI.scale(13));
+        int plaqueWidth = UI.scale(132);
+        drawCenteredClipped(g, seasonTex, UI.scale(Coord.of(92, 22)), plaqueWidth, UI.scale(13));
+        drawCenteredClipped(g, seasonCountdownTex, UI.scale(Coord.of(92, 35)), plaqueWidth, UI.scale(11));
+        drawCenteredClipped(g, moonTex, UI.scale(Coord.of(428, 22)), plaqueWidth, UI.scale(13));
+        drawCenteredClipped(g, areaTex, UI.scale(Coord.of(428, 35)), plaqueWidth, UI.scale(11));
+        drawCenteredClipped(g, dateTex, UI.scale(Coord.of(92, 70)), plaqueWidth, UI.scale(11));
+        drawCenteredClipped(g, noticeTex, UI.scale(Coord.of(428, 70)), plaqueWidth, UI.scale(11));
     }
 
     private void drawClockFace(GOut g) {
         drawSkyDisc(g, CLOCK_CENTER, CLOCK_RADIUS);
-        drawClockTicks(g);
         if(snapshot.available)
             drawClockHands(g);
-
-        Coord badge = CLOCK_CENTER.add(0, UI.scale(14));
-        fillEllipse(g, badge, UI.scale(Coord.of(30, 9)), new Color(207, 164, 72, 225));
-        fillEllipse(g, badge, UI.scale(Coord.of(28, 7)), new Color(2, 12, 17, 232));
-        drawCenteredClipped(g, timeTex, badge, UI.scale(54), UI.scale(15));
     }
 
     private void drawClockTicks(GOut g) {
@@ -170,52 +159,43 @@ public final class MoonFlowerClockWidget extends Widget {
     }
 
     private void drawClockHands(GOut g) {
-        double hourAngle = hourHandAngle(snapshot.hour, snapshot.minute);
-        double minuteAngle = minuteHandAngle(snapshot.minute, snapshot.second);
+        double motion = MoonFlowerHudSettings.clockReducedMotion() ? 0.0 :
+                ((System.currentTimeMillis() % 1000L) / 1000.0);
+        double hourAngle = hourHandAngle(snapshot.hour, snapshot.minute) +
+                ((motion / 60.0) * (PI * 2 / 12.0));
+        double minuteAngle = minuteHandAngle(snapshot.minute, snapshot.second) +
+                (motion * (PI * 2 / 60.0));
         Coord hourEnd = handEnd(CLOCK_CENTER, CLOCK_RADIUS - UI.scale(14), hourAngle);
         Coord minuteEnd = handEnd(CLOCK_CENTER, CLOCK_RADIUS - UI.scale(8), minuteAngle);
+        Coord hourTail = handEnd(CLOCK_CENTER, UI.scale(7), hourAngle + PI);
+        Coord minuteTail = handEnd(CLOCK_CENTER, UI.scale(5), minuteAngle + PI);
 
         g.chcolor(new Color(2, 7, 10, 220));
         g.line(CLOCK_CENTER, hourEnd, Math.max(2, UI.scale(5)));
         g.line(CLOCK_CENTER, minuteEnd, Math.max(2, UI.scale(4)));
+        g.line(CLOCK_CENTER, hourTail, Math.max(1, UI.scale(3)));
+        g.line(CLOCK_CENTER, minuteTail, Math.max(1, UI.scale(2)));
         g.chcolor(MoonFlowerHudTheme.GOLD);
         g.line(CLOCK_CENTER, hourEnd, Math.max(1, UI.scale(3)));
+        g.line(CLOCK_CENTER, hourTail, Math.max(1, UI.scale(1)));
         g.chcolor(MoonFlowerHudTheme.IVORY);
         g.line(CLOCK_CENTER, minuteEnd, Math.max(1, UI.scale(2)));
+        g.line(CLOCK_CENTER, minuteTail, Math.max(1, UI.scale(1)));
         fillEllipse(g, CLOCK_CENTER, UI.scale(Coord.of(3, 3)), MoonFlowerHudTheme.GOLD);
         fillEllipse(g, CLOCK_CENTER, UI.scale(Coord.of(1, 1)), MoonFlowerHudTheme.IVORY);
-        g.chcolor();
-    }
-
-    private void drawSeasonHighlight(GOut g) {
-        double start = seasonStartAngle(snapshot.seasonIndex);
-        drawArc(g, CLOCK_CENTER, SEASON_RADIUS, start, start + (PI / 2),
-                new Color(234, 193, 77, 58), Math.max(2, UI.scale(7)));
-        drawArc(g, CLOCK_CENTER, SEASON_RADIUS, start, start + (PI / 2),
-                new Color(239, 208, 112, 225), Math.max(1, UI.scale(2)));
-    }
-
-    private static void drawArc(GOut g, Coord center, int radius, double start, double end,
-                                Color color, int width) {
-        int segments = 28;
-        g.chcolor(color);
-        Coord previous = handEnd(center, radius, start);
-        for(int i = 1; i <= segments; i++) {
-            double angle = start + ((end - start) * i / segments);
-            Coord next = handEnd(center, radius, angle);
-            g.line(previous, next, width);
-            previous = next;
-        }
         g.chcolor();
     }
 
     private void drawSkyDisc(GOut g, Coord center, int radius) {
         double dayFraction = snapshot.available ? snapshot.dayFraction : 0.0;
         Color sky = skyColor(dayFraction);
+        // Tint only the inner face; the generated seasonal artwork remains visible.
+        fillEllipse(g, center, UI.scale(Coord.of(radius, radius)), new Color(2, 8, 15, 150));
         for(int y = -radius; y <= radius; y++) {
             int halfWidth = (int)Math.floor(Math.sqrt(Math.max(0, (radius * radius) - (y * y))));
             double position = (y + radius) / (double)Math.max(1, radius * 2);
-            g.chcolor(shade(sky, 1.03 - (position * 0.28)));
+            Color tinted = shade(sky, 1.03 - (position * 0.28));
+            g.chcolor(new Color(tinted.getRed(), tinted.getGreen(), tinted.getBlue(), 62));
             g.frect(center.add(-halfWidth, y), Coord.of((halfWidth * 2) + 1, 1));
         }
 
@@ -238,16 +218,12 @@ public final class MoonFlowerClockWidget extends Widget {
 
         int horizonY = center.y + UI.scale(9);
         int dy = horizonY - center.y;
-        int halfHorizon = (int)Math.floor(Math.sqrt(Math.max(0, (radius * radius) - (dy * dy))));
-        g.chcolor(new Color(2, 22, 25, 218));
+        g.chcolor(new Color(2, 22, 25, 72));
         for(int y = horizonY; y <= center.y + radius; y++) {
             int offset = y - center.y;
             int halfWidth = (int)Math.floor(Math.sqrt(Math.max(0, (radius * radius) - (offset * offset))));
             g.frect(Coord.of(center.x - halfWidth, y), Coord.of((halfWidth * 2) + 1, 1));
         }
-        g.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
-        g.line(Coord.of(center.x - halfHorizon, horizonY), Coord.of(center.x + halfHorizon, horizonY),
-                Math.max(1, UI.scale(1)));
         g.chcolor();
     }
 
@@ -282,18 +258,46 @@ public final class MoonFlowerClockWidget extends Widget {
         return secondary.isEmpty() ? primary : primary + "  ·  " + secondary;
     }
 
-    private static String compactNotice(WorldClockSnapshot snapshot) {
-        String prefix = snapshot.noticeProvenance + "  ·  ";
+    private static String compactNotice(WorldClockSnapshot snapshot, String weather) {
+        String prefix = (snapshot.night ? "Night" : "Daylight") + "  ·  ";
         if(snapshot.notice.contains("Dawn window")) {
             String summary = snapshot.notice.replace("Dawn window - ", "Dawn · ");
             int detail = summary.indexOf(" - ");
-            return prefix + (detail < 0 ? summary : summary.substring(0, detail));
+            return (detail < 0 ? summary : summary.substring(0, detail)) + "  ·  " + weather;
         }
         if(snapshot.notice.contains("Fish Moon"))
-            return prefix + "Fish Moon";
+            return prefix + "Fish Moon  ·  " + weather;
         if(snapshot.notice.contains("Moonmoths"))
-            return prefix + "Moonmoths";
-        return prefix + "Current world";
+            return prefix + "Moonmoths  ·  " + weather;
+        return prefix + weather;
+    }
+
+    /** Weather effects are owned by the live session; keep the plaque honest and compact. */
+    private String weatherLabel() {
+        Glob glob = ui == null || ui.sess == null ? null : ui.sess.glob;
+        if(glob == null)
+            return "Weather unknown";
+        try {
+            Collection<Glob.Weather> effects = glob.weather();
+            if(effects.isEmpty())
+                return "Clear skies";
+            StringBuilder label = new StringBuilder();
+            for(Glob.Weather effect : effects) {
+                String name = effect.getClass().getSimpleName().toLowerCase();
+                String pretty = name.contains("rain") ? "Rain" :
+                        name.contains("snow") ? "Snow" :
+                        name.contains("cloud") ? "Clouds" :
+                        name.contains("wet") ? "Wet ground" : "Atmosphere";
+                if(label.indexOf(pretty) < 0) {
+                    if(label.length() > 0)
+                        label.append(" · ");
+                    label.append(pretty);
+                }
+            }
+            return label.toString();
+        } catch(RuntimeException ignored) {
+            return "Weather loading";
+        }
     }
 
     static Color skyColor(double fraction) {
@@ -350,20 +354,20 @@ public final class MoonFlowerClockWidget extends Widget {
             return "$col[239,225,185]{MoonFlower World Clock}\nAwaiting live server astronomy.";
         return String.format("$col[239,225,185]{MoonFlower World Clock}\n" +
                         "%s game time · %s\n%s\n%s (game-time countdown)\n" +
-                        "Moon: %s\nArea: %s\n\n" +
+                        "Moon: %s\nArea: %s\nWeather: %s\n\n" +
                         "$col[207,164,72]{%s}: %s\n" +
                         "$col[150,180,180]{LIVE = session data; GUIDE = sourced community guidance.}",
                 snapshot.timeLabel(false), snapshot.night ? "Night" : "Daylight",
                 snapshot.dateLabel(), snapshot.seasonLabel(), snapshot.moonPhase,
-                snapshot.areaLabel(), snapshot.noticeProvenance, snapshot.notice);
+                snapshot.areaLabel(), weatherLabel(), snapshot.noticeProvenance, snapshot.notice);
     }
 
     private void disposeText() {
-        Tex[] textures = {timeTex, dateTex, seasonTex, seasonCountdownTex, moonTex, areaTex, noticeTex};
+        Tex[] textures = {dateTex, seasonTex, seasonCountdownTex, moonTex, areaTex, noticeTex};
         for(Tex texture : textures) {
             if(texture != null)
                 texture.dispose();
         }
-        timeTex = dateTex = seasonTex = seasonCountdownTex = moonTex = areaTex = noticeTex = null;
+        dateTex = seasonTex = seasonCountdownTex = moonTex = areaTex = noticeTex = null;
     }
 }

@@ -1,19 +1,41 @@
 [h1]MoonFlower[/h1]
 
-MoonFlower is a private, client-only Haven & Hearth build focused on practical play tools, clear information, and a quieter interface.
+[i]A private, client-only Haven & Hearth build with a botanical HUD, practical planning tools, and local-first quality-of-life features.[/i]
 
-[h2]Highlights[/h2]
+[h2]MoonFlower Interface[/h2]
 [list]
-[*][b]Local Cookbook[/b] — searchable recipes, ingredient comparisons, quality-aware values, and character-specific food planning.
-[*][b]Fishing Tools[/b] — a fishing journal, catch history, map markers, and an explicit preparation helper for tackle changes.
-[*][b]Feasting Tools[/b] — meal previews and tableware safety checks before eating.
-[*][b]Combat Readability[/b] — combat-assist information and optional estimated animal-health bars.
-[*][b]In-game RoB Wiki[/b] — native Ring of Brodgar search previews with cached, rate-limited lookups and safe source links.
-[*][b]Interface Quality of Life[/b] — configurable alarms, map-icon presets, separate Creel window placement, sortable inventories with protected slots, and focused helper controls.
-[*][b]Local Account Switching[/b] — optionally save accounts in the current Windows user's preferences for quick switching on that PC.
+[*][b]Optional Botanical HUD[/b] — switch between MoonFlower and the classic interface without changing native actions, shortcuts, or server messages.
+[*][b]Portrait Hearthwheel[/b] — movable vitality rings, native buffs, equipment quick slots, movement controls, and one expandable feature vine.
+[*][b]Unified Window Theme[/b] — coordinated inventory, chat, map, action bars, menus, combat panels, and standard windows using ink, teal, gold, ivory, vines, and blossoms.
+[*][b]HUD Editing[/b] — movable action bars, per-bar locks, persistent positions, combat-layout ghosts, and classic-mode restoration.
+[*][b]World Clock[/b] — a top-center day, night, moon, season, terrain, province, and realm presentation with clear LIVE, CALC, GUIDE, and unavailable states.
 [/list]
 
-[h2]Private Package[/h2]
-This owner-only upload contains the desktop client and its local features. Optional saved accounts remain in each user's local Windows preferences and are never copied into Workshop updates. The upload does not include MoonFlower web bridges, operator services, remote cookbook uploaders, saved account data, passwords, session tokens, personal IP logs, or account identifiers.
+[h2]Planning And Knowledge[/h2]
+[list]
+[*][b]Local Cookbook[/b] — searchable recipes, ingredient comparisons, quality-aware values, and character-specific food planning.
+[*][b]Feasting Helper[/b] — Table-integrated meal previews, projected attribute balance, acknowledgement-based bites, and tableware safety controls.
+[*][b]MoonFlower Codex[/b] — native item and action records, saved and recent entries, gallery views, inventory-item lookup, and cached Ring of Brodgar community references.
+[/list]
 
-[i]Haven & Hearth is required. MoonFlower does not include a game account or grant access to the game service.[/i]
+[h2]Fishing And Exploration[/h2]
+[list]
+[*][b]Fishing Preparation[/b] — explicit pole, line, hook, bait, and lure selection with fail-closed tackle handling.
+[*][b]Fishing Journal[/b] — local catch observations, rig history, fish grouping, and optional detailed quality factors.
+[*][b]Map Overlays[/b] — compact fish-location summaries, clickable journal spots, and visibility controls that do not alter normal map markers.
+[/list]
+
+[h2]Combat And Everyday Play[/h2]
+[list]
+[*][b]Combat Readability[/b] — themed opponent cards, status rail, action deck, openings, initiative, cooldowns, and last-action information.
+[*][b]Experimental Animal Estimates[/b] — optional, off-by-default estimated animal-health presentation with uncertainty kept visible.
+[*][b]Inventory Tools[/b] — sorting, stacking, extended views, persistent protected slots, amber lock overlays, and separate equipped-container placement.
+[*][b]Comfort Features[/b] — configurable alarms, chat notifications, map-icon presets, quick account switching stored in the current Windows user's preferences, and focused helper controls.
+[/list]
+
+[h2]Privacy And Scope[/h2]
+This owner-only upload contains the desktop client and its local features. Optional saved accounts remain in the current Windows user's preferences and are never copied into Workshop updates. The package excludes passwords, session tokens, saved account data, personal logs, operator services, remote uploaders, and account identifiers.
+
+Fishing observations, Cookbook data, Codex history, HUD positions, and similar preferences stay local to the PC. Calculated, community-sourced, experimental, and unverified values are labeled separately from live game state.
+
+[i]Haven & Hearth is required. MoonFlower does not include a game account or grant access to the game service. Gallery artwork is promotional and may not reproduce every in-game layout pixel-for-pixel.[/i]

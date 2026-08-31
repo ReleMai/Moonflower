@@ -26,9 +26,7 @@
 
 package haven;
 
-import haven.automated.InventorySorter;
-import haven.automated.StackAllItems;
-import haven.automated.UnstackAllItems;
+import haven.inventoryqol.InventoryControlPanel;
 import haven.render.*;
 
 import java.awt.Color;
@@ -81,22 +79,6 @@ public class Window extends Widget {
 	Resource.loadsimg("gfx/hud/wnd/lg/cbtnu"),
 	Resource.loadsimg("gfx/hud/wnd/lg/cbtnd"),
 	Resource.loadsimg("gfx/hud/wnd/lg/cbtnh")};
-    private static final BufferedImage[] stackbtni = new BufferedImage[] {
-    Resource.loadsimg("gfx/hud/wnd/lg/stackbtnu"),
-    Resource.loadsimg("gfx/hud/wnd/lg/stackbtnd"),
-    Resource.loadsimg("gfx/hud/wnd/lg/stackbtnh")};
-    private static final BufferedImage[] unstackbtni = new BufferedImage[] {
-    Resource.loadsimg("gfx/hud/wnd/lg/unstackbtnu"),
-    Resource.loadsimg("gfx/hud/wnd/lg/unstackbtnd"),
-    Resource.loadsimg("gfx/hud/wnd/lg/unstackbtnh")};
-    private static final BufferedImage[] sortbtni = new BufferedImage[] {
-    Resource.loadsimg("gfx/hud/wnd/lg/sortbtnu"),
-    Resource.loadsimg("gfx/hud/wnd/lg/sortbtnd"),
-    Resource.loadsimg("gfx/hud/wnd/lg/sortbtnh")};
-	private static final BufferedImage[] extlistbtni = new BufferedImage[] {
-    Resource.loadsimg("gfx/hud/wnd/lg/qlistbtnu"),
-    Resource.loadsimg("gfx/hud/wnd/lg/qlistbtnd"),
-    Resource.loadsimg("gfx/hud/wnd/lg/qlistbtnh")};
     public Deco deco;
     public String cap;
     public TexRaw gbuf = null;
@@ -105,6 +87,7 @@ public class Window extends Widget {
     public UI.Grab dm = null;
     private Coord doff;
     public boolean large = false;
+	private InventoryControlPanel inventoryControlPanel;
 
     @RName("wnd")
     public static class $_ implements Factory {
@@ -225,7 +208,7 @@ public class Window extends Widget {
 								   UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
 	public final boolean lg;
 	public final IButton cbtn;
-    public IButton extlistbtn, stackbtn, unstackbtn, sortbtn;
+	public InventoryControlPanel.TitleButton inventorycontrolbtn;
     public InventorySlotLockButton slotlockbtn;
 	public boolean dragsize, cfocus;
 	public Area aa, ca;
@@ -253,17 +236,12 @@ public class Window extends Widget {
 	    resize(wsz);
 	    ca = Area.sized(tlm, csz);
 	    aa = Area.sized(ca.ul.add(mrgn), asz);
-//		int extra = inventoryExtraWidth();
 		int anchor = sz.x;
 		int right = anchor - UI.scale(9);
 		right = placeTitleButton(cbtn, right);
-		right = placeTitleButton(extlistbtn, right);
-		right = placeTitleButton(sortbtn, right);
-		right = placeTitleButton(unstackbtn, right);
-		right = placeTitleButton(stackbtn, right);
-		placeTitleButton(slotlockbtn, right);
-		if(slotlockbtn != null)
-		    slotlockbtn.c.y = UI.scale(1);
+		placeTitleButton(inventorycontrolbtn, right);
+		if(inventorycontrolbtn != null)
+			inventorycontrolbtn.c.y = UI.scale(6);
 		cpsz = Coord.of((int)(wsz.x*0.95), cm.sz().y).sub(cptl); // ND: changed this to make the window top bar fully draggable WHEN RESIZED (for instance, buddy window)
 	}
 
@@ -437,22 +415,6 @@ public class Window extends Widget {
 		return null;
 	}
 
-	private int inventoryExtraWidth() {
-		if (!(parent instanceof Window))
-			return 0;
-
-		Window wnd = (Window) parent;
-		for (Widget w = wnd.child; w != null; w = w.next) {
-			if (w == wnd.deco)
-				continue;
-			if (w instanceof ExtInventory) {
-				ExtInventory ext = (ExtInventory) w;
-				return Math.max(0, ext.sz.x - ext.inv.sz.x);
-			}
-		}
-		return 0;
-	}
-
 	private boolean shouldShowInventoryButtons() {
 		return (parent instanceof Window) && ((Window) parent).shouldHaveInventoryButtons();
 	}
@@ -460,67 +422,11 @@ public class Window extends Widget {
 	private void refreshInventoryButtons() {
 		boolean visible = shouldShowInventoryButtons();
 		boolean hasInventory = findInventory() != null;
-		boolean hasExtInventory = findExtInventory() != null;
-
-		if (stackbtn != null)
-			stackbtn.visible = visible && hasInventory;
-		if (unstackbtn != null)
-			unstackbtn.visible = visible && hasInventory;
-		if (sortbtn != null)
-			sortbtn.visible = visible && hasInventory;
 		if (slotlockbtn != null)
-			slotlockbtn.visible = visible && hasInventory;
-		if (extlistbtn != null)
-			extlistbtn.visible = visible && hasExtInventory;
+			slotlockbtn.visible = false;
+		if (inventorycontrolbtn != null)
+			inventorycontrolbtn.visible = visible && hasInventory;
 	}
-
-	public void addExtListBtn() {
-		if (extlistbtn != null)
-			return;
-
-		extlistbtn = add(new IButton(extlistbtni[0], extlistbtni[1], extlistbtni[2])).action(() -> {
-			ExtInventory ext = findExtInventory();
-			if (ext != null) {
-				ext.togglePanel();
-			}
-		});
-		extlistbtn.settip("Extended View");
-		extlistbtn.visible = false;
-		refreshInventoryButtons();
-	}
-
-    public void addStackBtn() {
-		if (stackbtn != null)
-			return;
-
-		stackbtn = add(new IButton(stackbtni[0], stackbtni[1], stackbtni[2])).action(() -> {
-			Inventory inv = findInventory();
-			if (inv != null) {
-				new Thread(new StackAllItems(this.ui.gui, inv)).start();
-			}
-		});
-		stackbtn.settip("Stack All");
-		stackbtn.visible = false;
-		refreshInventoryButtons();
-	}
-
-    public void addSortBtn() {
-		if (sortbtn != null)
-			return;
-
-        sortbtn = add(new IButton(sortbtni[0], sortbtni[1], sortbtni[2])).action(() -> {
-            for (Widget wdg = this; wdg != null; wdg = wdg.next) {
-                Inventory inv = Inventory.fromWidget(wdg);
-                if (inv != null) {
-                    InventorySorter.sort(inv);
-                    break;
-                }
-            }
-        });
-        sortbtn.settip("Sort All");
-        sortbtn.visible = false;
-        refreshInventoryButtons();
-    }
 
 	public void addSlotLockBtn() {
 		if(slotlockbtn != null)
@@ -533,34 +439,69 @@ public class Window extends Widget {
 		refreshInventoryButtons();
 	}
 
-	private void ensureInventoryButtons() {
-		if(findInventory() == null)
+	public void addInventoryControlBtn() {
+		if(inventorycontrolbtn != null)
 			return;
-		addStackBtn();
-		addUnstackBtn();
-		addSortBtn();
-		addSlotLockBtn();
-		if(findExtInventory() != null)
-			addExtListBtn();
+		inventorycontrolbtn = add(new InventoryControlPanel.TitleButton(() -> {
+			Inventory inventory = findInventory();
+			if(inventory != null)
+				((Window)parent).toggleInventoryControls(inventory);
+		}, () -> parent instanceof Window && ((Window)parent).inventoryControlsExpanded()));
+		inventorycontrolbtn.visible = false;
 		refreshInventoryButtons();
 	}
 
-    public void addUnstackBtn() {
-		if (unstackbtn != null)
+	private void ensureInventoryButtons() {
+		if(findInventory() == null)
 			return;
-
-		unstackbtn = add(new IButton(unstackbtni[0], unstackbtni[1], unstackbtni[2])).action(() -> {
-			Inventory inv = findInventory();
-			if (inv != null) {
-				new Thread(new UnstackAllItems(this.ui.gui, inv)).start();
-			}
-		});
-		unstackbtn.settip("Unstack All");
-		unstackbtn.visible = false;
+		addSlotLockBtn();
+		addInventoryControlBtn();
 		refreshInventoryButtons();
 	}
 
     }
+
+	private void toggleInventoryControls(Inventory inventory) {
+		if(parent == null || inventory == null)
+			return;
+		if(inventoryControlPanel == null || inventoryControlPanel.parent == null) {
+			inventoryControlPanel = new InventoryControlPanel(this, inventory);
+			parent.add(inventoryControlPanel, c.add(sz.x, UI.scale(18)));
+		}
+		inventoryControlPanel.toggle();
+	}
+
+	private boolean inventoryControlsExpanded() {
+		return(inventoryControlPanel != null && inventoryControlPanel.parent != null &&
+				inventoryControlPanel.expanded());
+	}
+
+	public boolean hasInventoryExtendedView() {
+		return(deco instanceof DefaultDeco && ((DefaultDeco)deco).findExtInventory() != null);
+	}
+
+	public void toggleInventoryExtendedView() {
+		if(deco instanceof DefaultDeco) {
+			ExtInventory ext = ((DefaultDeco)deco).findExtInventory();
+			if(ext != null)
+				ext.togglePanel();
+		}
+	}
+
+	public boolean toggleInventorySlotLock() {
+		if(!(deco instanceof DefaultDeco))
+			return(false);
+		InventorySlotLockButton button = ((DefaultDeco)deco).slotlockbtn;
+		if(button == null || button.ui == null)
+			return(false);
+		button.click();
+		return(button.state());
+	}
+
+	public boolean inventorySlotLockActive() {
+		return(deco instanceof DefaultDeco && ((DefaultDeco)deco).slotlockbtn != null &&
+				((DefaultDeco)deco).slotlockbtn.state());
+	}
 
     public void cdraw(GOut g) {
     }
@@ -971,6 +912,10 @@ public class Window extends Widget {
 
     @Override
     public void dispose() {
+		if(inventoryControlPanel != null) {
+			inventoryControlPanel.reqdestroy();
+			inventoryControlPanel = null;
+		}
         super.dispose();
         if (this.cap != null)
             Utils.setprefc("wndc-" + this.cap, this.c);
@@ -1012,34 +957,10 @@ public class Window extends Widget {
             if (child instanceof Inventory || child instanceof ExtInventory) {
                 if (deco instanceof DefaultDeco) {
 					try {
-						((DefaultDeco) deco).addStackBtn();
+						((DefaultDeco) deco).ensureInventoryButtons();
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
-					try {
-						((DefaultDeco) deco).addUnstackBtn();
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-                    try {
-                        ((DefaultDeco) deco).addSortBtn();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-					try {
-						((DefaultDeco) deco).addSlotLockBtn();
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-					if (child instanceof ExtInventory) {
-						try {
-							((DefaultDeco) deco).addExtListBtn();
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
-					}
-					((DefaultDeco) deco).refreshInventoryButtons();
-
 				}
             }
         } catch (Exception e) {

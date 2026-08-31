@@ -67,6 +67,8 @@ public class Fightsess extends Widget {
 	public static final Text.Foundry ipFoundry = new Text.Foundry(Text.serif.deriveFont(Font.BOLD), 22);
 	public static final Text.Foundry ipAdditionalFont = new Text.Foundry(Text.dfont.deriveFont(Font.BOLD), 12);
 	public static final Text.Foundry openingAdditionalFont = new Text.Foundry(Text.dfont.deriveFont(Font.BOLD), 10);
+	private static final Text.Foundry integratedOpeningFont = new Text.Foundry(Text.dfont.deriveFont(Font.BOLD), 14);
+	private static final Text.Foundry integratedTimerFont = new Text.Foundry(Text.sans.deriveFont(Font.BOLD), 16);
 	public static final Text.Foundry cleaveAdditionalFont = new Text.Foundry(Text.dfont.deriveFont(Font.BOLD), 10);
 	int combatMedColorShift = 0;
 	public static final Text.Foundry keybindsFoundry = new Text.Foundry(Text.sans.deriveFont(java.awt.Font.BOLD), 14);
@@ -75,6 +77,7 @@ public class Fightsess extends Widget {
 	private static final Map<String, Tex> keybindTexCache = new HashMap<>();
 	private static final Map<String, Tex> damagePredictionTexCache = new HashMap<>();
 	private static final Tex[] openingValueTexCache = new Tex[101];
+	private static final Tex[] integratedOpeningValueTexCache = new Tex[101];
 	private static final Map<Integer, Tex> ipTexCache = new HashMap<>();
 	private static final Map<Integer, Tex> oipTexCache = new HashMap<>();
 	private final Map<String, Tex> circularIconCache = new HashMap<>();
@@ -218,15 +221,20 @@ public class Fightsess extends Widget {
 		Color base = OptWnd.improvedOpeningsImageColor.getOrDefault(resourceName, MoonFlowerHudTheme.GOLD_SOFT);
 		int alpha = (int)Math.round(255 * reveal);
 		int radius = Math.max(UI.scale(7), (diameter / 2) - UI.scale(2));
-		int inner = Math.max(UI.scale(4), radius - UI.scale(player ? 5 : 4));
-		g.chcolor(new Color(base.getRed(), base.getGreen(), base.getBlue(), (player ? 105 : 78) * alpha / 255));
+		int inner = Math.max(UI.scale(4), radius - UI.scale(6));
+		Color allegiance = player ? MoonFlowerHudTheme.TEAL_BRIGHT : new Color(218, 62, 69);
+		g.chcolor(new Color(allegiance.getRed(), allegiance.getGreen(), allegiance.getBlue(),
+				230 * alpha / 255));
 		g.fellipse(center, Coord.of(radius, radius));
+		g.chcolor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 195 * alpha / 255));
+		g.fellipse(center, Coord.of(Math.max(1, radius - UI.scale(2)),
+				Math.max(1, radius - UI.scale(2))));
 		if(value > 0) {
 			double sweep = Math.PI * 2 * Math.min(1.0, value / 100.0);
-			g.chcolor(new Color(base.getRed(), base.getGreen(), base.getBlue(), (player ? 245 : 205) * alpha / 255));
+			g.chcolor(new Color(base.getRed(), base.getGreen(), base.getBlue(), 255 * alpha / 255));
 			g.fellipse(center, Coord.of(radius, radius), -Math.PI / 2, -Math.PI / 2 + sweep);
 		}
-		g.chcolor(new Color(2, 11, 15, 225 * alpha / 255));
+		g.chcolor(new Color(2, 11, 15, 205 * alpha / 255));
 		g.fellipse(center, Coord.of(inner, inner));
 		g.chcolor();
 		if(OptWnd.showCombatOpeningsAsLettersCheckBox.a) {
@@ -237,10 +245,10 @@ public class Fightsess extends Widget {
 			g.chcolor();
 		}
 		int bounded = Math.max(0, Math.min(openingValueTexCache.length - 1, value));
-		Tex valueTex = openingValueTexCache[bounded];
+		Tex valueTex = integratedOpeningValueTexCache[bounded];
 		if(valueTex == null) {
-			valueTex = Text.renderstroked(Integer.toString(bounded), openingAdditionalFont).tex();
-			openingValueTexCache[bounded] = valueTex;
+			valueTex = Text.renderstroked(Integer.toString(bounded), integratedOpeningFont).tex();
+			integratedOpeningValueTexCache[bounded] = valueTex;
 		}
 		g.chcolor(255, 255, 255, alpha);
 		g.aimage(valueTex, center, 0.5, 0.5);
@@ -303,11 +311,11 @@ public class Fightsess extends Widget {
 				Math.max(1, radius - UI.scale(5))));
 		boolean cooling = now < end && end > start;
 		double progress = cooling ? Utils.clip((now - start) / (end - start), 0.0, 1.0) : 1.0;
-		drawSegmentedCooldownRing(g, center, radius, progress, alpha, 24, UI.scale(2));
+		drawSegmentedCooldownRing(g, center, radius, progress, alpha, 24, UI.scale(3));
 		if(cooling) {
 			if(reveal > 0.35) {
 				g.chcolor(255, 255, 255, alpha);
-				renderAttackTimer(g, end - now, center);
+				renderIntegratedAttackTimer(g, end - now, center);
 				g.chcolor();
 			}
 		}
@@ -318,7 +326,7 @@ public class Fightsess extends Widget {
 		int alpha = (int)Math.round(255 * reveal);
 		int radius = Math.max(UI.scale(7), (diameter / 2) - UI.scale(2));
 		drawSegmentedCooldownRing(g, center, radius, Utils.clip(progress, 0.0, 1.0),
-				alpha, 18, UI.scale(2));
+				alpha, 24, UI.scale(3));
 		g.chcolor();
 	}
 
@@ -369,6 +377,13 @@ public class Fightsess extends Widget {
 	private void renderAttackTimer(GOut g, double atkctValue, Coord position) {
 		String formatted = fmt1DecPlace(atkctValue);
 		Tex tex = timerTexCache.computeIfAbsent(formatted, key -> Text.renderstroked(key).tex());
+		g.aimage(tex, position, 0.5, 0.5);
+	}
+
+	private void renderIntegratedAttackTimer(GOut g, double seconds, Coord position) {
+		String formatted = fmt1DecPlace(seconds);
+		Tex tex = timerTexCache.computeIfAbsent("combat:" + formatted,
+				key -> Text.renderstroked(formatted, integratedTimerFont).tex());
 		g.aimage(tex, position, 0.5, 0.5);
 	}
 
@@ -951,9 +966,14 @@ public class Fightsess extends Widget {
 				String keybindString = kb_acts[i].key().name();
 				infoY += 8;
 				Tex keybindTex = getKeybindTexture(keybindString);
-				if(integratedHub != null)
+				if(integratedHub != null) {
 					g.chcolor(255, 255, 255, (int)Math.round(255 * integratedReveal));
-				g.aimage(keybindTex, ca.add(img.sz().x/2, img.sz().y + UI.scale(infoY)), 0.5, 0.5);
+					Coord keyCenter = integratedHub.combatActionCenter(i).add(0,
+							(integratedHub.combatActionDiameter() / 2) - UI.scale(1));
+					g.aimage(keybindTex, keyCenter, 0.5, 1.0);
+				} else {
+					g.aimage(keybindTex, ca.add(img.sz().x/2, img.sz().y + UI.scale(infoY)), 0.5, 0.5);
+				}
 				g.chcolor();
 			}
 			if (OptWnd.showDamagePredictUICheckBox.a) {
@@ -998,9 +1018,14 @@ public class Fightsess extends Widget {
 				if(!damage.isEmpty()) {
 					infoY += 12;
 					Tex damageTex = getDamagePredictionTexture(damage);
-					if(integratedHub != null)
+					if(integratedHub != null) {
 						g.chcolor(255, 255, 255, (int)Math.round(255 * integratedReveal));
-					g.aimage(damageTex, ca.add((int)(img.sz().x/2), img.sz().y + UI.scale(infoY)), 0.5, 0.5);
+						Coord damageCenter = integratedHub.combatActionCenter(i).add(0,
+								-(integratedHub.combatActionDiameter() / 2) + UI.scale(1));
+						g.aimage(damageTex, damageCenter, 0.5, 0.0);
+					} else {
+						g.aimage(damageTex, ca.add((int)(img.sz().x/2), img.sz().y + UI.scale(infoY)), 0.5, 0.5);
+					}
 					g.chcolor();
 				}
 			}
@@ -1330,11 +1355,13 @@ public class Fightsess extends Widget {
 		if(mvc.isect(Coord.z, map.sz)) {
 		    map.new Maptest(mvc) {
 			    protected void hit(Coord pc, Coord2d mc) {
-				wdgmsg("use", fn, 1, ui.modflags(), mc.floor(OCache.posres));
+				if((ui != null) && (ui.widgetid(Fightsess.this) >= 0))
+				    wdgmsg("use", fn, 1, ui.modflags(), mc.floor(OCache.posres));
 			    }
 
 			    protected void nohit(Coord pc) {
-				wdgmsg("use", fn, 1, ui.modflags());
+				if((ui != null) && (ui.widgetid(Fightsess.this) >= 0))
+				    wdgmsg("use", fn, 1, ui.modflags());
 			    }
 			}.run();
 		}

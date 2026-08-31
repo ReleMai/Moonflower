@@ -81,6 +81,7 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	private HitBoxGobSprite<HidingBox> hidingBoxFilled = null;
 	public HitBoxGobSprite<CollisionBox> collisionBox = null;
 	private GobQualityInfo qualityInfo;
+	private LocalizedResourceTimerInfo localizedResourceTimerInfo;
 	GobGrowthInfo growthInfo;
 	GobReadyForHarvestInfo readyForHarvestInfo;
 	GobFoodWaterInfo foodWaterInfo;
@@ -1646,6 +1647,18 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 			qualityInfo.clear();
 			qualityInfo.setQ(quality);
 		}
+	}
+
+	/** Keeps the refill countdown separate from other GobInfo overlays. */
+	public void setLocalizedResourceTimer(LocalizedResourceTimerInfo timer) {
+		if(localizedResourceTimerInfo != null && localizedResourceTimerInfo != timer)
+			localizedResourceTimerInfo.dispose();
+		localizedResourceTimerInfo = timer;
+		setattr(LocalizedResourceTimerInfo.class, timer);
+	}
+
+	public LocalizedResourceTimerInfo localizedResourceTimer() {
+		return(localizedResourceTimerInfo);
 	}
 
 

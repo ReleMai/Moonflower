@@ -83,7 +83,10 @@ public class MoonFlowerPortraitHub extends Widget {
         featureActions.add(new FeatureAction(6, "Cookbook", gui::isCookbookOpen, gui::toggleCookbook));
         featureActions.add(new FeatureAction(7, "Fishing System", () ->
                 gui.isFishingJournalOpen() || gui.isFishingHelperOpen(), gui::toggleFishingSystem));
+        featureActions.add(new FeatureAction(8, "Botanical Wayfinder", gui::isForagingOpen, gui::toggleForaging));
         featureActions.add(new FeatureAction(9, "Ring of Brodgar Wiki", gui::isWikiOpen, gui::toggleWiki));
+        featureActions.add(new FeatureAction(2, "Session Conservatory", gui::isSessionConservatoryOpen,
+                gui::toggleSessionConservatory));
     }
 
     private void addMainButtons() {
@@ -185,7 +188,7 @@ public class MoonFlowerPortraitHub extends Widget {
         Coord overflowCenter = MoonFlowerHudAssets.scaledBuffOverflowCenter(ornamentSize).add(0, dockY);
         buffMoreButton.move(overflowCenter.sub(buffMoreButton.sz.div(2)));
         featureVine.relayout();
-        rebuildMovementIcons(scaled(12));
+        rebuildMovementIcons(scaled(16));
 
         if(buffs != null)
             configureBuffs();
@@ -342,7 +345,9 @@ public class MoonFlowerPortraitHub extends Widget {
             Buff buff = icons.get(i);
             buff.setCircularDisplay(true);
             buff.show();
-            Coord center = MoonFlowerHudAssets.scaledBuffSocketCenter(i, ornamentSize()).add(0, dockY);
+            Coord normal = MoonFlowerHudAssets.scaledBuffSocketCenter(i, ornamentSize());
+            Coord combat = MoonFlowerHudAssets.scaledCombatBuffCenter(i, ornamentSize());
+            Coord center = transformedCenter(normal, combat).add(0, dockY);
             buff.c = center.sub(buff.sz.div(2));
         }
         int extra = Math.max(0, icons.size() - primary);
@@ -421,11 +426,25 @@ public class MoonFlowerPortraitHub extends Widget {
     public void drawCombatCrown(GOut g) {
         int openingRadius = Math.max(1, combatOpeningDiameter() / 2);
         if(combatContentReveal() > 0.45) {
-            FastText.aprintfstroked(g, combatOpeningGroupCenter(false).add(0, -openingRadius - scaled(7)),
-                    0.5, 0.5, "YOU");
-            FastText.aprintfstroked(g, combatOpeningGroupCenter(true).add(0, -openingRadius - scaled(7)),
-                    0.5, 0.5, "FOE");
+            drawCombatSideBadge(g, combatOpeningGroupCenter(false).add(0, openingRadius + scaled(10)), false);
+            drawCombatSideBadge(g, combatOpeningGroupCenter(true).add(0, openingRadius + scaled(10)), true);
         }
+    }
+
+    private void drawCombatSideBadge(GOut g, Coord center, boolean opponent) {
+        Coord size = Coord.of(scaled(58), scaled(15));
+        Coord origin = center.sub(size.div(2));
+        Color accent = opponent ? new Color(176, 42, 54, 245) : MoonFlowerHudTheme.TEAL_BRIGHT;
+        g.chcolor(new Color(2, 12, 16, 235));
+        g.frect(origin, size);
+        g.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
+        g.rect(origin, size);
+        g.chcolor(accent);
+        g.frect(origin.add(scaled(2), scaled(2)), Coord.of(scaled(4), Math.max(1, size.y - scaled(4))));
+        g.fellipse(origin.add(size.x - scaled(8), size.y / 2), Coord.of(scaled(3), scaled(3)));
+        g.chcolor();
+        FastText.aprintfstroked(g, center.sub(scaled(2), 0), 0.5, 0.5,
+                "%s", opponent ? "ENEMY" : "PLAYER");
     }
 
     public Coord combatActionCenter(int index) {
@@ -574,13 +593,20 @@ public class MoonFlowerPortraitHub extends Widget {
         for(int i = 0; i < mainButtons.size(); i++) {
             Coord normal = MoonFlowerHudAssets.scaledSocketCenter(i, size);
             Coord combat = MoonFlowerHudAssets.scaledCombatUtilityCenter(i, size);
-            Coord center = Coord.of(
-                    (int)Math.round(normal.x + ((combat.x - normal.x) * reveal)),
-                    (int)Math.round(normal.y + ((combat.y - normal.y) * reveal))).add(0, dockY);
+            Coord center = transformedCenter(normal, combat, reveal).add(0, dockY);
             HudIconButton button = mainButtons.get(i);
             button.resize(buttonSize, buttonSize);
             button.move(center.sub(buttonSize / 2, buttonSize / 2));
         }
+    }
+
+    private Coord transformedCenter(Coord normal, Coord combat) {
+        return transformedCenter(normal, combat, Utils.smoothstep(effectiveCombatReveal()));
+    }
+
+    private static Coord transformedCenter(Coord normal, Coord combat, double reveal) {
+        return Coord.of((int)Math.round(normal.x + ((combat.x - normal.x) * reveal)),
+                (int)Math.round(normal.y + ((combat.y - normal.y) * reveal)));
     }
 
     private void drawRings(GOut g) {
@@ -812,11 +838,13 @@ public class MoonFlowerPortraitHub extends Widget {
     }
 
     private Coord movementModeCenter(int mode) {
-        return MoonFlowerHudAssets.scaledMovementSocketCenter(mode, ornamentSize()).add(0, dockY);
+        Coord normal = MoonFlowerHudAssets.scaledMovementSocketCenter(mode, ornamentSize());
+        Coord combat = MoonFlowerHudAssets.scaledCombatMovementCenter(mode, ornamentSize());
+        return transformedCenter(normal, combat).add(0, dockY);
     }
 
     private int movementModeAt(Coord c) {
-        int radius = scaled(10);
+        int radius = scaled(12);
         for(int mode = 0; mode < movementIcons.length; mode++) {
             Coord center = movementModeCenter(mode);
             if(c.isect(center.sub(radius, radius), Coord.of(radius * 2, radius * 2)))
@@ -943,6 +971,14 @@ public class MoonFlowerPortraitHub extends Widget {
                 for(int i = 0; i < 10; i++) {
                     int radius = Math.max(1, combatActionDiameter() / 2);
                     g.fellipse(MoonFlowerHudAssets.scaledCombatActionCenter(i, sz), Coord.of(radius, radius));
+                }
+                for(int i = 0; i < MoonFlowerHudAssets.buffSocketCenters.length; i++) {
+                    int radius = scaled(14);
+                    g.fellipse(MoonFlowerHudAssets.scaledCombatBuffCenter(i, sz), Coord.of(radius, radius));
+                }
+                for(int i = 0; i < MoonFlowerHudAssets.movementSocketCenters.length; i++) {
+                    int radius = scaled(10);
+                    g.fellipse(MoonFlowerHudAssets.scaledCombatMovementCenter(i, sz), Coord.of(radius, radius));
                 }
                 for(int i = 0; i < mainButtons.size(); i++)
                     g.fellipse(MoonFlowerHudAssets.scaledCombatUtilityCenter(i, sz), Coord.of(scaled(17), scaled(17)));

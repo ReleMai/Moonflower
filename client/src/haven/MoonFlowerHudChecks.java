@@ -98,6 +98,10 @@ public final class MoonFlowerHudChecks {
                         MoonFlowerHudAssets.scaledCombatInitiativeCenter(false, combatCrownSize).x <
                                 MoonFlowerHudAssets.scaledCombatInitiativeCenter(true, combatCrownSize).x,
                 "transformed portrait owns mirrored defense and initiative sockets");
+        require(MoonFlowerHudAssets.scaledCombatActionDiameter(combatCrownSize) >= 22 &&
+                        MoonFlowerHudAssets.scaledCombatOpeningDiameter(combatCrownSize) >= 17 &&
+                        MoonFlowerHudAssets.scaledCombatCooldownDiameter(combatCrownSize) >= 15,
+                "combat wells retain readable minimum sizes at the default portrait scale");
         Coord combatPortrait = MoonFlowerHudAssets.scaledCombatPortraitCenter(combatCrownSize);
         int protectedRadius = 70;
         for(int i = 0; i < 10; i++)
@@ -117,6 +121,16 @@ public final class MoonFlowerHudChecks {
         require(leftUtility.x < combatPortrait.x && rightUtility.x > combatPortrait.x &&
                         leftUtility.y >= 0 && rightUtility.y < combatCrownSize.y,
                 "combat state retains mirrored on-screen utility rails");
+        Coord combatBuffLeft = MoonFlowerHudAssets.scaledCombatBuffCenter(0, combatCrownSize);
+        Coord combatBuffRight = MoonFlowerHudAssets.scaledCombatBuffCenter(3, combatCrownSize);
+        Coord combatMoveTop = MoonFlowerHudAssets.scaledCombatMovementCenter(0, combatCrownSize);
+        Coord combatMoveBottom = MoonFlowerHudAssets.scaledCombatMovementCenter(2, combatCrownSize);
+        require(combatBuffLeft.x < combatPortrait.x && combatBuffRight.x > combatPortrait.x &&
+                        Math.abs(combatBuffLeft.y - combatBuffRight.y) <= 2,
+                "combat buffs align with the four painted lower-center wells");
+        require(combatMoveTop.y < combatMoveBottom.y &&
+                        combatMoveTop.x == combatMoveBottom.x,
+                "combat movement controls align with the painted two-by-two socket grid");
         require(MoonFlowerVitalInfo.nearestRing(51, 46, 51, 56, 2) == MoonFlowerVitalInfo.STAMINA,
                 "stamina ring hover selection");
         require(MoonFlowerVitalInfo.nearestRing(40, 46, 51, 56, 2) == -1,

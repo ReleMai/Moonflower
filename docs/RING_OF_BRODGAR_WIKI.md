@@ -1,63 +1,105 @@
-# Ring of Brodgar Wiki
+# MoonFlower Codex
 
-## Implemented Slice
+## Player Experience
 
-MoonFlower now has a native, read-only Ring of Brodgar search window. Open the
-collapsible feature tray and select **Ring of Brodgar Wiki**, or use the
-configurable `ring-of-brodgar-wiki` key binding (default `Ctrl+Alt/Meta+W`).
+MoonFlower's former raw Ring of Brodgar reader is now a native field archive.
+Open **MoonFlower Codex** from the feature vine or use the configurable
+`ring-of-brodgar-wiki` key binding (default `Ctrl+Alt/Meta+W`).
 
-The reader provides:
+The Codex provides:
 
-- explicit Enter/Search submission rather than search-as-you-type traffic;
-- MediaWiki main-namespace search results with exact-title matches promoted,
-  cleaned excerpts, word counts, edit timestamps, page IDs, and safely encoded
-  article links;
-- an explicit **Read in game** action that converts the selected page's rendered
-  HTML into native headings, paragraphs, lists, and compact infobox facts;
-- one lead image per opened article, downloaded only from Ring of Brodgar's
-  `/images/` path, decoded with byte and pixel limits, proportionally sized,
-  and cached in memory;
-- a separate **Open web** action for the canonical source page;
-- safe `https://ringofbrodgar.com` link validation;
-- bounded in-memory caches for repeated searches, opened pages, and images;
-- a one-request-per-minute gate matching the site's published crawl delay;
-- a descriptive client user agent, timeouts, and a 1 MiB response limit;
-- visible community-source, GFDL, and freshness context;
-- a clearer, higher-contrast two-pane layout with a resizable `1000 x 650`
-  default window and `760 x 500` minimum; and
-- saved window position and size.
+- instant ranked search over records already known to the client;
+- explicit community archive search for records not yet indexed locally;
+- categories derived from current live action resources and retrieved records;
+- stable record identities independent of display text;
+- linked records parsed from main-namespace community article links;
+- Back, Forward, Home, mouse navigation, and `Alt+Left`/`Alt+Right`;
+- per-character recently viewed records, search history, and persistent saved
+  records through existing preferences, without changing Haven saves;
+- bounded community lead images plus current action icons;
+- a responsive three-column field-journal layout with MoonFlower ink, teal,
+  gold, ivory, panel, vine, and blossom vocabulary;
+- a painted open-journal crest and botanical archive rail with transparent,
+  project-local artwork;
+- bounded center-reveal, page-bloom, and traveling-mote decoration with a
+  dedicated reduced-motion setting;
+- compact provenance labels and link tooltips; and
+- `Ctrl+Alt/Meta+right-click` on an inventory item to open its record without
+  replacing the native item flower menu.
 
-No wiki login, cookies, editing, scripts, background crawling, linked-page
-prefetching, or bulk download behavior is present. Images are displayed from
-the source site at reading time; they are not bundled into MoonFlower.
+## Live Actions And Crafting
 
-## Current Boundary
+`WikiGameDataAdapter` indexes the current character's server-provided
+`MenuGrid.Pagina` resources. These records are labeled `LIVE`. Their title,
+description, icon, parent/child relationships, resource identifier, and action
+kind are read from the loaded resource rather than copied into wiki content.
 
-Ring of Brodgar does not expose MediaWiki's plain-text `extracts` property, so
-the native reader fetches the selected page through MediaWiki's `action=parse`
-API. It uses a non-executing HTML parser and maps a deliberately small subset of
-content into Haven's native widgets. Navigation tables, edit controls, scripts,
-styles, arbitrary embedded media, and unrestricted HTML are discarded.
+For a leaf action, **Open Action** delegates to `MenuGrid.use`. A real craft
+action is labeled **Open Crafting** and follows the same path used by the native
+action grid, allowing Haven to create its normal `Makewindow`. Ingredients,
+skills, tools, availability, and messages therefore remain server/native facts.
+The Codex does not simulate crafting, count inventory against a duplicated
+recipe, or send invented production jobs.
 
-The visible source link, revision ID, GFDL notice, and **Open web** action retain
-provenance. Community-maintained facts may still be incomplete or outdated.
-Before increasing automated request frequency or adding bulk/offline mirroring,
-obtain permission from Ring of Brodgar's administrator.
+Haven does not ship a complete local authoritative catalog of every item,
+creature, terrain, biome, recipe, technology, or world-generation rule. Those
+systems cannot be truthfully generated as local definition pages in this
+client. Current menu actions are the dynamically generated local records;
+everything sourced from Ring of Brodgar is visibly labeled `GUIDE`.
 
-## Important Files
+## Community Archive Boundary
 
-- `client/src/haven/wiki/RingOfBrodgarWikiService.java` owns requests, caching,
-  parsing, URL construction, and rate limiting.
-- `client/src/haven/wiki/WikiWindow.java` owns native layout and interaction.
-- `client/src/haven/wiki/WikiImageView.java` owns bounded proportional image
-  presentation and texture cleanup.
-- `client/src/haven/wiki/WikiArticle.java` is the sanitized article model.
-- `client/src/haven/wiki/WikiChecks.java` contains deterministic offline checks.
-- `client/src/haven/GameUI.java` owns the feature-tray and key-binding entry.
+Community search uses MediaWiki's main-namespace search API. A selected record
+uses `action=parse` and requests rendered text, revision, categories, and linked
+main-namespace pages. The client maps a bounded non-executing subset into native
+headings, paragraphs, lists, infobox facts, categories, a lead image, and stable
+related-record references.
+
+Network behavior remains deliberately respectful and fail-closed:
+
+- explicit submit rather than network search-as-you-type;
+- one uncached community query per minute;
+- bounded search/article/image caches;
+- descriptive user agent, timeouts, and response/image limits;
+- `https://ringofbrodgar.com` source validation;
+- `/images/`-only community image validation; and
+- visible GFDL/community attribution and revision context.
+
+There is no wiki login, editing, cookie use, scripting, background crawling,
+linked-page prefetching, bulk mirroring, or unrestricted HTML. Community content
+may be incomplete or outdated and never overrides live client/server state.
+
+## Architecture
+
+- `WikiReference` owns stable `guide:` and `action:` identities plus provenance.
+- `WikiSearchIndex` owns incremental token indexing and deterministic ranking.
+- `WikiNavigationState` owns current, Back, and Forward stacks.
+- `WikiLibrary` owns bounded per-character recent/search/saved preferences.
+- `WikiGameDataAdapter` converts the live action menu into records and delegates
+  real actions back to `MenuGrid`.
+- `RingOfBrodgarWikiService` owns safe requests, parsing, caching, and limits.
+- `WikiWindow` owns thematic presentation and interaction.
+- `WikiUiAssets` and `WikiOrnamentWidget` own optimized painted assets and
+  reduced-motion-aware decorative animation.
+- `WikiImageView` owns bounded remote-image and live-icon presentation.
+- `WikiChecks` owns deterministic offline checks.
+- `GameUI` owns lifecycle, window geometry, feature-vine, and keybinding entry.
+
+The design and resolution decisions are recorded in
+`docs/ui/MOONFLOWER_CODEX.md`.
+
+## Failure Behavior
+
+Unknown/deleted records, unloaded live resources, unsafe links, missing images,
+network failures, and malformed optional resources leave the Codex open with a
+recoverable message. One malformed resource cannot prevent other live actions
+from being indexed. Development checks validate stable references and retrieved
+article links; runtime logs and live observation remain the evidence for server
+resource behavior.
 
 ## Verification
 
-Close the visible client before building or packaging.
+Close the visible client before normal compilation or packaging.
 
 ```powershell
 Push-Location client
@@ -65,10 +107,21 @@ ant hafen-client
 java '-Dhaven.uiscale=1' -cp "build/classes;lib/*;lib/ext/*/*" haven.wiki.WikiChecks
 java -cp "build/classes;lib/*;lib/ext/*/*" haven.MoonFlowerChecks
 Pop-Location
+git diff --check
 ```
 
-Live validation should confirm window resizing at supported UI scales, tray
-pressed state, Enter and button submission, cached repeated searches, the
-cooldown message for a different query, **Read in game** page loading, lead-image
-display, scrolling, and external opening of one selected article. Compilation
-and offline checks do not prove those visible behaviors.
+The focused suite covers query normalization, safe URLs, community parsing,
+caches, exact/partial/alias/category/no-result search, Back/Forward state,
+article categories and links, stable reference persistence shape, and live
+action categorization.
+
+Compilation and deterministic checks do not prove visible layout, live network
+behavior, real item context interaction, image rendering, or server crafting.
+A supervised client session should separately confirm:
+
+1. 1280x720 minimum-size and 1080p/1440p preferred layouts at supported scales;
+2. local type-ahead, one submitted community query, and cached repeat behavior;
+3. several related-record hops followed by Back and Forward;
+4. Recent and Saved persistence after closing/reopening the Codex;
+5. one inventory item opened with the Codex modifier gesture; and
+6. one `LIVE` craft record opening the normal server-provided crafting window.

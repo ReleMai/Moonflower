@@ -61,6 +61,8 @@ final class FishingPoleAssembler {
         WItem source = resolveTakeSource(component, kind);
         if(source == null || source.item == null)
             return("No selected " + label(kind) + " could be taken from the resolved inventory source.");
+        if(gui.ui == null || gui.ui.widgetid(source.item) < 0)
+            return("The selected " + label(kind) + " changed while tackle was being prepared; retrying will use the current item widget.");
         CursorOrigin origin = new CursorOrigin(source);
         HeldExpectation expected = new HeldExpectation(kind, source.item);
         // Match an ordinary left-click on the centre of the tackle item.

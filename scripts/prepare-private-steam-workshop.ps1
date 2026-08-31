@@ -180,6 +180,7 @@ $requiredFiles = @(
     "lwjgl-awt.jar",
     "lwjgl-fat.jar",
     "lwjgl-opengl-fat.jar",
+    "MoonFlower-Update.ps1",
     "Play.bat",
     "Play_Linux.sh",
     "Play_WithSteam.bat",
@@ -187,6 +188,7 @@ $requiredFiles = @(
     "static_data.db",
     "steam_appid.txt",
     "steam-client-image.jpg",
+    "steam-client-image.gif",
     "steam-banner.jpg",
     "workshop-description.txt",
     "steamworks4j-natives-linux-amd64.jar",
@@ -195,6 +197,21 @@ $requiredFiles = @(
     "steamworks4j-natives-windows-i586.jar",
     "steamworks4j.jar"
 )
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+foreach ($file in $requiredFiles | Where-Object { $_ -like "*.jar" }) {
+    $source = Join-Path $binRoot $file
+    try {
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($source)
+        $entryCount = $archive.Entries.Count
+        $archive.Dispose()
+        if ($entryCount -lt 1) {
+            throw "archive has no entries"
+        }
+    } catch {
+        throw "Packaged archive is not a readable ZIP/JAR: $source ($($_.Exception.Message))"
+    }
+}
 
 foreach ($file in $requiredFiles) {
     Copy-RequiredFile $file

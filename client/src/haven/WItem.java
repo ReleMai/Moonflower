@@ -289,6 +289,19 @@ public class WItem extends Widget implements DTarget {
 	    }
 	    return(true);
 	} else if(ev.b == 3) {
+		if(ui.gui != null && ui.gui.sharpToolAutoManager != null)
+			ui.gui.sharpToolAutoManager.noteItemInteraction(item);
+		/* Ctrl+Alt/Meta+right-click is deliberately unique: it opens the
+		 * read-only Codex record without replacing the item's native flower
+		 * menu or any normal right-click behavior. */
+		if(ui.modctrl && ui.modmeta && !ui.modshift && ui.gui != null) {
+			try {
+				ui.gui.openWiki(item.getname(), item.getres().name);
+			} catch(Loading unavailable) {
+				ui.gui.error("This item's Codex record is not loaded yet.");
+			}
+			return(true);
+		}
 		if (OptWnd.useImprovedInventoryTransferControlsCheckBox.a && ui.modmeta && !ui.modctrl) {
 			if (inv) {
 				wdgmsg("transfer-ordered", item, true);

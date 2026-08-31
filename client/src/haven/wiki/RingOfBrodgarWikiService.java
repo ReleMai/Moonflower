@@ -191,7 +191,7 @@ public final class RingOfBrodgarWikiService implements AutoCloseable {
 
     static URI articleApiUri(String title) {
         String encoded = URLEncoder.encode(normalizeQuery(title), StandardCharsets.UTF_8);
-        return(URI.create(API_BASE + "?action=parse&redirects=1&prop=text%7Cdisplaytitle%7Crevid" +
+        return(URI.create(API_BASE + "?action=parse&redirects=1&prop=text%7Cdisplaytitle%7Crevid%7Ccategories%7Clinks" +
                 "&format=json&formatversion=2&page=" + encoded));
     }
 
@@ -244,8 +244,51 @@ public final class RingOfBrodgarWikiService implements AutoCloseable {
                     impossibleForStringReader));
         }
         URI articleUri = articleUri(parsed.optString("title", title));
-        return(new WikiArticle(title, reader.text(), parsed.optLong("revid", -1L),
-                articleUri, reader.leadImage(), false));
+        List<String> categories = parseCategories(parsed.optJSONArray("categories"));
+        String primaryCategory = categories.isEmpty() ? "Community Archive" : categories.get(0);
+        WikiReference reference = WikiReference.guide(title, primaryCategory, articleUri);
+        List<WikiReference> links = parseLinks(parsed.optJSONArray("links"));
+        return(new WikiArticle(reference, title, reader.text(), parsed.optLong("revid", -1L),
+                articleUri, reader.leadImage(), false, categories, links, reader.images()));
+    }
+
+    private static List<String> parseCategories(JSONArray source) {
+        List<String> categories = new ArrayList<>();
+        if(source == null)
+            return(categories);
+        for(int index = 0; index < source.length() && categories.size() < 12; index++) {
+            JSONObject item = source.optJSONObject(index);
+            if(item == null)
+                continue;
+            String category = item.optString("category", item.optString("*", "")).trim();
+            if(category.startsWith("Category:"))
+                category = category.substring("Category:".length()).trim();
+            if(!category.isBlank() && !category.toLowerCase(Locale.ROOT).contains("maintenance") &&
+                    !categories.contains(category))
+                categories.add(category);
+        }
+        return(categories);
+    }
+
+    private static List<WikiReference> parseLinks(JSONArray source) {
+        List<WikiReference> links = new ArrayList<>();
+        Map<String, WikiReference> unique = new LinkedHashMap<>();
+        if(source == null)
+            return(links);
+        for(int index = 0; index < source.length() && links.size() < 80; index++) {
+            JSONObject item = source.optJSONObject(index);
+            if(item == null || item.optInt("ns", 0) != 0)
+                continue;
+            String title = item.optString("title", item.optString("*", "")).trim();
+            if(title.isBlank() || title.contains(":"))
+                continue;
+            WikiReference link = WikiReference.guide(title, "Related Records");
+            unique.putIfAbsent(link.articleUri.normalize().getPath().toLowerCase(Locale.ROOT), link);
+            if(unique.size() >= 80)
+                break;
+        }
+        links.addAll(unique.values());
+        return(links);
     }
 
     static String stripSnippet(String html) {
@@ -307,6 +350,7 @@ public final class RingOfBrodgarWikiService implements AutoCloseable {
         private static final int MAX_ARTICLE_CHARS = 24_000;
         private final StringBuilder text = new StringBuilder();
         private final List<String> cells = new ArrayList<>();
+        private final List<URI> images = new ArrayList<>();
         private StringBuilder cell;
         private boolean infobox;
         private int ignoredTableDepth;
@@ -361,16 +405,20 @@ public final class RingOfBrodgarWikiService implements AutoCloseable {
 
         @Override
         public void handleSimpleTag(HTML.Tag tag, MutableAttributeSet attributes, int position) {
-            if(ignoredElementDepth > 0 || ignoredTableDepth > 0)
-                return;
-            if(tag == HTML.Tag.IMG && leadImage == null) {
+            if(tag == HTML.Tag.IMG) {
                 String source = attribute(attributes, HTML.Attribute.SRC);
                 if(!source.isBlank()) {
                     URI candidate = HOME_URI.resolve(source.startsWith("//") ? "https:" + source : source);
-                    if(isSafeWikiImage(candidate))
-                        leadImage = candidate;
+                    if(isSafeWikiImage(candidate) && !images.contains(candidate)) {
+                        images.add(candidate);
+                        if(leadImage == null)
+                            leadImage = candidate;
+                    }
                 }
-            } else if(tag == HTML.Tag.BR) {
+            }
+            if(ignoredElementDepth > 0 || ignoredTableDepth > 0)
+                return;
+            if(tag == HTML.Tag.BR) {
                 append("\n");
             }
         }
@@ -459,6 +507,10 @@ public final class RingOfBrodgarWikiService implements AutoCloseable {
 
         URI leadImage() {
             return(leadImage);
+        }
+
+        List<URI> images() {
+            return(new ArrayList<>(images));
         }
 
         private static boolean shouldIgnore(AttributeSet attributes) {

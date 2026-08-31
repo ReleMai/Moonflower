@@ -433,7 +433,7 @@ public class Utils {
 	}
     }
 
-	static String[] getprefsa(String prefname, String[] def) { // ND: Get prefs array
+	public static String[] getprefsa(String prefname, String[] def) { // ND: Get prefs array
 		try {
 			String jsonstr = Utils.getpref(prefname, null);
 			if (jsonstr == null)

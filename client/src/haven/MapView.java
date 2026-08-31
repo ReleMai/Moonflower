@@ -2412,7 +2412,7 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 				}
 				if(ui.checkCursorImage("gfx/hud/curs/study") && clickb == 1) {
 					if (!gob.getres().name.equals("gfx/borka/body")) { // ND: helps with ignoring if you clicked yourself by mistake, after trying to inspect something
-						ui.gui.lastInspectedGob = gob;
+						ui.gui.noteInspectedGob(gob);
 					}
 				}
 				if (clickb == 1) { // Left Click
@@ -2421,6 +2421,8 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 					}
 				}
 				if (clickb == 3) { // Right Click
+					if(ui.gui.sharpToolAutoManager != null)
+						ui.gui.sharpToolAutoManager.noteGobInteraction(gob);
 					if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
 						switchBunnySlippersAndPlateBoots(gob);
 					}
@@ -2488,6 +2490,8 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 
     public boolean mousedown(MouseDownEvent ev) {
 	parent.setfocus(this);
+	if(ui != null && ui.gui != null && ui.gui.foragingController != null)
+	    ui.gui.foragingController.noteManualMapInput(ev.b);
 	Loader.Future<Plob> placing_l = this.placing;
 	if (ev.b == 1 && areaSelect) {
 		synchronized (this) {
@@ -2540,9 +2544,9 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 	    if((placing.lastmc == null) || !placing.lastmc.equals(ev.c)) {
 		placing.new Adjust(ev.c, ui.modflags()).run();
 	    }
-	}  else if (ui.modshift && ui.modctrl) {
+	}  else if (ui.gui != null && ui.gui.hand.isEmpty()) {
 		long now = System.currentTimeMillis();
-		if ((now - lastmmhittest > 500 || lasthittestc.dist(ev.c) > tilesz.x) && ui.gui.hand.isEmpty()) {
+		if (now - lastmmhittest > 500 || lasthittestc.dist(ev.c) > tilesz.x) {
 			lastmmhittest = now;
 			lasthittestc = ev.c;
 
@@ -2555,6 +2559,18 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 						if (gob != null) {
 							try {
 								Resource res = gob.getres();
+								LocalizedResourceTimerInfo timer = gob.localizedResourceTimer();
+								if(timer != null) {
+									Resource.Tooltip name = res == null ? null : res.layer(Resource.tooltip);
+									String title = name == null || name.t == null ? "Localized resource" : name.t;
+									tooltip = RichText.render("$col[207,164,72]{" + title + "}\n" +
+											timer.richTooltip(), UI.scale(400));
+									return;
+								}
+								if(!(ui.modshift && ui.modctrl)) {
+									tooltip = null;
+									return;
+								}
 
 								String overlays = null;
 								String poses = null;
@@ -2634,6 +2650,10 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 							}
 						}
 					} else {
+						if(!(ui.modshift && ui.modctrl)) {
+							tooltip = null;
+							return;
+						}
 						try {
 							MCache map = ui.sess.glob.map;
 							int t = map.gettile(mc.floor(tilesz));

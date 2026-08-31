@@ -33,8 +33,12 @@ import java.awt.Font;
 import java.sql.*;
 import java.sql.Connection;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 
 import static java.lang.Math.PI;
 
@@ -51,7 +55,7 @@ public class FlowerMenu extends Widget {
 	public static final Color ptcGreen = new Color(0, 200, 50);
 	public static final Color ptcYellow = new Color(252, 186, 3);
 	public static final Color ptcStroke = Color.BLACK;
-	private static String nextAutoSel;
+	private static AutoSelection nextAutoSel;
 	public final String[] options;
 	private static final String DATABASE = ClientData.sqlite("static_data.db");
 	public static Map<String, Boolean> autoSelectMap = new TreeMap<>();
@@ -311,6 +315,14 @@ public class FlowerMenu extends Widget {
     }
 
     public void choose(Petal option) {
+	if(option != null && ui != null && ui.gui != null && ui.gui.sharpToolAutoManager != null &&
+		ui.gui.sharpToolAutoManager.intercept(this, option))
+	    return;
+	choosePrepared(option);
+    }
+
+    /** Sends a choice already cleared by client-side preparation guards. */
+    public void choosePrepared(Petal option) {
 	if(option == null) {
 	    wdgmsg("cl", -1);
 	} else {
@@ -322,20 +334,62 @@ public class FlowerMenu extends Widget {
     }
 
 	public static void setNextSelection(String name) {
-		nextAutoSel = name;
+		if(name == null) {
+			AutoSelection previous;
+			synchronized(FlowerMenu.class) {
+				previous = nextAutoSel;
+				nextAutoSel = null;
+			}
+			if(previous != null)
+				previous.result.complete(false);
+		} else {
+			requestNextSelection(Arrays.asList(name));
+		}
+	}
+
+	/** Requests the first matching native option and reports whether one existed. */
+	public static AutoSelection requestNextSelection(Collection<String> names) {
+		AutoSelection request = new AutoSelection(names);
+		AutoSelection previous;
+		synchronized(FlowerMenu.class) {
+			previous = nextAutoSel;
+			nextAutoSel = request;
+		}
+		if(previous != null)
+			previous.result.complete(false);
+		return(request);
+	}
+
+	public static void cancelNextSelection(AutoSelection request) {
+		if(request == null)
+			return;
+		synchronized(FlowerMenu.class) {
+			if(nextAutoSel == request)
+				nextAutoSel = null;
+		}
+		request.result.complete(false);
 	}
 
 	public void tryAutoSelect() {
-		if (nextAutoSel != null) {
-			for (String option : options) {
-				if (option.equals(nextAutoSel)) {
-					choose(getPetalFromName(option));
-					nextAutoSel = null;
-					return;
+		AutoSelection request;
+		synchronized(FlowerMenu.class) {
+			request = nextAutoSel;
+		}
+		if (request != null) {
+			for (String expected : request.names) {
+				for (String option : options) {
+					if (option.equalsIgnoreCase(expected)) {
+						clearRequest(request);
+						request.matched = option;
+						request.result.complete(true);
+						choose(getPetalFromName(option));
+						return;
+					}
 				}
 			}
+			clearRequest(request);
+			request.result.complete(false);
 			choose(null);
-			nextAutoSel = null;
 		} else {
 			if(GameUI.flowerMenuAutoSelect){
 				for (String option : options) {
@@ -345,6 +399,31 @@ public class FlowerMenu extends Widget {
 				}
 			}
 		}
+	}
+
+	private static void clearRequest(AutoSelection request) {
+		synchronized(FlowerMenu.class) {
+			if(nextAutoSel == request)
+				nextAutoSel = null;
+		}
+	}
+
+	public static final class AutoSelection {
+		private final Set<String> names;
+		private final CompletableFuture<Boolean> result = new CompletableFuture<>();
+		private volatile String matched;
+
+		private AutoSelection(Collection<String> names) {
+			this.names = new LinkedHashSet<>();
+			if(names != null) {
+				for(String name : names)
+					if(name != null && !name.trim().isEmpty())
+						this.names.add(name.trim());
+			}
+		}
+
+		public CompletableFuture<Boolean> result() { return(result); }
+		public String matched() { return(matched); }
 	}
 
 	public Petal getPetalFromName(String name){

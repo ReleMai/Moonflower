@@ -1223,6 +1223,14 @@ public class OptWnd extends Window {
 			}, prev.pos("bl").adds(0, 7));
 			prev.tooltip = RichText.render("Switches the portrait between normal and combat layouts without the crossfade or folding side-rail animation.", UI.scale(380));
 
+			prev = add(new CheckBox("Reduce Codex ornament motion") {
+				{a = MoonFlowerHudSettings.codexReducedMotion();}
+				public void changed(boolean val) {
+					Utils.setprefb(MoonFlowerHudSettings.CODEX_REDUCED_MOTION, val);
+				}
+			}, prev.pos("bl").adds(0, 7));
+			prev.tooltip = RichText.render("Keeps Codex artwork fully visible while freezing vine reveals, page blooms, and the traveling archive mote.", UI.scale(380));
+
 			prev = add(new Label("Portrait hub size:"), prev.pos("bl").adds(0, 12));
 			Label portraitScale = new Label(MoonFlowerHudSettings.portraitScale() + "%");
 			add(portraitScale, prev.pos("ur").adds(10, 0));

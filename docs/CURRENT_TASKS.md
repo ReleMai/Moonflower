@@ -1,5 +1,38 @@
 # Current Tasks
 
+## Pending Live Validation: Inventory Action Vine And Localized-Resource Timers
+
+Validate the new attached Inventory action vine in one visible, supervised
+session. The offline implementation serially selects native flower-menu actions,
+temporarily equips the highest-quality supported one-handed sharp tool reachable
+in the main Inventory or equipped Belt, restores the displaced hand item, and
+turns a server Inspect refill duration into a session-local `CALC` countdown on
+that exact Gob.
+
+Acceptance criteria:
+
+1. The Inventory title rail shows only Close and one engraved, non-overlapping
+   Inventory Tools tab integrated into the frame art. It grows a living-vine
+   hinge into an eased, clipped drawer containing Sort, Stack, Unstack, slot
+   locking, optional Extended View, Butcher all, Crack all, and Stop without
+   covering the grid or placing controls outside the frame.
+2. Butcher all repeatedly handles the current server's Skin, Clean, and Butcher
+   labels in that strict order, then optional Collect/Gather/Take Bones labels,
+   one acknowledged item at a time. Crack all selects only Crack/Crack Open.
+   Stop cancels safely.
+3. Manual animal-processing flower choices and Butcher all select the highest
+   quality supported one-handed sharp tool from main Inventory or equipped Belt.
+4. Empty and occupied hand cases both restore the exact prior hand/tool state.
+   Occupied cursor, loading identity/quality, lost equipment, and timeouts stop
+   with a visible reason instead of guessing.
+5. Inspecting a depleted localized resource such as Jotun Mussel, Salt Basin,
+   Tarpit, or Wellspring preserves the server's duration as a ticking `CALC`
+   world label and hover detail. Unrelated or unparsed Inspect text creates no
+   timer, and reaching zero says `due now` rather than claiming live availability.
+6. The guarded build and `InventoryQolChecks` pass. Exact flower labels,
+   equipment acknowledgements, Inspect wording, timer placement, and restoration
+   remain unverified until observed in the visible client.
+
 ## Active Task: MoonFlower Clock And Calendar First Slice
 
 Validate the new top-center MoonFlower World Clock in one visible, supervised

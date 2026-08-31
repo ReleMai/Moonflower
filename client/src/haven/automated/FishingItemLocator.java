@@ -47,12 +47,12 @@ final class FishingItemLocator {
         if(equipory != null) {
             for(int slot : new int[]{LEFT_HAND_SLOT, RIGHT_HAND_SLOT}) {
                 WItem item = equipory.slots[slot];
-                if(isPole(item, poleName) && seen.add(item.item))
+                if(isLive(item) && isPole(item, poleName) && seen.add(item.item))
                     matches.add(item);
             }
         }
         for(WItem item : FishingInventory.equipmentItems(gui)) {
-            if(isPole(item, poleName) && !FishingInventory.insideFishingPole(item) &&
+            if(isLive(item) && isPole(item, poleName) && !FishingInventory.insideFishingPole(item) &&
                     seen.add(item.item))
                 matches.add(item);
         }
@@ -66,7 +66,7 @@ final class FishingItemLocator {
         WItem fallback = null;
         for(int slot : new int[]{LEFT_HAND_SLOT, RIGHT_HAND_SLOT}) {
             WItem item = equipory.slots[slot];
-            if(!isPole(item, poleName))
+            if(!isLive(item) || !isPole(item, poleName))
                 continue;
             if(preferred != null) {
                 if(item.item == preferred)
@@ -84,7 +84,7 @@ final class FishingItemLocator {
             return(null);
         List<WItem> matches = new ArrayList<>();
         for(WItem item : FishingInventory.equipmentItems(gui)) {
-            if(item == null || item.item == null || FishingInventory.insideFishingPole(item))
+            if(!isLive(item) || FishingInventory.insideFishingPole(item))
                 continue;
             String name = FishingItemMetadata.name(item);
             if(classify(item) == kind && selected(ordered, name))
@@ -99,6 +99,11 @@ final class FishingItemLocator {
                         Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(FishingItemMetadata::resource));
         return(matches.isEmpty() ? null : matches.get(0));
+    }
+
+    private boolean isLive(WItem item) {
+        return(item != null && item.item != null && gui.ui != null &&
+                gui.ui.widgetid(item.item) >= 0);
     }
 
     private static boolean isPole(WItem item, String poleName) {

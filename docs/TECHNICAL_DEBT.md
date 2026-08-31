@@ -106,4 +106,25 @@ Shortcut taken: Ant's external-resource download targets trust timestamps/existe
 Why it is acceptable now: The truncated `hafen-res.jar` discovered during this gate was re-downloaded from the official URL, length-checked, opened with `jar tf`, and repackaged before verification continued.
 Better long-term approach: Download to a temporary file, validate length plus a trusted digest or archive structure, then atomically replace the cached dependency; fail the build before `bin` when validation fails.
 Where it lives: client/build.xml external resource and `res-jar` targets
+
+Date: 2026-08-30
+Area: Botanical Wayfinder Phase 1 terrain safety
+Shortcut taken: Broken-ridge safety blocks the entire affected tile and its transitions rather than resolving the precise broken edge; obstacle safety uses the existing static collision atlas and treats unresolved live state as blocked.
+Why it is acceptable now: Phase 1 is supervised and fail-closed, so conservative false negatives are safer than a traversal that could cross an unresolved cliff or object.
+Better long-term approach: Add an edge-specific ridge adapter with captured map fixtures, expand reviewed live collision evidence, and retain conservative fallback behavior for unknown resources.
+Where it lives: client/src/haven/foraging/ForagingMapSafety.java
+
+Date: 2026-08-30
+Area: Botanical Wayfinder forageable catalog
+Shortcut taken: The always-visible catalog is a checked-in GUIDE snapshot derived from current community listings and reviewed client resource conventions; only resources observed live are confirmed by the current session.
+Why it is acceptable now: GUIDE entries only configure exact identity filters and can never fabricate a target; the controller still requires a matching loaded Gob before movement or Pick.
+Better long-term approach: Merge a versioned server-resource manifest or accumulated live observations into the atlas, retain aliases for renamed resources, and visibly retire entries proven obsolete.
+Where it lives: client/src/haven/foraging/ForagingHerbAtlas.java and ForagingGobScanner.java
+
+Date: 2026-08-30
+Area: MoonFlower automatic-update cache retention
+Shortcut taken: Every verified GitHub build is installed in a commit-specific directory and old verified versions are retained indefinitely.
+Why it is acceptable now: Retention guarantees rollback and avoids deleting files that may still be used by another running MoonFlower session.
+Better long-term approach: Track per-version process leases and remove only unlocked versions beyond a conservative last-known-good retention count.
+Where it lives: client/MoonFlower-Update.ps1 and %LOCALAPPDATA%\MoonFlower\AutoUpdate\versions
 ```

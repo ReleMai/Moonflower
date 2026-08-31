@@ -52,6 +52,11 @@ import haven.fishing.FishingJournalWindow;
 import haven.fishing.FishingMapMarker;
 import haven.fishing.FishingMapMarkers;
 import haven.fishing.FishingSystemWindow;
+import haven.foraging.ForagingController;
+import haven.foraging.ForagingWindow;
+import haven.inventoryqol.SharpToolAutoManager;
+import haven.multisession.SessionConservatoryService;
+import haven.multisession.SessionConservatoryWindow;
 import haven.wiki.RingOfBrodgarWikiService;
 import haven.wiki.WikiWindow;
 import haven.render.Location;
@@ -114,6 +119,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public final FishingJournalWindow fishingJournalWindow;
 	public final FishingSystemWindow fishingSystemWindow;
 	public final FishingMapMarkers fishingMapMarkers;
+	public final ForagingController foragingController;
+	public final ForagingWindow foragingWindow;
+	public final SessionConservatoryService sessionConservatoryService;
+	public final SessionConservatoryWindow sessionConservatoryWindow;
+	public final SharpToolAutoManager sharpToolAutoManager;
 	public final RingOfBrodgarWikiService wikiService;
 	public final WikiWindow wikiWindow;
 	public TileHighlight.TileHighlightCFG tileHighlight;
@@ -133,6 +143,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	private boolean itemStackingOnLoginToggleSet = false;
 	public static boolean flowerMenuAutoSelect = Utils.getprefb("flowerMenuAutoSelect", false);
 	public Gob lastInspectedGob;
+	private long lastInspectedAt;
 	public InventorySearchWindow inventorySearchWindow;
 	public ObjectSearchWindow objectSearchWindow;
 	public Thread keyboundActionThread;
@@ -409,6 +420,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	wikiService = new RingOfBrodgarWikiService();
 	fishingCatchTracker = new FishingCatchTracker(this, fishingJournalService);
 	fishingMapMarkers = new FishingMapMarkers(fishingJournalService);
+	sharpToolAutoManager = new SharpToolAutoManager(this);
 	setcanfocus(true);
 	setfocusctl(true);
 	chat = new ChatUI();
@@ -509,7 +521,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }, UI.scale(10, 10));
 	buffs = ulpanel.add(new Bufflist(), portrait.c.x + portrait.sz.x + UI.scale(10), portrait.c.y + ((IMeter.fsz.y + UI.scale(2)) * 2) + UI.scale(5 - 2));
 	classicBuffPosition = new Coord(buffs.c);
-	umpanel.add(new MoonFlowerClockWidget(this), UI.scale(new Coord(0, 8)));
+	// The ornament is designed to kiss the top edge; its transparent pixels provide
+	// the breathing room, so an additional y-offset creates a visible gap.
+	umpanel.add(new MoonFlowerClockWidget(this), UI.scale(Coord.z));
 
 	add(new Widget(new Coord(360, umpanel.sz.y)) {
 		@Override
@@ -586,6 +600,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		Utils.getprefc("wndc-fishingSystem",
 			Utils.getprefc("wndc-fishingJournal", new Coord(240, 140))));
 	fishingSystemWindow.hide();
+	foragingController = add(new ForagingController(this), Coord.z);
+	foragingWindow = add(new ForagingWindow(foragingController),
+		Utils.getprefc("wndc-foragingWayfinder", new Coord(250, 110)));
+	foragingWindow.hide();
+	sessionConservatoryService = new SessionConservatoryService(this);
+	sessionConservatoryWindow = add(new SessionConservatoryWindow(sessionConservatoryService),
+		Utils.getprefc("wndc-sessionConservatory", new Coord(230, 120)));
+	sessionConservatoryWindow.hide();
 	wikiWindow = add(new WikiWindow(this, wikiService,
 		Utils.getprefc("wndsz-wiki", WikiWindow.defaultSize())),
 		Utils.getprefc("wndc-wiki", new Coord(260, 130)));
@@ -677,6 +699,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		cookbookService.close();
 		fishingMapMarkers.close();
 		fishingJournalService.close();
+		foragingController.close();
+		sharpToolAutoManager.close();
 		wikiService.close();
 		super.destroy();
 		ui.clearGUI(this);
@@ -1226,6 +1250,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		Utils.setprefc("wndc-cookbook", cookbookWindow.c);
 	if (fishingSystemWindow != null)
 		Utils.setprefc("wndc-fishingSystem", fishingSystemWindow.c);
+	if (foragingWindow != null)
+		Utils.setprefc("wndc-foragingWayfinder", foragingWindow.c);
 	if (wikiWindow != null)
 		Utils.setprefc("wndc-wiki", wikiWindow.c);
     }
@@ -2012,6 +2038,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public boolean isCookbookOpen() {return(wndstate(cookbookWindow));}
     public boolean isFishingJournalOpen() {return(fishingSystemWindow.showingJournal());}
     public boolean isFishingHelperOpen() {return(fishingSystemWindow.showingHelper());}
+    public boolean isForagingOpen() {return(wndstate(foragingWindow));}
+    public boolean isSessionConservatoryOpen() {return(wndstate(sessionConservatoryWindow));}
     public boolean isWikiOpen() {return(wndstate(wikiWindow));}
 
     public void toggleInventoryWindow() {togglewnd(invwnd);}
@@ -2050,6 +2078,30 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		}
 	}
 
+	public void toggleForaging() {
+		if(foragingWindow.visible()) {
+			if(foragingController.active())
+				foragingController.pause("Paused: Botanical Wayfinder was hidden.", true);
+			foragingWindow.hide();
+		} else {
+			foragingWindow.fitTo(sz);
+			foragingWindow.show();
+			foragingWindow.raise();
+			fitwdg(foragingWindow);
+		}
+	}
+
+	public void toggleSessionConservatory() {
+		if(sessionConservatoryWindow.visible()) {
+			sessionConservatoryWindow.hide();
+		} else {
+			sessionConservatoryWindow.fitTo(sz);
+			sessionConservatoryWindow.show();
+			sessionConservatoryWindow.raise();
+			fitwdg(sessionConservatoryWindow);
+		}
+	}
+
 	public void noteFishingChoices(String rowsJson) {
 		fishingCatchTracker.noteFishingChoices(rowsJson);
 	}
@@ -2061,8 +2113,17 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public void toggleWiki() {
 		boolean opening = !wikiWindow.visible();
 		togglewnd(wikiWindow);
-		if(opening)
+		if(opening) {
+			fitwdg(wikiWindow);
 			wikiWindow.focusSearch();
+		}
+	}
+
+	/** Opens the Codex at a live resource when registered, or its community record. */
+	public void openWiki(String title, String resourceName) {
+		wikiWindow.open(title, resourceName);
+		fitwdg(wikiWindow);
+		setfocus(wikiWindow);
 	}
 
 	public void openFishingSpot(FishingMapMarker marker) {
@@ -2371,7 +2432,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	WikiMenuCheckBox() {
 	    super(wikiMenuUp, wikiMenuDown, wikiMenuHover, wikiMenuHoverDown);
 	    setgkey(kb_wiki);
-	    settip("Ring of Brodgar Wiki");
+	    settip("MoonFlower Codex");
 	}
 
 	@Override
@@ -2555,6 +2616,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		KeyMatch.forchar('F', KeyMatch.C | KeyMatch.M));
 	public static KeyBinding kb_wiki = KeyBinding.get("ring-of-brodgar-wiki",
 		KeyMatch.forchar('W', KeyMatch.C | KeyMatch.M));
+	public static KeyBinding kb_foraging = KeyBinding.get("botanical-wayfinder",
+		KeyMatch.forchar('G', KeyMatch.C | KeyMatch.M));
+	public static KeyBinding kb_foragingEmergencyStop = KeyBinding.get("foraging-emergency-stop",
+		KeyMatch.forcode(KeyEvent.VK_F12, KeyMatch.C | KeyMatch.S));
 
     public boolean globtype(GlobKeyEvent ev) {
 	if(ev.c == ':') {
@@ -2594,6 +2659,12 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		return(true);
 	} else if(kb_fishingHelper.key().match(ev)) {
 		toggleFishingHelper();
+		return(true);
+	} else if(kb_foragingEmergencyStop.key().match(ev)) {
+		foragingController.emergencyStop("Emergency stop key pressed.");
+		return(true);
+	} else if(kb_foraging.key().match(ev)) {
+		toggleForaging();
 		return(true);
 	} else if(kb_wiki.key().match(ev)) {
 		toggleWiki();
@@ -2950,18 +3021,30 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			ui.sfxrl(msg.sfx());
 	}
 	Gob g = lastInspectedGob;
+	if(g != null && System.currentTimeMillis() - lastInspectedAt > 15_000L) {
+		lastInspectedGob = null;
+		g = null;
+	}
 	if(g != null) {
+		boolean inspectionCaptured = LocalizedResourceTimerInfo.noteInspection(g, msg.message());
 		Matcher m = GobQualityInfo.GOB_Q.matcher(msg.message());
 		if(m.matches()) {
 			try {
 				int q = Integer.parseInt(m.group(1));
 				g.setQualityInfo(q);
 			} catch (Exception ignored) {}
-			lastInspectedGob = null;
+			inspectionCaptured = true;
 		}
+		if(inspectionCaptured)
+			lastInspectedGob = null;
 	}
 	return(true);
     }
+
+	public void noteInspectedGob(Gob gob) {
+		lastInspectedGob = gob;
+		lastInspectedAt = System.currentTimeMillis();
+	}
 
 	public void msg(String msg, Color color, Audio.Clip sfx){
 		msg(new UI.SimpleMessage(msg, color, sfx));

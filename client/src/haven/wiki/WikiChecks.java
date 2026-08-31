@@ -1,6 +1,7 @@
 package haven.wiki;
 
 import java.net.URI;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,7 +25,14 @@ public final class WikiChecks {
         articleHtmlBecomesNativeContent();
         unsafeImagesAreRejected();
         cacheAvoidsDuplicateRequests();
-        System.out.println("Wiki checks passed: " + passed + "/9");
+        searchRankingAndAliasesWork();
+        categoryAndNoResultSearchWork();
+        navigationPreservesBackAndForward();
+        articleLinksAndCategoriesResolve();
+        referencesRoundTripWithoutUsingDisplayIdentity();
+        liveActionsUseRealMenuKinds();
+        ornamentMotionHonorsReducedSetting();
+        System.out.println("Wiki checks passed: " + passed + "/16");
     }
 
     private void normalizationIsBounded() {
@@ -85,7 +93,9 @@ public final class WikiChecks {
                 "\"title\":\"Boar\",\"displaytitle\":\"<span>Boar</span>\",\"revid\":122416," +
                 "\"text\":\"<table class='infobox'><tr><th>Hitpoints</th><td>125</td></tr>" +
                 "<tr><td><img src='/images/6/6f/Boar.png'></td></tr></table>" +
-                "<h2>Combat</h2><p>A dangerous wild animal.</p><ul><li>Keep moving.</li></ul>\"}}";
+                "<h2>Combat</h2><p>A dangerous wild animal.</p><ul><li>Keep moving.</li></ul>" +
+                "<h2>Gallery</h2><ul class='gallery'><li><img src='/images/7/7a/Boar-Coat.png'></li>" +
+                "<li><img src='/images/8/8b/Boar-Hide.png'></li></ul>\"}}";
         WikiArticle article = RingOfBrodgarWikiService.parseArticleResponse(json);
         check("Boar".equals(article.title) && article.revisionId == 122416,
                 "article provenance was not retained");
@@ -96,6 +106,10 @@ public final class WikiChecks {
                         "https://ringofbrodgar.com/images/6/6f/Boar.png".equals(
                                 article.leadImageUri.toASCIIString()),
                 "safe lead image was not extracted");
+        check(article.imageUris.size() == 3 &&
+                        "https://ringofbrodgar.com/images/8/8b/Boar-Hide.png".equals(
+                                article.imageUris.get(2).toASCIIString()),
+                "article gallery images were not collected and deduplicated");
         passed++;
     }
 
@@ -137,6 +151,97 @@ public final class WikiChecks {
         } finally {
             service.close();
         }
+        passed++;
+    }
+
+    private void searchRankingAndAliasesWork() {
+        WikiSearchIndex index = new WikiSearchIndex();
+        index.put(new WikiSearchIndex.Record(WikiReference.guide("Iron Ore", "Ores"),
+                "Raw metallic resource", List.of("hematite")));
+        index.put(new WikiSearchIndex.Record(WikiReference.guide("Iron", "Metals"),
+                "Processed metal", List.of()));
+        index.put(new WikiSearchIndex.Record(WikiReference.guide("Smelter", "Buildings"),
+                "Processes ore", List.of("iron")));
+        check("Iron".equals(index.search("iron", 10).get(0).reference.title),
+                "exact local title did not rank first");
+        check("Iron Ore".equals(index.search("hematite", 10).get(0).reference.title),
+                "indexed alias did not resolve its record");
+        check(index.search("ore", 10).stream().anyMatch(record ->
+                        "Iron Ore".equals(record.reference.title)),
+                "partial title search did not resolve");
+        passed++;
+    }
+
+    private void categoryAndNoResultSearchWork() {
+        WikiSearchIndex index = new WikiSearchIndex();
+        index.put(new WikiSearchIndex.Record(WikiReference.guide("Boar", "Creatures"),
+                "Wild animal", List.of()));
+        check(index.search("creatures", 10).size() == 1,
+                "category term did not find its record");
+        check(index.search("definitely absent", 10).isEmpty(),
+                "no-result search returned unrelated records");
+        passed++;
+    }
+
+    private void navigationPreservesBackAndForward() {
+        WikiNavigationState navigation = new WikiNavigationState();
+        WikiReference ore = WikiReference.guide("Iron Ore", "Ores");
+        WikiReference smelter = WikiReference.guide("Smelter", "Buildings");
+        WikiReference ingot = WikiReference.guide("Iron Ingot", "Metals");
+        navigation.open(ore);
+        navigation.open(smelter);
+        navigation.open(ingot);
+        check(navigation.back().equals(smelter) && navigation.back().equals(ore),
+                "back navigation lost its record chain");
+        check(navigation.forward().equals(smelter) && navigation.forward().equals(ingot),
+                "forward navigation did not restore the record chain");
+        passed++;
+    }
+
+    private void articleLinksAndCategoriesResolve() {
+        String json = "{\"parse\":{" +
+                "\"title\":\"Iron Ingot\",\"displaytitle\":\"Iron Ingot\",\"revid\":7," +
+                "\"text\":\"<p>Metal.</p>\"," +
+                "\"categories\":[{\"category\":\"Metals\"}]," +
+                "\"links\":[{\"ns\":0,\"title\":\"Iron Ore\"},{\"ns\":1,\"title\":\"Talk:Iron\"}]}}";
+        WikiArticle article = RingOfBrodgarWikiService.parseArticleResponse(json);
+        check(article.categories.equals(List.of("Metals")), "article category was not retained");
+        check(article.links.size() == 1 && "Iron Ore".equals(article.links.get(0).title),
+                "main-namespace article link did not become a stable reference");
+        passed++;
+    }
+
+    private void referencesRoundTripWithoutUsingDisplayIdentity() {
+        WikiReference original = WikiReference.action("paginae/craft/axe", "Stone Axe", "Crafting");
+        WikiReference restored = WikiReference.decode(original.encode());
+        check(original.equals(restored) && "paginae/craft/axe".equals(restored.resourceName),
+                "stable action reference did not survive preference encoding");
+        passed++;
+    }
+
+    private void liveActionsUseRealMenuKinds() {
+        check("Crafting".equals(WikiGameDataAdapter.category(
+                        "paginae/craft/stoneaxe", new String[] {"craft", "stoneaxe"})),
+                "craft action was not categorized from authoritative action data");
+        check("Buildings".equals(WikiGameDataAdapter.category(
+                        "paginae/bld/smelter", new String[] {"bp", "smelter"})),
+                "building action was not categorized from authoritative action data");
+        check("Equipment".equals(WikiGameDataAdapter.category(
+                        "paginae/equip/armor", new String[] {"use", "armor"})),
+                "equipment action was not assigned to a type filter");
+        check("Food".equals(WikiGameDataAdapter.category(
+                        "paginae/food/stew", new String[] {"use", "stew"})),
+                "food action was not assigned to a type filter");
+        passed++;
+    }
+
+    private void ornamentMotionHonorsReducedSetting() {
+        check(WikiOrnamentWidget.revealAfter(0.2, 0.25, false) > 0.2,
+                "animated ornament reveal did not advance");
+        check(WikiOrnamentWidget.revealAfter(0.2, 0.25, true) == 1.0,
+                "reduced motion did not select the fully revealed static state");
+        check(WikiOrnamentWidget.revealAfter(0.9, 2.0, false) == 1.0,
+                "ornament reveal exceeded its bound");
         passed++;
     }
 

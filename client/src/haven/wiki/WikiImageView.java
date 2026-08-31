@@ -4,13 +4,13 @@ import haven.CharWnd;
 import haven.Coord;
 import haven.FastText;
 import haven.GOut;
+import haven.MoonFlowerHudTheme;
 import haven.PUtils;
 import haven.Tex;
 import haven.TexI;
 import haven.UI;
 import haven.Widget;
 
-import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.util.concurrent.ExecutionException;
@@ -39,6 +39,13 @@ final class WikiImageView extends Widget {
         }
         message = "Loading article image...";
         pending = service.image(uri);
+    }
+
+    void setImage(BufferedImage image) {
+        pending = null;
+        source = image;
+        message = "";
+        rebuildTexture();
     }
 
     @Override
@@ -86,11 +93,7 @@ final class WikiImageView extends Widget {
 
     @Override
     public void draw(GOut g) {
-        g.chcolor(new Color(9, 15, 22, 230));
-        g.frect(Coord.z, sz);
-        g.chcolor(new Color(92, 77, 45, 210));
-        g.rect(Coord.z, sz.sub(1, 1));
-        g.chcolor();
+        MoonFlowerHudTheme.drawSlot(g, Coord.z, sz, texture != null, false);
         if(texture != null)
             g.aimage(texture, sz.div(2), 0.5, 0.5);
         else if(!message.isBlank())

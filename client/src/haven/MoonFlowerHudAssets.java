@@ -53,6 +53,15 @@ public final class MoonFlowerHudAssets {
             Coord.of(114, 394), Coord.of(114, 512), Coord.of(114, 628),
             Coord.of(1568, 394), Coord.of(1568, 512), Coord.of(1568, 628)
     };
+    /* Centers measured from the transparent wells in the combat ornament.
+     * These differ from the normal portrait skin and must participate in the
+     * same transform as the utility controls. */
+    private static final Coord[] combatBuffCenters = {
+            Coord.of(644, 628), Coord.of(773, 631), Coord.of(908, 631), Coord.of(1037, 627)
+    };
+    private static final Coord[] combatMovementCenters = {
+            Coord.of(207, 748), Coord.of(277, 748), Coord.of(207, 815), Coord.of(277, 815)
+    };
     private static final Coord combatPortraitCenter = Coord.of(842, 350);
     private static final Coord combatHealthOrigin = Coord.of(716, 54);
     private static final Coord combatHealthSize = Coord.of(252, 24);
@@ -63,12 +72,15 @@ public final class MoonFlowerHudAssets {
     private static final Coord combatPlayerInitiativeCenter = Coord.of(535, 646);
     private static final Coord combatOpponentInitiativeCenter = Coord.of(1149, 646);
     private static final Coord combatCooldownCenter = Coord.of(842, 105);
-    private static final int combatActionDiameter = 60;
-    private static final int combatOpeningDiameter = 42;
-    private static final int combatMoveDiameter = 72;
-    private static final int combatDefenseDiameter = 58;
-    private static final int combatInitiativeDiameter = 42;
-    private static final int combatCooldownDiameter = 42;
+    /* Readability pass: the portrait footprint stays fixed, but each combat
+     * well gets more of its socket so icons and values remain legible at the
+     * normal UI scale. */
+    private static final int combatActionDiameter = 74;
+    private static final int combatOpeningDiameter = 58;
+    private static final int combatMoveDiameter = 82;
+    private static final int combatDefenseDiameter = 66;
+    private static final int combatInitiativeDiameter = 52;
+    private static final int combatCooldownDiameter = 52;
 
     private MoonFlowerHudAssets() {
     }
@@ -81,6 +93,7 @@ public final class MoonFlowerHudAssets {
                 movementIcons.length != 4 || socketCenters.length != 6 || buffSocketCenters.length != 4 ||
                 equipmentSlotCenters.length != 6 || movementSocketCenters.length != 4 || portraitOpeningDiameter <= 1 ||
                 combatUtilityCenters.length != 6 || combatActionCenters.length != 10 ||
+                combatBuffCenters.length != 4 || combatMovementCenters.length != 4 ||
                 combatCrown.getWidth() <= 1 || combatCrown.getHeight() <= 1 || !hasTransparency(combatCrown))
             return false;
         for(BufferedImage icon : buttonIcons) {
@@ -124,6 +137,14 @@ public final class MoonFlowerHudAssets {
 
     public static Coord scaledCombatUtilityCenter(int index, Coord targetSize) {
         return scaledCombatPoint(combatUtilityCenters[index], targetSize);
+    }
+
+    public static Coord scaledCombatBuffCenter(int index, Coord targetSize) {
+        return scaledCombatPoint(combatBuffCenters[index], targetSize);
+    }
+
+    public static Coord scaledCombatMovementCenter(int index, Coord targetSize) {
+        return scaledCombatPoint(combatMovementCenters[index], targetSize);
     }
 
     public static Coord scaledCombatOpeningCenter(String resourceName, boolean opponent, Coord targetSize) {
