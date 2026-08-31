@@ -20,8 +20,8 @@ astronomy and area context, a game-time season countdown, and sourced contextual
 notices. Fishing-helper and combat refinements remain pending supervised live
 validation. The parallel production-operations track is hardening the GitHub
 release path in the order recorded in
-[RELEASE_HARDENING.md](RELEASE_HARDENING.md); items 1-3 are active and immutable
-rollback builds are next.
+[RELEASE_HARDENING.md](RELEASE_HARDENING.md); items 1-4 are complete and
+automated post-publication end-to-end package verification is next.
 
 ## Milestones
 

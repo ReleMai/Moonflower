@@ -1,6 +1,6 @@
 # Current Tasks
 
-## Active Task: Immutable MoonFlower Rollback Builds
+## Completed Task: Immutable MoonFlower Rollback Builds
 
 Complete item 4 in [RELEASE_HARDENING.md](RELEASE_HARDENING.md): publish each
 client package under a commit-addressed immutable release, retain a bounded
@@ -21,6 +21,20 @@ Acceptance criteria:
    metadata, cached rollback, downloaded rollback, and failed verification.
 6. Required feature checks, the protected production push, rolling release,
    remote immutable asset, stable feed, and launcher check all pass.
+
+Status: complete on 2026-08-31. Production commit
+`b8ca0de299a1771e3579d87edda5531f0950c46a` passed protected-main validation,
+publication, same-SHA idempotency, remote rollback, forward-update, and
+check-only audits. Full evidence is recorded in
+[RELEASE_HARDENING.md](RELEASE_HARDENING.md).
+
+## Next Release-Hardening Task (Queued)
+
+Item 5 is post-publication end-to-end package verification. Convert the manual
+clean-cache audit used for item 4 into an automated production check that
+downloads the published feed and assets, verifies hashes and safe extraction,
+and proves the packaged updater can consume the live release. This remains
+queued and is not part of the completed item 4 implementation.
 
 ## Pending Live Validation: Inventory Action Vine And Localized-Resource Timers
 

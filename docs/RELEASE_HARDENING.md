@@ -18,7 +18,7 @@ clients, Steam copies, and launcher caches are never production patch targets.
 3. **Make Gitleaks a required release dependency** — complete (2026-08-31). A commit cannot
    advance production until both the MoonFlower privacy policy and the full
    Gitleaks history scan pass for that exact SHA.
-4. **Immutable rollback builds** — active. Publish commit-addressed builds,
+4. **Immutable rollback builds** — complete (2026-08-31). Publish commit-addressed builds,
    retain a bounded verified history, include the previous stable package in
    the feed, and support an explicit launcher rollback without patching a JAR.
 5. **Post-publication end-to-end package verification** — planned. Download the
@@ -79,6 +79,39 @@ Completed against commit `1d108600c9805252d1b1e5f8ae5722940a0e7ca6`.
 - No rolling-release run was created for the six workflow/documentation-only
   files. The stable manifest remained at package commit `b04fc194`, proving
   policy-only changes no longer make clients download another full package.
+
+## Phase 2 Audit: Item 4
+
+Completed against production commit
+`b8ca0de299a1771e3579d87edda5531f0950c46a`, following the initial rollback
+build at `897256b1877429a5c2a862b9d6fe66a36199fd72`.
+
+- Feature validation run `33359154314` passed the release policy, clean Ant
+  build, all deterministic packaged suites, and expanded updater tests.
+  Gitleaks run `33359154187` passed on the same exact feature SHA.
+- Protected `main` advanced to that validated SHA. Main secret-scan run
+  `33359312034` and rolling-publication run `33359312109` both passed, with
+  zero open GitHub secret-scanning alerts.
+- The schema 2 stable feed identifies the current commit-addressed package and
+  its immediate predecessor with normalized ISO-8601 timestamps. Both feed
+  sizes and SHA-256 values exactly match GitHub's release-asset metadata.
+- The final ZIP is `182759267` bytes with SHA-256
+  `8e3be91bdf8a697d5b04dfcafe65e0b6bd1e3f41f70dfae6466b68c6c6520047`.
+  The rollback ZIP is `182759113` bytes with SHA-256
+  `d1174be434164d179382bb23dac36d88b84028608a9f0ba9a044a30dc15e5554`.
+- A clean isolated launcher cache downloaded the prior package with
+  `-Rollback`, selected `897256b18774`, then downloaded the current package on
+  ordinary startup and selected `b8ca0de299a1`. Both extracted packages
+  contained `hafen.jar`; `-CheckOnly` reported the current stable build
+  installed. The temporary cache was removed afterward.
+- Idempotency run `33443500663` republished the same SHA successfully while
+  preserving the commit-addressed ZIP and manifest asset IDs, update times,
+  sizes, and digests. In this design, immutable means a content-addressed tag
+  that the workflow refuses to clobber; the `moonflower-latest` manifest remains
+  the intentionally mutable pointer.
+- Two commit-addressed builds exist, within the retention limit of five. The
+  protected-main ruleset remains active with no bypass actors, and
+  `codex/release-hardening` matches `main` before this audit-only closeout.
 
 ## Safety Boundaries
 
