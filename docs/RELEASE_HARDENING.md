@@ -9,16 +9,16 @@ clients, Steam copies, and launcher caches are never production patch targets.
 
 ## Ordered Work
 
-1. **Protected `main` with pre-main validation** — active. Validate the exact
+1. **Protected `main` with pre-main validation** — complete (2026-08-31). Validate the exact
    feature-branch commit before it can advance `main`; require successful
    privacy, build, and deterministic checks; block force pushes and deletion.
-2. **Separate validation from publication** — active. Run policy checks for
+2. **Separate validation from publication** — complete (2026-08-31). Run policy checks for
    workflow and documentation changes without producing another client ZIP;
    publish only when package-affecting inputs change.
-3. **Make Gitleaks a required release dependency** — active. A commit cannot
+3. **Make Gitleaks a required release dependency** — complete (2026-08-31). A commit cannot
    advance production until both the MoonFlower privacy policy and the full
    Gitleaks history scan pass for that exact SHA.
-4. **Immutable rollback builds** — queued next. Publish commit-addressed builds,
+4. **Immutable rollback builds** — active. Publish commit-addressed builds,
    retain a bounded verified history, include the previous stable package in
    the feed, and support an explicit launcher rollback without patching a JAR.
 5. **Post-publication end-to-end package verification** — planned. Download the
@@ -61,6 +61,24 @@ clients, Steam copies, and launcher caches are never production patch targets.
   schema compatibility paths.
 - The protected feature-to-main workflow, rolling publication, remote manifest,
   immutable asset, and launcher checks all pass in a final audit.
+
+## Phase 1 Audit: Items 1-3
+
+Completed against commit `1d108600c9805252d1b1e5f8ae5722940a0e7ca6`.
+
+- Feature validation run `33358281951` passed the release policy, clean Ant
+  build, all deterministic packaged suites, and updater checks.
+- Gitleaks run `33358281910` passed on the same feature SHA; the follow-up
+  `main` run `33358412027` also passed and GitHub reported zero open secret
+  scanning alerts.
+- Active ruleset `21899574` targets only `refs/heads/main`, has no bypass
+  actors, blocks deletion/non-fast-forward updates, and requires
+  `validate-release` plus `gitleaks` for the exact commit.
+- Protected `main` and `codex/release-hardening` both advanced to the validated
+  SHA.
+- No rolling-release run was created for the six workflow/documentation-only
+  files. The stable manifest remained at package commit `b04fc194`, proving
+  policy-only changes no longer make clients download another full package.
 
 ## Safety Boundaries
 

@@ -1,24 +1,26 @@
 # Current Tasks
 
-## Active Task: GitHub Release Hardening Phase 1
+## Active Task: Immutable MoonFlower Rollback Builds
 
-Complete items 1-3 in [RELEASE_HARDENING.md](RELEASE_HARDENING.md): validate
-the exact feature commit before `main`, protect `main` with required checks,
-make Gitleaks a release dependency, and prevent non-package changes from
-republishing the full client.
+Complete item 4 in [RELEASE_HARDENING.md](RELEASE_HARDENING.md): publish each
+client package under a commit-addressed immutable release, retain a bounded
+history, expose the previous verified build in the stable feed, and add an
+explicit launcher rollback path.
 
 Acceptance criteria:
 
-1. The feature-branch validation check passes the MoonFlower release policy,
-   Gitleaks, clean Ant package build, and deterministic packaged checks.
-2. GitHub rejects deletion, force-push/non-fast-forward updates, and production
-   commits that do not already have the required validation and Gitleaks checks.
-3. Policy, workflow, or documentation-only changes validate without replacing
-   `moonflower-latest` or making clients download an unchanged package.
-4. The exact validated SHA advances the feature branch and `main`; remote refs,
-   ruleset configuration, checks, and release manifest are audited afterward.
-5. After this audit passes, item 4 becomes the active task without requiring a
-   separate prompt.
+1. The workflow publishes `moonflower-build-<40-character commit>` once and
+   never clobbers that build's package.
+2. The stable feed points at the immutable package and embeds the prior stable
+   package descriptor when available.
+3. The newest five immutable build releases are retained; cleanup never affects
+   `moonflower-latest`, Steam, or local caches.
+4. `Play.bat -Rollback` verifies and runs the previous build from cache or its
+   immutable GitHub asset without changing ordinary automatic startup.
+5. Deterministic tests cover schema 1 compatibility, schema 2 previous-build
+   metadata, cached rollback, downloaded rollback, and failed verification.
+6. Required feature checks, the protected production push, rolling release,
+   remote immutable asset, stable feed, and launcher check all pass.
 
 ## Pending Live Validation: Inventory Action Vine And Localized-Resource Timers
 
