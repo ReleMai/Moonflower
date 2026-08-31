@@ -1,0 +1,121 @@
+name: MoonFlower release validation
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_package_validation:
+        description: Run the clean client build and packaged checks even when package inputs did not change
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: moonflower-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-release:
+    name: validate-release
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve production delta
+        id: delta
+        shell: pwsh
+        run: |
+          git fetch origin main --no-tags
+          $baseRef = (git merge-base HEAD origin/main).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($baseRef)) {
+            throw "Could not resolve the merge base with origin/main."
+          }
+
+          $changedFiles = @(git diff --name-only "$baseRef..HEAD")
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not enumerate the production delta."
+          }
+          $packageChanged = "${{ inputs.force_package_validation }}" -eq 'true'
+          foreach ($path in $changedFiles) {
+            $normalized = $path.Replace('\', '/')
+            if ($normalized -like 'client/*' -or
+                $normalized -eq 'scripts/New-MoonFlowerUpdateManifest.ps1' -or
+                $normalized -eq 'scripts/Test-MoonFlowerUpdater.ps1' -or
+                $normalized -eq '.github/workflows/moonflower-rolling-release.yml') {
+              $packageChanged = $true
+              break
+            }
+          }
+
+          "base_ref=$baseRef" >> $env:GITHUB_OUTPUT
+          "package_changed=$($packageChanged.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Production base: $baseRef"
+          Write-Host "Changed files: $($changedFiles.Count)"
+          Write-Host "Package validation required: $packageChanged"
+
+      - name: Enforce commit detail and release privacy policy
+        shell: pwsh
+        run: |
+          & ./scripts/Test-MoonFlowerReleasePolicy.ps1 `
+            -BaseRef "${{ steps.delta.outputs.base_ref }}" `
+            -RequireCommitDetails
+
+      - name: Set up Java 21
+        if: steps.delta.outputs.package_changed == 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Ensure Apache Ant is available
+        if: steps.delta.outputs.package_changed == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ant -ErrorAction SilentlyContinue)) {
+            choco install ant --yes --no-progress
+          }
+          ant -version
+
+      - name: Build packaged client
+        if: steps.delta.outputs.package_changed == 'true'
+        shell: pwsh
+        working-directory: client
+        run: ant clean deftgt
+
+      - name: Run deterministic packaged checks
+        if: steps.delta.outputs.package_changed == 'true'
+        shell: pwsh
+        working-directory: client
+        run: |
+          java -cp "bin/*" haven.MoonFlowerChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.MoonFlowerHudChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.WorldClockChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.InventorySlotLockChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.ContainerWindowPlacementChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.cookbook.CookbookChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.fishing.FishingChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.feasting.FeastingChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.combat.CombatAssistChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.wiki.WikiChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.foraging.ForagingChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.inventoryqol.InventoryQolChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.multisession.SessionConservatoryChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.automated.FishingPreparationChecks
+
+      - name: Run updater checks
+        if: steps.delta.outputs.package_changed == 'true'
+        shell: pwsh
+        run: ./scripts/Test-MoonFlowerUpdater.ps1

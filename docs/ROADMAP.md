@@ -18,7 +18,10 @@ live capture evidence. The active controlled-expansion slice is the first
 MoonFlower World Clock implementation: unified portrait-HUD theming, live
 astronomy and area context, a game-time season countdown, and sourced contextual
 notices. Fishing-helper and combat refinements remain pending supervised live
-validation.
+validation. The parallel production-operations track is hardening the GitHub
+release path in the order recorded in
+[RELEASE_HARDENING.md](RELEASE_HARDENING.md); items 1-3 are active and immutable
+rollback builds are next.
 
 ## Milestones
 

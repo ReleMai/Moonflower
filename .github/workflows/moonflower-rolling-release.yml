@@ -7,8 +7,6 @@ on:
     paths:
       - "client/**"
       - "scripts/New-MoonFlowerUpdateManifest.ps1"
-      - "scripts/Test-MoonFlowerReleasePolicy.ps1"
-      - ".github/workflows/moonflower-rolling-release.yml"
   workflow_dispatch:
 
 permissions:

@@ -1,5 +1,25 @@
 # Current Tasks
 
+## Active Task: GitHub Release Hardening Phase 1
+
+Complete items 1-3 in [RELEASE_HARDENING.md](RELEASE_HARDENING.md): validate
+the exact feature commit before `main`, protect `main` with required checks,
+make Gitleaks a release dependency, and prevent non-package changes from
+republishing the full client.
+
+Acceptance criteria:
+
+1. The feature-branch validation check passes the MoonFlower release policy,
+   Gitleaks, clean Ant package build, and deterministic packaged checks.
+2. GitHub rejects deletion, force-push/non-fast-forward updates, and production
+   commits that do not already have the required validation and Gitleaks checks.
+3. Policy, workflow, or documentation-only changes validate without replacing
+   `moonflower-latest` or making clients download an unchanged package.
+4. The exact validated SHA advances the feature branch and `main`; remote refs,
+   ruleset configuration, checks, and release manifest are audited afterward.
+5. After this audit passes, item 4 becomes the active task without requiring a
+   separate prompt.
+
 ## Pending Live Validation: Inventory Action Vine And Localized-Resource Timers
 
 Validate the new attached Inventory action vine in one visible, supervised
