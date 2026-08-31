@@ -94,6 +94,49 @@ Example:
 - Compilation is not live-game verification. Report login/resource/protocol
   behavior as unverified until observed with the visible client.
 
+## GitHub-First Production Updates
+
+These rules apply whenever the user asks to ship, publish, deploy, update
+production, or make the launcher's stable build current.
+
+- Edit tracked repository source; do not deliver changes by directly patching
+  `client/bin`, a downloaded updater version, a launcher cache, a subscribed
+  Steam copy, or any JAR used by a running client. Generated local files may be
+  inspected for diagnosis, but GitHub CI is the production build authority.
+- Preserve unrelated dirty-worktree changes. Stage only the intended task and
+  review the staged file list, diff, and reachable unpublished history before
+  committing or pushing.
+- Run focused checks locally when safe. Never stop a user's client solely to
+  publish. If a local build or package operation is necessary, first run
+  `scripts/assert-client-stopped.ps1`; otherwise rely on the clean GitHub build.
+- Before every commit, run:
+  `powershell -ExecutionPolicy Bypass -File scripts/Test-MoonFlowerReleasePolicy.ps1 -Staged`.
+  This gate must pass; do not waive, suppress, or describe an incomplete scan as
+  a privacy pass.
+- Every non-merge commit must have a concise subject and a detailed body with
+  all four headings: `Changes:`, `Reason:`, `Verification:`, and `Privacy:`.
+  Explain concrete behavior and files, why the change was needed, exact checks
+  and their results, and the privacy audit performed. Never put secrets or
+  private values in the message.
+- After committing and before a production push, fetch the remote and run:
+  `powershell -ExecutionPolicy Bypass -File scripts/Test-MoonFlowerReleasePolicy.ps1 -BaseRef origin/main -RequireCommitDetails`.
+  Also run `git diff --check origin/main..HEAD` and confirm the exact commits
+  and paths that will become public.
+- Push the working feature branch for review/provenance, then advance `main`
+  only when the user has authorized a production or GitHub update. Do not build
+  or copy the production JAR locally as a substitute.
+- Wait for `.github/workflows/moonflower-rolling-release.yml` to finish. A
+  production update is incomplete until its clean build, deterministic checks,
+  commit-detail gate, privacy gate, package hashing, and rolling release upload
+  all succeed.
+- Verify the `moonflower-latest` manifest commit matches remote `main`, then run
+  `client/MoonFlower-Update.ps1 -CheckOnly`. Report the pushed commit, workflow
+  result, privacy result, and updater result. Do not claim live gameplay proof
+  unless it was actually observed.
+- Steam Workshop publication remains a separate, owner-only private release.
+  Never upload or alter the retained Workshop item unless the user explicitly
+  authorizes that Steam release.
+
 ## MoonFlower UI System
 
 - Before creating or substantially redesigning a MoonFlower UI component, copy

@@ -20,6 +20,16 @@ Rule to remember next time:
 ## Entries
 
 ```text
+Date: 2026-08-31
+Task: Make GitHub-first MoonFlower production updates an automatic project rule.
+What worked: Pairing project-level AGENTS.md instructions with an executable privacy and commit-detail gate made the release process both discoverable in new chats and enforceable in GitHub Actions.
+What was confusing: Editing tracked source is still required, but directly patching generated client/bin or launcher caches bypasses the versioned, verified release path.
+What broke or almost broke: A release feed can exist while an unverified local package or incomplete commit history still gives a misleading impression that production is current.
+What I learned: GitHub main, the clean rolling-release workflow, and the signed manifest hash form the production boundary; local generated files are diagnostic artifacts, not delivery targets.
+Rule to remember next time: Audit only the intended changes, use detailed commit bodies, pass the release-policy script, push through main, wait for CI, and verify the stable manifest and updater check.
+```
+
+```text
 Date: 2026-08-29
 Task: Establish a unified MoonFlower UI component template while beginning the world clock redesign.
 What worked: Turning the portrait HUD's existing palette, primitives, interaction rules, provenance labels, and verification boundaries into one reusable checklist made the visual direction explicit without introducing another framework.
