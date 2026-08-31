@@ -19,6 +19,14 @@ $commitOne = '0123456789abcdef0123456789abcdef01234567'
 $commitTwo = '89abcdef0123456789abcdef0123456789abcdef'
 $commitThree = 'fedcba9876543210fedcba9876543210fedcba98'
 
+foreach ($launcherName in @('Play.bat', 'Play_WithSteam.bat')) {
+    $launcherPath = Join-Path $repoRoot "client\$launcherName"
+    $launcher = Get-Content -LiteralPath $launcherPath -Raw
+    if ($launcher -notmatch 'set "PSModulePath="') {
+        throw "$launcherName does not isolate Windows PowerShell from inherited module paths."
+    }
+}
+
 function New-TestPackage {
     param([string]$Root, [string]$Label)
 

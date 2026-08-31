@@ -2,6 +2,8 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 if exist "%~dp0MoonFlower-Update.ps1" (
+    rem Do not pass a PowerShell 7 module path into Windows PowerShell 5.1.
+    set "PSModulePath="
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0MoonFlower-Update.ps1" -Steam %*
     exit /b !ERRORLEVEL!
 )
