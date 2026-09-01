@@ -47,10 +47,15 @@ public final class SessionWorkerReadiness {
         try {
             Class.forName(SessionWorkerLaunchSpec.MAIN_CLASS, false,
                     SessionWorkerReadiness.class.getClassLoader());
+            Class.forName(SessionWorkerLaunchSpec.HEADLESS_CLIENT_CLASS, false,
+                    SessionWorkerReadiness.class.getClassLoader());
             client = true;
         } catch(ClassNotFoundException ignored) {
         }
-        return(evaluate(renderers, client, false, false));
+        /* The broker and framed preview bridge are built into this client now.
+         * They are still fail-closed at launch time if authentication or the
+         * worker process itself cannot be established. */
+        return(evaluate(renderers, client, true, true));
     }
 
     static SessionWorkerReadiness evaluate(Set<String> renderers, boolean client,

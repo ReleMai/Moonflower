@@ -34,6 +34,10 @@ public final class SessionConservatorySnapshot {
         long selected = this.sessions.stream().filter(SessionCardSnapshot::selected).count();
         if(selected > 1)
             throw(new IllegalArgumentException("Only one session may own the visible game surface."));
+        if(selected != 1)
+            throw(new IllegalArgumentException("Exactly one session must own the visible game surface."));
+        if(this.sessions.stream().noneMatch(session -> session.sessionId().equals(this.selectedSessionId)))
+            throw(new IllegalArgumentException("Selected session is not present in the snapshot."));
         if(!singleVisibleWindow)
             throw(new IllegalArgumentException("MoonFlower multi-account mode requires one visible game window."));
         if(backgroundWorkersEnabled != workerReadiness.ready())

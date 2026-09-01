@@ -56,6 +56,7 @@ import haven.foraging.ForagingController;
 import haven.foraging.ForagingWindow;
 import haven.inventoryqol.SharpToolAutoManager;
 import haven.multisession.SessionConservatoryService;
+import haven.multisession.SessionConservatoryLayout;
 import haven.multisession.SessionConservatoryWindow;
 import haven.wiki.RingOfBrodgarWikiService;
 import haven.wiki.WikiWindow;
@@ -605,7 +606,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		Utils.getprefc("wndc-foragingWayfinder", new Coord(250, 110)));
 	foragingWindow.hide();
 	sessionConservatoryService = new SessionConservatoryService(this);
-	sessionConservatoryWindow = add(new SessionConservatoryWindow(sessionConservatoryService),
+	sessionConservatoryWindow = add(new SessionConservatoryWindow(sessionConservatoryService,
+		Utils.getprefc("wndsz-sessionConservatory", SessionConservatoryLayout.PREFERRED)),
 		Utils.getprefc("wndc-sessionConservatory", new Coord(230, 120)));
 	sessionConservatoryWindow.hide();
 	wikiWindow = add(new WikiWindow(this, wikiService,
@@ -696,6 +698,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 	@Override
 	public void destroy() {
+		sessionConservatoryService.close();
 		cookbookService.close();
 		fishingMapMarkers.close();
 		fishingJournalService.close();

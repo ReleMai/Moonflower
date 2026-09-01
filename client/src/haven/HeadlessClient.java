@@ -36,11 +36,36 @@ public class HeadlessClient implements Console.Directory, Console.Host {
     private static final PrintWriter stdout = new PrintWriter(System.out);
     private static Coord size = Coord.of(1920,1080);
     private final Environment env;
+    private final Coord outputSize;
+    private final FrameOutput frameOutput;
+    private final InputDispatcher inputDispatcher;
+    private final PrintWriter consoleOut;
     private Thread mt;
     private UILoop loop;
 
     public HeadlessClient() {
+	this(size, null, null, stdout);
+    }
+
+    public HeadlessClient(Coord size, FrameOutput frameOutput,
+                          InputDispatcher inputDispatcher, PrintWriter consoleOut) {
 	env = Acephal.instance().env();
+	if(size == null || size.x < 1 || size.y < 1)
+	    throw(new IllegalArgumentException("Headless output size is required."));
+	this.outputSize = size;
+	this.frameOutput = frameOutput;
+	this.inputDispatcher = inputDispatcher;
+	this.consoleOut = (consoleOut == null) ? new PrintWriter(OutputStream.nullOutputStream()) : consoleOut;
+    }
+
+    public interface FrameOutput extends AutoCloseable {
+	void accept(Render g, Pipe state);
+	default void close() {}
+    }
+
+    public interface InputDispatcher {
+	void dispatch(UI ui);
+	default void close() {}
     }
 
     public class HeadlessLoop extends UILoop {
@@ -48,9 +73,11 @@ public class HeadlessClient implements Console.Directory, Console.Host {
 	private final DepthBuffer<Texture.Image<Texture2D>> dpt;
 
 	private HeadlessLoop() {
-	    super(DummyToolkit.DummyWindow.of(size, HeadlessClient.this.env, null));
-	    col = new FragColor<>(new Texture2D(size, DataBuffer.Usage.STATIC, new VectorFormat(4, NumberFormat.UNORM8), null).image(0));
-	    dpt = new DepthBuffer<>(new Texture2D(size, DataBuffer.Usage.STATIC, Texture.DEPTH, new VectorFormat(1, NumberFormat.FLOAT32), null).image(0));
+	    super(DummyToolkit.DummyWindow.of(outputSize, HeadlessClient.this.env,
+		    (frameOutput == null) ? null :
+			buf -> frameOutput.accept(buf, HeadlessClient.this.loop.basestate())));
+	    col = new FragColor<>(new Texture2D(outputSize, DataBuffer.Usage.STATIC, new VectorFormat(4, NumberFormat.UNORM8), null).image(0));
+	    dpt = new DepthBuffer<>(new Texture2D(outputSize, DataBuffer.Usage.STATIC, Texture.DEPTH, new VectorFormat(1, NumberFormat.FLOAT32), null).image(0));
 	}
 
 	protected Pipe basestate() {
@@ -61,10 +88,10 @@ public class HeadlessClient implements Console.Directory, Console.Host {
 
 	public UI newui(UI.Runner fun) {
 	    UI ui = super.newui(fun);
-	    ui.cons.out = stdout;
+	    ui.cons.out = consoleOut;
 	    ui.cons.add(HeadlessClient.this);
 	    ui.grab(new Widget(), UI.NoticeEvent.class, ev -> {
-		stdout.println(ev.msg.message());
+		consoleOut.println(ev.msg.message());
 		return(false);
 	    });
 	    return(ui);
@@ -78,6 +105,8 @@ public class HeadlessClient implements Console.Directory, Console.Host {
 	}
 
 	protected void dispatch(UI ui) {
+	    if(inputDispatcher != null)
+		inputDispatcher.dispatch(ui);
 	}
 
 	protected boolean bgmode() {
@@ -86,10 +115,17 @@ public class HeadlessClient implements Console.Directory, Console.Host {
     }
 
     public void run(UI.Runner task) {
+	run(task, true);
+    }
+
+    public void run(UI.Runner task, boolean readStdin) {
 	if(mt != null) throw(new IllegalStateException());
 	mt = Thread.currentThread();
-	Thread stdio = new HackThread(this::stdin, "stdio reader");
-	stdio.start();
+	Thread stdio = null;
+	if(readStdin) {
+	    stdio = new HackThread(this::stdin, "stdio reader");
+	    stdio.start();
+	}
 	UILoop loop = this.loop = new HeadlessLoop();
 	loop.start();
 	try {
@@ -102,7 +138,12 @@ public class HeadlessClient implements Console.Directory, Console.Host {
 	    }
 	} finally {
 	    loop.dispose();
-	    stdio.interrupt();
+	    if(stdio != null)
+		stdio.interrupt();
+	    if(inputDispatcher != null)
+		inputDispatcher.close();
+	    if(frameOutput != null)
+		frameOutput.close();
 	    this.loop = null;
 	    mt = null;
 	}
