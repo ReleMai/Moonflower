@@ -8,10 +8,10 @@ User goal: Open bulk inventory actions from the Inventory window, use the best
 reachable sharp tool for animal processing, and retain inspected localized
 resource refill countdowns in the world.
 
-Smallest useful behavior: One title-bar leaf opens an attached Inventory Tools
-panel containing Sort, Stack, Unstack, slot locking, Extended View when
-available, Butcher all, Crack all, and Stop. No secondary control is positioned
-outside the inventory frame. Bulk actions probe the selected inventory's native
+Smallest useful behavior: One title-bar blossom expands the Inventory window's
+single outer frame to reveal an internal tool bay containing Sort, Stack,
+Unstack, slot locking, Extended View when available, Butcher all, Crack all,
+and Stop. No secondary window or outer frame is created. Bulk actions probe the selected inventory's native
 flower menus one item at a time. Animal processing temporarily equips
 the highest-quality supported one-handed sharp tool in the main inventory or
 equipped Belt and restores the displaced hand item afterward. Inspect refill
@@ -33,23 +33,22 @@ panel instead of disappearing or changing their server messages.
 
 ## Visual System
 
-The attached control wing uses the same scalable generated MoonFlower window
-frame and panel texture as the Inventory itself: ink, navy, antique gold, teal
-vines, and ivory blossoms. A matching generated handle remains integrated into
-the Inventory title rail beside Close. The two surfaces overlap at a living-vine
-seam so they read as one dock instead of separate ornamental windows.
+The tool bay lives inside the same scalable generated MoonFlower window frame
+as the Inventory itself: ink, navy, antique gold, teal vines, and ivory
+blossoms. A compact drawn blossom control remains integrated into the title
+rail beside Close. A generated vertical moonflower divider separates the grid
+and recessed controls without drawing another window border.
 
 ## Layout
 
-Anchor or default position: Attached to the Inventory window's right edge;
-falls back to its left edge when the screen has insufficient room.
+Anchor or default position: Inside the Inventory window content area,
+immediately to the right of the inventory content.
 
-Minimum and preferred size: Fixed 220 by 198 scaled pixels, using two equal
-columns for paired actions and full-width rows for Extended View and Stop. The
-wing is vertically centered on the Inventory and overlaps its frame by 18 scaled
-pixels.
+Minimum and preferred size: Fixed 204 by 180 scaled pixels, using two equal
+columns for paired actions and full-width rows for Extended View and Stop.
 
-Behavior at 1280x720: Clamp to the GameUI bounds and choose the side with room.
+Behavior at 1280x720: Use the native inventory window boundary behavior; there
+is no independently positioned panel to drift or clamp.
 
 Behavior at 1920x1080 and larger: Remain attached to the Inventory window.
 
@@ -61,8 +60,8 @@ adjacent study/container windows, and screen edges.
 Long-text and unknown-value behavior: Status wraps to the fixed panel width;
 unknown counts use a short fail-closed message.
 
-Movable/resizable state and persistence key, if any: Not independently movable;
-it follows the Inventory window and remembers only open/closed state in-session.
+Movable/resizable state and persistence key, if any: The tool bay is part of the
+Inventory and has no independent position or persistence key.
 
 ## Interaction
 
@@ -86,9 +85,8 @@ acknowledgement, action timeout, or detached inventory.
 
 ## Motion And Accessibility
 
-Motion used: Smoothstep easing plus a restrained lead-in combines a 210 ms
-positional slide with a clipped horizontal reveal. A gold-and-teal vine hinge
-grows from the attached edge and blooms as the panel reaches its open position.
+Motion used: A 190 ms smoothstep reveal expands the existing outer frame and
+uncovers the recessed controls from the generated divider.
 
 Reduced-motion behavior: With reduced HUD motion enabled, the panel and hinge
 snap directly to their final position.
@@ -101,10 +99,10 @@ completion states. Slot locking changes its label between `Lock slots` and
 
 Presentation file: `client/src/haven/inventoryqol/InventoryControlPanel.java`
 
-Generated handle artwork:
-`client/src/haven/hud/moonflower-inventory-tools-tab-v1-alpha.png`. The wing
-reuses the shared generated MoonFlower window frame rather than carrying a
-second, unrelated portrait frame.
+Generated divider artwork:
+`client/src/haven/hud/moonflower-inventory-divider-v1-alpha.png`. The bay is
+drawn within the shared generated MoonFlower window frame rather than carrying
+a second frame.
 
 Immutable state/snapshot file: Bulk action definitions in
 `InventoryBulkActionController`.
@@ -121,7 +119,7 @@ authoritative source is the current server Inspect response.
 ## Acceptance Criteria
 
 1. Inventory shows only Close and one non-overlapping Inventory Tools control;
-   every former title action remains available inside the attached panel.
+   every former title action remains available inside one expanded frame.
 2. Butcher all uses native flower-menu options in strict `Skin`, `Clean`,
    `Butcher` priority (then optional bone collection), processing one
    acknowledged item at a time; Stop clears pending selection.

@@ -58,7 +58,7 @@ public final class InventoryQolChecks {
                 "countdown formatting is stable");
 
 		Window inventoryWindow = new Window(UI.scale(100, 100), "Inventory");
-		inventoryWindow.add(new Inventory(Coord.of(4, 4)), Coord.z);
+		Inventory inventory = inventoryWindow.add(new Inventory(Coord.of(4, 4)), Coord.z);
 		Window.DefaultDeco decoration = inventoryWindow.getchild(Window.DefaultDeco.class);
 		check(decoration != null && decoration.inventorycontrolbtn != null,
 				"inventory attachment creates the inventory-actions title control");
@@ -70,11 +70,23 @@ public final class InventoryQolChecks {
 				"inventory-actions title control stays visible beside Close on narrow inventories");
 		check(decoration.inventorycontrolbtn.c.y >= 0,
 				"inventory-tools control stays inside the title frame");
-		check(decoration.inventorycontrolbtn.sz.equals(UI.scale(76, 14)) &&
+		check(decoration.inventorycontrolbtn.sz.equals(UI.scale(20, 18)) &&
 				decoration.inventorycontrolbtn.c.y + decoration.inventorycontrolbtn.sz.y <= UI.scale(30),
-				"engraved inventory-tools tab scales inside the title rail");
+				"inventory-tools emblem scales inside the title rail");
 		checkLayout(InventoryControlPanel.layout(false));
 		checkLayout(InventoryControlPanel.layout(true));
+		Coord base = inventoryWindow.contentsz();
+		InventoryControlPanel bay = inventoryWindow.add(new InventoryControlPanel(inventoryWindow, inventory), Coord.z);
+		bay.toggle();
+		bay.syncHost(1.0);
+		check(bay.parent == inventoryWindow,
+				"inventory tool bay is a child of the inventory window, not a second window");
+		check(inventoryWindow.csz().x == base.x + InventoryControlPanel.layout(false).panelSize.x,
+				"one inventory frame expands to contain the complete tool bay");
+		bay.toggle();
+		bay.syncHost(0.0);
+		check(inventoryWindow.csz().equals(base),
+				"collapsing the tool bay restores the exact base inventory content size");
         System.out.println("Inventory QoL checks passed.");
     }
 
@@ -88,14 +100,15 @@ public final class InventoryQolChecks {
 					action.br.y <= layout.panelSize.y,
 					"inventory-tools action remains inside the slide-out panel");
 		}
-		check(layout.panelSize.equals(UI.scale(220, 198)),
-				"inventory-tools wing keeps a compact shared-frame footprint");
-		Coord right = InventoryControlPanel.dockPosition(Coord.of(100, 100), UI.scale(200, 180),
-				layout.panelSize, UI.scale(1280, 720), true, 1.0);
-		check(right.x == 100 + UI.scale(200) - UI.scale(18),
-				"open inventory-tools wing overlaps the inventory frame at its right seam");
-		check(right.y == 100 + ((UI.scale(180) - layout.panelSize.y) / 2),
-				"inventory-tools wing remains vertically centered on the inventory");
+		check(layout.panelSize.equals(UI.scale(204, 180)),
+				"inventory tool bay keeps a compact single-window footprint");
+		check(layout.contentLeft >= UI.scale(18) && layout.contentRight < layout.panelSize.x,
+				"actions stay clear of the generated divider and outer frame");
+		check(layout.statusY <= layout.panelSize.y,
+				"inventory tool status remains inside the unified frame");
+		check(InventoryControlPanel.revealedWidth(layout.panelSize.x, 0.0) == 0 &&
+				InventoryControlPanel.revealedWidth(layout.panelSize.x, 1.0) == layout.panelSize.x,
+				"frame-width animation has exact collapsed and expanded endpoints");
 	}
 
     private static void check(boolean condition, String message) {

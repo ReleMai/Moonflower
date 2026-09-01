@@ -70,44 +70,62 @@ public final class MoonFlowerHudTheme {
         drawBlossom(g, Coord.of(size.x - UI.scale(7), size.y - UI.scale(7)), UI.scale(3));
     }
 
-    /** Engraved drawer tab sized to sit inside an inventory window's title rail. */
+    /** Compact circular emblem integrated into the inventory window's title rail. */
     public static void drawInventoryToolTab(GOut g, Coord origin, Coord size,
                                             boolean active, boolean hover, boolean pressed) {
         if(size.x <= 2 || size.y <= 2)
             return;
-        g.chcolor(255, 255, 255, pressed ? 215 : 255);
-        g.image(MoonFlowerUiAssets.inventoryToolsTab, origin, size);
-        if(hover || active) {
-            int inset = UI.scale(9);
-            g.chcolor(active ? IVORY : GOLD);
-            g.line(origin.add(inset, size.y - UI.scale(2)),
-                    origin.add(size.x - inset, size.y - UI.scale(2)), Math.max(1, UI.scale(1)));
+        Coord center = origin.add(size.div(2));
+        int radius = Math.max(UI.scale(5), Math.min(size.x, size.y) / 2 - UI.scale(1));
+        g.chcolor(new Color(1, 8, 12, pressed ? 250 : 230));
+        g.fellipse(center, Coord.of(radius, radius));
+        g.chcolor(active ? TEAL_BRIGHT : (hover ? GOLD : GOLD_SOFT));
+        int segments = 18;
+        for(int i = 0; i < segments; i++) {
+            double a1 = (Math.PI * 2 * i) / segments;
+            double a2 = (Math.PI * 2 * (i + 1)) / segments;
+            Coord p1 = center.add((int)Math.round(Math.cos(a1) * radius),
+                    (int)Math.round(Math.sin(a1) * radius));
+            Coord p2 = center.add((int)Math.round(Math.cos(a2) * radius),
+                    (int)Math.round(Math.sin(a2) * radius));
+            g.line(p1, p2, Math.max(1, UI.scale(1)));
+        }
+        drawBlossom(g, center, Math.max(UI.scale(3), radius / 2));
+        if(active) {
+            g.chcolor(IVORY);
+            g.line(center.add(-UI.scale(4), radius - UI.scale(1)),
+                    center.add(UI.scale(4), radius - UI.scale(1)), Math.max(1, UI.scale(1)));
         }
         g.chcolor();
     }
 
-    /** Compact inventory wing using the same generated frame as its host window. */
-    public static void drawInventoryToolsDock(GOut g, Coord size, boolean attachedLeft, double reveal) {
+    /** Recessed tool surface inside the inventory window's one shared outer frame. */
+    public static void drawInventoryToolBay(GOut g, Coord size, double reveal) {
         if(size.x <= 0 || size.y <= 0)
             return;
-        drawWindowBackground(g, Coord.z, size, 244);
-        drawWindowFrame(g, Coord.z, size);
-        drawInventoryPanelHinge(g, size, attachedLeft, reveal);
-    }
-
-    /** Directional living hinge connecting the inventory frame to its tools drawer. */
-    public static void drawInventoryPanelHinge(GOut g, Coord size, boolean attachedLeft, double reveal) {
         reveal = Utils.clip(reveal, 0.0, 1.0);
-        if(reveal <= 0 || size.x <= UI.scale(12))
+        if(reveal <= 0)
             return;
-        int y = UI.scale(18);
-        Coord edge = Coord.of(attachedLeft ? 0 : size.x - 1, y);
-        Coord inner = edge.add(attachedLeft ? UI.scale(31) : -UI.scale(31), UI.scale(7));
-        drawCurvedVine(g, edge, inner, reveal);
-        if(reveal > 0.45)
-            drawBlossom(g, edge.add(attachedLeft ? UI.scale(7) : -UI.scale(7), UI.scale(2)), UI.scale(3));
-        if(reveal > 0.78)
-            drawBlossom(g, inner, UI.scale(3));
+        int seam = UI.scale(18);
+        int top = UI.scale(4);
+        Coord surfaceOrigin = Coord.of(seam / 2, top);
+        Coord surfaceSize = Coord.of(size.x - (seam / 2), size.y - (top * 2));
+        g.chcolor(new Color(1, 7, 11, 228));
+        g.frect(surfaceOrigin, surfaceSize);
+        g.chcolor(new Color(24, 95, 105, 88));
+        g.frect(surfaceOrigin.add(UI.scale(4), UI.scale(4)),
+                surfaceSize.sub(UI.scale(8), UI.scale(8)));
+        g.chcolor(new Color(3, 12, 18, 238));
+        g.frect(surfaceOrigin.add(UI.scale(5), UI.scale(5)),
+                surfaceSize.sub(UI.scale(10), UI.scale(10)));
+        g.chcolor(GOLD_SOFT);
+        g.line(Coord.of(seam, top), Coord.of(size.x - UI.scale(4), top), Math.max(1, UI.scale(1)));
+        g.line(Coord.of(seam, size.y - top), Coord.of(size.x - UI.scale(4), size.y - top),
+                Math.max(1, UI.scale(1)));
+        g.chcolor(255, 255, 255, (int)Math.round(255 * reveal));
+        g.image(MoonFlowerUiAssets.inventoryDivider, Coord.of(0, top),
+                Coord.of(seam, size.y - (top * 2)));
+        g.chcolor();
     }
 
     public static void drawInventorySlot(GOut g, Coord origin, Coord size, boolean masked) {

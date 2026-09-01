@@ -11,28 +11,28 @@ public final class MoonFlowerUiAssets {
     private static final String WINDOW_FRAME = "/haven/hud/moonflower-window-frame-v1-alpha.png";
     private static final String PANEL_TEXTURE = "/haven/hud/moonflower-panel-texture-v1.png";
     private static final String CHAT_SETTINGS = "/haven/hud/moonflower-chat-settings-v1-alpha.png";
-    private static final String INVENTORY_TOOLS_TAB = "/haven/hud/moonflower-inventory-tools-tab-v1-alpha.png";
+    private static final String INVENTORY_DIVIDER = "/haven/hud/moonflower-inventory-divider-v1-alpha.png";
     private static final int FRAME_SLICE = 400;
     private static final PUtils.Convolution ART_FILTER = new PUtils.Lanczos(3);
 
     private static final BufferedImage windowFrameSource = load(WINDOW_FRAME);
     private static final BufferedImage chatSettingsSource = trimTransparent(load(CHAT_SETTINGS), 8);
-    private static final BufferedImage inventoryToolsTabSource = trimTransparent(load(INVENTORY_TOOLS_TAB), 4);
+    private static final BufferedImage inventoryDividerSource = trimTransparent(load(INVENTORY_DIVIDER), 4);
     public static final Tex[] windowFrame = sliceFrame(windowFrameSource);
     public static final Tex panelTexture = filtered(load(PANEL_TEXTURE), Coord.of(UI.scale(256), UI.scale(256)));
     public static final Tex chatSettings = filtered(chatSettingsSource,
             Coord.of(UI.scale(24), UI.scale(24)));
-    public static final Tex inventoryToolsTab = filtered(inventoryToolsTabSource,
-            Coord.of(UI.scale(76), UI.scale(14)));
+    public static final Tex inventoryDivider = filtered(inventoryDividerSource,
+            Coord.of(UI.scale(18), UI.scale(172)));
 
     private MoonFlowerUiAssets() {
     }
 
     public static boolean complete() {
         if(windowFrame.length != 9 || panelTexture.sz().x <= 1 || chatSettings.sz().x <= 1 ||
-                inventoryToolsTab.sz().x <= 1 ||
+                inventoryDivider.sz().x <= 1 ||
                 !hasTransparency(windowFrameSource) || !hasTransparency(chatSettingsSource) ||
-                !hasTransparency(inventoryToolsTabSource))
+                !hasTransparency(inventoryDividerSource))
             return false;
         for(Tex slice : windowFrame) {
             if(slice == null || slice.sz().x <= 0 || slice.sz().y <= 0)

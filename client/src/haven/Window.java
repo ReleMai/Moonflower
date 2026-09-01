@@ -462,17 +462,17 @@ public class Window extends Widget {
     }
 
 	private void toggleInventoryControls(Inventory inventory) {
-		if(parent == null || inventory == null)
+		if(inventory == null)
 			return;
-		if(inventoryControlPanel == null || inventoryControlPanel.parent == null) {
+		if(inventoryControlPanel == null || inventoryControlPanel.parent != this) {
 			inventoryControlPanel = new InventoryControlPanel(this, inventory);
-			parent.add(inventoryControlPanel, c.add(sz.x, UI.scale(18)));
+			add(inventoryControlPanel, Coord.z);
 		}
 		inventoryControlPanel.toggle();
 	}
 
 	private boolean inventoryControlsExpanded() {
-		return(inventoryControlPanel != null && inventoryControlPanel.parent != null &&
+		return(inventoryControlPanel != null && inventoryControlPanel.parent == this &&
 				inventoryControlPanel.expanded());
 	}
 
@@ -912,10 +912,6 @@ public class Window extends Widget {
 
     @Override
     public void dispose() {
-		if(inventoryControlPanel != null) {
-			inventoryControlPanel.reqdestroy();
-			inventoryControlPanel = null;
-		}
         super.dispose();
         if (this.cap != null)
             Utils.setprefc("wndc-" + this.cap, this.c);

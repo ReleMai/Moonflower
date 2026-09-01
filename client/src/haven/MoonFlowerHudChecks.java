@@ -52,7 +52,8 @@ public final class MoonFlowerHudChecks {
                 "inverted world-clock artwork has transparent wide-screen geometry");
         require(MoonFlowerHudAssets.movementIcons.length == 4,
                 "four packaged movement-mode icons");
-        require(MoonFlowerUiAssets.complete(), "packaged window frame, panel, and chat settings artwork");
+        require(MoonFlowerUiAssets.complete(),
+                "packaged window frame, panel, chat settings, and inventory divider artwork");
         require(MoonFlowerHudTheme.windowBackgroundInset(UI.scale(300, 180)) == UI.scale(6),
                 "window background stays inside the generated frame rail");
         require(MoonFlowerHudTheme.windowBackgroundInset(UI.scale(24, 24)) == UI.scale(3),

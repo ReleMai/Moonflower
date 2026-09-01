@@ -18,22 +18,18 @@ import haven.automated.UnstackAllItems;
 
 import java.util.function.BooleanSupplier;
 
-/** Attached slide-out home for every inventory utility and bulk action. */
+/** Recessed tool bay that expands inside the inventory window's single outer frame. */
 public final class InventoryControlPanel extends Widget {
-    private static final int ATTACH_OVERLAP = UI.scale(18);
-    private static final int SLIDE_TRAVEL = UI.scale(34);
-    private static final int ANIM_MS = 210;
+    private static final int ANIM_MS = 190;
     private final Window target;
     private final Inventory inventory;
     private final InventoryBulkActionController controller;
     private final Layout layout;
     private final ActionLeaf lockSlots;
-    private final Tex heading;
     private final Tex organizeHeading;
     private final Tex processingHeading;
     private boolean expanded;
     private double progress;
-    private boolean placeRight = true;
     private String lastStatus = "";
     private Tex statusTex;
 
@@ -46,8 +42,7 @@ public final class InventoryControlPanel extends Widget {
         this.target = target;
         this.inventory = inventory;
         this.layout = layout;
-        this.controller = new InventoryBulkActionController(target.ui.gui, inventory);
-        this.heading = Text.render("Inventory tools", MoonFlowerHudTheme.IVORY).tex();
+        this.controller = new InventoryBulkActionController(target.ui == null ? null : target.ui.gui, inventory);
         this.organizeHeading = Text.render("ORGANIZE", MoonFlowerHudTheme.GOLD_SOFT).tex();
         this.processingHeading = Text.render("BULK PROCESSING", MoonFlowerHudTheme.GOLD_SOFT).tex();
 
@@ -101,10 +96,12 @@ public final class InventoryControlPanel extends Widget {
 
     public void toggle() {
         expanded = !expanded;
-        if(expanded)
+        if(expanded) {
             show();
-        else
+            syncHost(0.0);
+        } else {
             controller.stop();
+        }
     }
 
     public boolean expanded() {
@@ -126,28 +123,39 @@ public final class InventoryControlPanel extends Widget {
                 Math.max(0.01, dt * 1000.0 / ANIM_MS);
         progress = expanded ? Math.min(1.0, progress + step) : Math.max(0.0, progress - step);
         if(progress <= 0 && !expanded) {
+            syncHost(0.0);
             hide();
             return;
         }
         show();
-        followTarget();
+        syncHost(visualProgress());
     }
 
-    private void followTarget() {
-        Coord host = parent == null ? Coord.z : parent.sz;
-        placeRight = target.c.x + target.sz.x - ATTACH_OVERLAP + sz.x <= host.x;
-        move(dockPosition(target.c, target.sz, sz, host, placeRight, slideProgress()));
+    private Coord baseContentSize() {
+        Coord max = Coord.z;
+        for(Widget child : target.children()) {
+            if(child == target.deco || child == this || !child.visible)
+                continue;
+            Coord br = child.c.add(child.sz);
+            max = Coord.of(Math.max(max.x, br.x), Math.max(max.y, br.y));
+        }
+        return(max);
     }
 
-    static Coord dockPosition(Coord targetPosition, Coord targetSize, Coord panelSize, Coord hostSize,
-                              boolean placeRight, double motion) {
-        int openX = placeRight ? targetPosition.x + targetSize.x - ATTACH_OVERLAP :
-                targetPosition.x - panelSize.x + ATTACH_OVERLAP;
-        int closedX = openX + (placeRight ? -SLIDE_TRAVEL : SLIDE_TRAVEL);
-        int x = (int)Math.round(closedX + ((openX - closedX) * Utils.clip(motion, 0.0, 1.0)));
-        int y = targetPosition.y + ((targetSize.y - panelSize.y) / 2);
-        return(Coord.of(Utils.clip(x, 0, Math.max(0, hostSize.x - panelSize.x)),
-                Utils.clip(y, 0, Math.max(0, hostSize.y - panelSize.y))));
+    void syncHost(double reveal) {
+        Coord base = baseContentSize();
+        int width = revealedWidth(layout.panelSize.x, reveal);
+        int openHeight = Math.max(base.y, layout.panelSize.y);
+        int height = base.y + (int)Math.round((openHeight - base.y) * Utils.clip(reveal, 0.0, 1.0));
+        int panelHeight = Math.min(layout.panelSize.y, height);
+        move(Coord.of(base.x, Math.max(0, (height - panelHeight) / 2)));
+        resize(Coord.of(width, panelHeight));
+        target.resize(Coord.of(base.x + width, height));
+    }
+
+    static int revealedWidth(int fullWidth, double reveal) {
+        return(Math.max(0, Math.min(fullWidth,
+                (int)Math.round(fullWidth * Utils.clip(reveal, 0.0, 1.0)))));
     }
 
     private double visualProgress() {
@@ -156,41 +164,27 @@ public final class InventoryControlPanel extends Widget {
         return(Utils.smoothstep(progress));
     }
 
-    /* Gives the drawer a gentle lead into its engraved hinge without changing the clipped hit area. */
-    private double slideProgress() {
-        if(MoonFlowerHudSettings.hudReducedMotion())
-            return(expanded ? 1.0 : 0.0);
-        double eased = Utils.smoothstep(progress);
-        return(Utils.clip(eased + (Math.sin(progress * Math.PI) * 0.055), 0.0, 1.0));
-    }
-
     @Override
     public void draw(GOut g) {
         double reveal = visualProgress();
         if(reveal <= 0)
             return;
-        int visibleWidth = Math.max(1, (int)Math.round(sz.x * reveal));
-        Coord clipOrigin = placeRight ? Coord.z : Coord.of(sz.x - visibleWidth, 0);
-        GOut clipped = g.reclip(clipOrigin, Coord.of(visibleWidth, sz.y));
-        GOut full = clipped.reclip(clipOrigin.inv(), sz);
-        MoonFlowerHudTheme.drawInventoryToolsDock(full, sz, placeRight, reveal);
-        full.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
-        full.line(Coord.of(UI.scale(17), UI.scale(29)), Coord.of(sz.x - UI.scale(17), UI.scale(29)), UI.scale(1));
-        full.line(Coord.of(UI.scale(17), layout.processingRuleY),
-                Coord.of(sz.x - UI.scale(17), layout.processingRuleY), UI.scale(1));
-        full.chcolor();
-        full.aimage(heading, Coord.of(sz.x / 2, UI.scale(16)), 0.5, 0.5);
-        full.image(organizeHeading, layout.organizeHeading);
-        full.image(processingHeading, layout.processingHeading);
-        drawStatus(full);
-        super.draw(full);
+        MoonFlowerHudTheme.drawInventoryToolBay(g, layout.panelSize, reveal);
+        g.chcolor(MoonFlowerHudTheme.GOLD_SOFT);
+        g.line(Coord.of(layout.contentLeft, layout.organizeRuleY),
+                Coord.of(layout.contentRight, layout.organizeRuleY), UI.scale(1));
+        g.line(Coord.of(layout.contentLeft, layout.processingRuleY),
+                Coord.of(layout.contentRight, layout.processingRuleY), UI.scale(1));
+        g.chcolor();
+        g.image(organizeHeading, layout.organizeHeading);
+        g.image(processingHeading, layout.processingHeading);
+        drawStatus(g);
+        super.draw(g);
     }
 
     @Override
     public boolean checkhit(Coord c) {
-        int visibleWidth = Math.max(0, (int)Math.round(sz.x * visualProgress()));
-        Coord origin = placeRight ? Coord.z : Coord.of(sz.x - visibleWidth, 0);
-        return(visibleWidth > 0 && c.isect(origin, Coord.of(visibleWidth, sz.y)));
+        return(c.isect(Coord.z, sz));
     }
 
     private void drawStatus(GOut g) {
@@ -204,13 +198,12 @@ public final class InventoryControlPanel extends Widget {
                     MoonFlowerHudTheme.IVORY).tex();
         }
         if(statusTex != null)
-            g.aimage(statusTex, Coord.of(sz.x / 2, layout.statusY), 0.5, 1.0);
+            g.aimage(statusTex, Coord.of(layout.contentCenterX, layout.statusY), 0.5, 1.0);
     }
 
     @Override
     public void destroy() {
         controller.close();
-        heading.dispose();
         organizeHeading.dispose();
         processingHeading.dispose();
         if(statusTex != null)
@@ -219,40 +212,47 @@ public final class InventoryControlPanel extends Widget {
     }
 
     static Layout layout(boolean extended) {
-        int width = UI.scale(220);
-        int margin = UI.scale(17);
+        int width = UI.scale(204);
+        int contentLeft = UI.scale(25);
+        int contentRight = width - UI.scale(10);
         int gap = UI.scale(5);
         int rowGap = UI.scale(4);
         int rowHeight = UI.scale(19);
-        int columnWidth = (width - (margin * 2) - gap) / 2;
-        int y = UI.scale(43);
-        Area sort = Area.sized(Coord.of(margin, y), Coord.of(columnWidth, rowHeight));
-        Area stack = Area.sized(Coord.of(margin + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
+        int columnWidth = (contentRight - contentLeft - gap) / 2;
+        int organizeRuleY = UI.scale(23);
+        int y = UI.scale(28);
+        Area sort = Area.sized(Coord.of(contentLeft, y), Coord.of(columnWidth, rowHeight));
+        Area stack = Area.sized(Coord.of(contentLeft + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
         y += rowHeight + rowGap;
-        Area unstack = Area.sized(Coord.of(margin, y), Coord.of(columnWidth, rowHeight));
-        Area lock = Area.sized(Coord.of(margin + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
+        Area unstack = Area.sized(Coord.of(contentLeft, y), Coord.of(columnWidth, rowHeight));
+        Area lock = Area.sized(Coord.of(contentLeft + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
         y += rowHeight + rowGap;
         Area extendedArea = null;
         if(extended) {
-            extendedArea = Area.sized(Coord.of(margin, y), Coord.of(width - margin * 2, rowHeight));
+            extendedArea = Area.sized(Coord.of(contentLeft, y), Coord.of(contentRight - contentLeft, rowHeight));
         }
-        /* Keep the wing stable when Extended view is unavailable on a container. */
+        /* Keep the bay stable when Extended view is unavailable on a container. */
         y += rowHeight + rowGap;
-        int ruleY = y + UI.scale(3);
-        Coord processingHeading = Coord.of(margin, ruleY + UI.scale(5));
-        y = ruleY + UI.scale(19);
-        Area butcher = Area.sized(Coord.of(margin, y), Coord.of(columnWidth, rowHeight));
-        Area crack = Area.sized(Coord.of(margin + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
+        int ruleY = y + UI.scale(2);
+        Coord processingHeading = Coord.of(contentLeft, ruleY + UI.scale(5));
+        y = ruleY + UI.scale(18);
+        Area butcher = Area.sized(Coord.of(contentLeft, y), Coord.of(columnWidth, rowHeight));
+        Area crack = Area.sized(Coord.of(contentLeft + columnWidth + gap, y), Coord.of(columnWidth, rowHeight));
         y += rowHeight + rowGap;
-        Area stop = Area.sized(Coord.of(margin, y), Coord.of(width - margin * 2, rowHeight));
+        Area stop = Area.sized(Coord.of(contentLeft, y), Coord.of(contentRight - contentLeft, rowHeight));
         int statusY = y + rowHeight + UI.scale(15);
-        Coord panelSize = UI.scale(220, 198);
-        return(new Layout(panelSize, Coord.of(margin, UI.scale(31)), processingHeading, ruleY, statusY,
+        Coord panelSize = UI.scale(204, 180);
+        return(new Layout(panelSize, contentLeft, contentRight, (contentLeft + contentRight) / 2,
+                organizeRuleY, Coord.of(contentLeft, UI.scale(8)), processingHeading, ruleY, statusY,
                 sort, stack, unstack, lock, extendedArea, butcher, crack, stop));
     }
 
     static final class Layout {
         final Coord panelSize;
+        final int contentLeft;
+        final int contentRight;
+        final int contentCenterX;
+        final int organizeRuleY;
         final Coord organizeHeading;
         final Coord processingHeading;
         final int processingRuleY;
@@ -266,9 +266,14 @@ public final class InventoryControlPanel extends Widget {
         final Area crack;
         final Area stop;
 
-        Layout(Coord panelSize, Coord organizeHeading, Coord processingHeading, int processingRuleY, int statusY,
+        Layout(Coord panelSize, int contentLeft, int contentRight, int contentCenterX, int organizeRuleY,
+               Coord organizeHeading, Coord processingHeading, int processingRuleY, int statusY,
                Area sort, Area stack, Area unstack, Area lock, Area extended, Area butcher, Area crack, Area stop) {
             this.panelSize = panelSize;
+            this.contentLeft = contentLeft;
+            this.contentRight = contentRight;
+            this.contentCenterX = contentCenterX;
+            this.organizeRuleY = organizeRuleY;
             this.organizeHeading = organizeHeading;
             this.processingHeading = processingHeading;
             this.processingRuleY = processingRuleY;
@@ -293,7 +298,7 @@ public final class InventoryControlPanel extends Widget {
         private boolean down;
 
         public TitleButton(Runnable action, BooleanSupplier active) {
-            super(UI.scale(76, 14));
+            super(UI.scale(20, 18));
             this.action = action;
             this.active = active;
             settip("Inventory tools");
