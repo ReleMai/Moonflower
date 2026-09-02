@@ -4,7 +4,6 @@ import haven.*;
 import haven.res.ui.tt.q.quality.Quality;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static haven.Inventory.sqsz;
 
@@ -28,11 +27,22 @@ public class InventorySorter implements Defer.Callable<Void> {
 	    return q != null ? q.q : 0.0;
 	}, Comparator.reverseOrder());
 
+    /* A sort action is a server-backed drag operation. These values bound each
+     * state transition rather than acting as a fixed animation delay. */
+    private static final long MOVE_TIMEOUT_MS = 3000;
+    private static final long MOVE_POLL_INTERVAL_MS = 25;
+
     private static final Object lock = new Object();
     private static InventorySorter current;
     private Defer.Future<Void> task;
     private final List<Inventory> inventories;
     private final GameUI gui;
+
+    /* Set only while one item is expected to be on the cursor. It lets a
+     * timeout or cancellation put that exact item back at its source slot. */
+    private Inventory activeInventory;
+    private GItem activeItem;
+    private Coord activeOrigin;
 
     private InventorySorter(List<Inventory> inventories, GameUI gui) {
 	this.inventories = inventories;
@@ -73,178 +83,353 @@ public class InventorySorter implements Defer.Callable<Void> {
 
     @Override
     public Void call() throws InterruptedException {
-	for (Inventory inv : inventories) {
-	    if (inv.parent == null) return null;
-	    doSort(inv);
+	try {
+	    for (Inventory inv : inventories) {
+		if (inv.parent == null) return null;
+		doSort(inv);
+	    }
+	    gui.ui.sfxrl(sfx_done);
+	} catch (SortFailure failure) {
+	    reportFailure(failure.getMessage());
+	} catch (InterruptedException interrupted) {
+	    boolean recovered = false;
+	    try {
+		recovered = recoverActiveCursor();
+	    } catch (InterruptedException ignored) {
+		/* The cancellation interrupted recovery as well. */
+	    }
+	    if (!recovered && gui.vhand != null)
+		gui.error("Inventory sort stopped with an item still on the cursor; place it manually.");
+	    throw interrupted;
+	} catch (RuntimeException failure) {
+	    /* Do not leave an automation-held item on the cursor if a UI change
+	     * invalidates an assumption between two acknowledged transitions. */
+	    try {
+		recoverActiveCursor();
+	    } catch (InterruptedException ignored) {
+		Thread.currentThread().interrupt();
+	    }
+	    throw failure;
+	} finally {
+	    clearActiveCursor();
+	    synchronized (lock) {
+		if (current == this) current = null;
+	    }
 	}
-	synchronized (lock) {
-	    if (current == this) current = null;
-	}
-	gui.ui.sfxrl(sfx_done);
 	return null;
     }
 
+    private static class SortFailure extends Exception {
+	SortFailure(String message) {
+	    super(message);
+	}
+    }
+
     private static class Entry {
-	final WItem w;
+	/* WItem wrappers are recreated as the server reparents an item. Keep the
+	 * GItem identity and resolve a fresh WItem before every take. */
+	final WItem initial;
+	final GItem item;
 	final Coord slots;
 	Coord current;
 	Coord target;
 
 	Entry(WItem w, Coord slots, Coord current) {
-	    this.w = w;
+	    this.initial = w;
+	    this.item = w.item;
 	    this.slots = slots;
 	    this.current = current;
 	    this.target = current;
 	}
     }
 
-    private void doSort(Inventory inv) throws InterruptedException {
-	// Build mask grid (permanently blocked cells)
+    private void doSort(Inventory inv) throws InterruptedException, SortFailure {
+	// Build mask grid (permanently blocked cells).
 	boolean[][] maskGrid = new boolean[inv.isz.x][inv.isz.y];
 	if (inv.sqmask != null) {
 	    int mo = 0;
 	    for (int y = 0; y < inv.isz.y; y++)
 		for (int x = 0; x < inv.isz.x; x++)
-		    maskGrid[x][y] = inv.sqmask[mo++];
+		    maskGrid[x][y] = mo < inv.sqmask.length && inv.sqmask[mo++];
 	}
 	Set<Coord> lockedSlots = inv.lockedSlots();
-	for(Coord locked : lockedSlots) {
-	    if(locked.x >= 0 && locked.y >= 0 && locked.x < inv.isz.x && locked.y < inv.isz.y)
+	for (Coord locked : lockedSlots) {
+	    if (locked.x >= 0 && locked.y >= 0 && locked.x < inv.isz.x && locked.y < inv.isz.y)
 		maskGrid[locked.x][locked.y] = true;
 	}
 
-	// Collect all items, skip those with unloaded sprites
+	// Collect all visible items whose sprites are ready. The sprite dimensions
+	// are authoritative here; WItem.tick may not have resized the wrapper yet.
 	List<Entry> entries = new ArrayList<>();
 	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
 	    if (!wdg.visible || !(wdg instanceof WItem)) continue;
 	    WItem w = (WItem) wdg;
-	    if (w.item.spr() == null) continue;
-	    Coord slots = w.sz.div(sqsz);
+	    GSprite sprite = w.item.spr();
+	    if (sprite == null)
+		throw new SortFailure("Sorting stopped until all visible item sprites finish loading; try again shortly.");
+	    Coord slots = slotsFor(sprite);
 	    Coord current = w.c.sub(1, 1).div(sqsz);
-	    if(inv.itemTouchesLockedSlot(current, slots, lockedSlots)) {
-		markGrid(maskGrid, current, slots, true);
+	    if (!InventorySortLayout.inBounds(inv.isz, current, slots))
+		throw new SortFailure("Sorting stopped because the inventory changed while it was being read.");
+	    if (inv.itemTouchesLockedSlot(current, slots, lockedSlots)) {
+		InventorySortLayout.markGrid(maskGrid, current, slots, true);
 		continue;
 	    }
 	    entries.add(new Entry(w, slots, current));
 	}
 
-	// Sort all items together
-	entries.sort(Comparator.comparing(e -> e.w, ITEM_COMPARATOR));
+	// Preserve the existing name ordering whenever it can fit. If early 1x1
+	// items fragment the grid, retry with the largest rectangles first so a
+	// valid large-item layout is not lost to a greedy scan.
+	entries.sort(Comparator.comparing(e -> e.initial, ITEM_COMPARATOR));
+	List<Entry> nameOrder = new ArrayList<>(entries);
+	List<Entry> largeFirstOrder = new ArrayList<>();
+	for (Entry e : entries)
+	    if (isMulti(e)) largeFirstOrder.add(e);
+	largeFirstOrder.sort((left, right) -> {
+	    int byArea = itemArea(right) - itemArea(left);
+	    return byArea != 0 ? byArea : ITEM_COMPARATOR.compare(left.initial, right.initial);
+	});
+	for (Entry e : entries)
+	    if (!isMulti(e)) largeFirstOrder.add(e);
 
-	// Assign target positions in scan order, respecting each item's size
-	boolean[][] assignGrid = copyGrid(maskGrid, inv.isz);
+	List<Entry> placementOrder = nameOrder;
+	List<Coord> sizes = sizesFor(nameOrder);
+	List<Coord> targets = InventorySortLayout.assignTargets(inv.isz, maskGrid, sizes);
+	if (targets == null) {
+	    placementOrder = largeFirstOrder;
+	    targets = InventorySortLayout.assignTargets(inv.isz, maskGrid, sizesFor(largeFirstOrder));
+	}
+	if (targets == null)
+	    throw new SortFailure("Could not find a size-safe layout for every movable item; no items were taken.");
+	for (int i = 0; i < placementOrder.size(); i++)
+	    placementOrder.get(i).target = targets.get(i);
+
+	boolean needsSort = false;
 	for (Entry e : entries) {
-	    Coord pos = findFit(assignGrid, inv.isz, e.slots);
-	    if (pos == null) break;
-	    e.target = pos;
-	    markGrid(assignGrid, pos, e.slots, true);
+	    if (!same(e.current, e.target)) {
+		needsSort = true;
+		break;
+	    }
+	}
+	if (!needsSort) return;
+
+	/* First settle multi-slot items. A target is never used as a drop point
+	 * until every current occupant has been moved to a verified empty fit. */
+	for (Entry moving : placementOrder) {
+	    if (!isMulti(moving) || same(moving.current, moving.target)) continue;
+	    List<Entry> blockers = occupants(entries, moving.target, moving.slots, moving);
+	    for (Entry blocker : blockers) {
+		Coord free = findFreePlacement(inv.isz, maskGrid, entries, blocker.slots,
+			blocker, moving.target, moving.slots);
+		if (free == null)
+		    throw new SortFailure("Could not make room for a large item without dropping onto another item.");
+		moveToEmpty(inv, blocker, free);
+		blocker.current = free;
+	    }
+	    if (!occupants(entries, moving.target, moving.slots, moving).isEmpty())
+		throw new SortFailure("Inventory changed before a large item could be placed.");
+	    moveToEmpty(inv, moving, moving.target);
+	    moving.current = moving.target;
 	}
 
-	List<Entry> singles = entries.stream().filter(e -> e.slots.x * e.slots.y == 1).collect(Collectors.toList());
-	List<Entry> multis  = entries.stream().filter(e -> e.slots.x * e.slots.y > 1).collect(Collectors.toList());
+	/* Then solve the 1x1 permutation with one empty cell as a buffer. Every
+	 * drop goes into a known-empty cell, so this never depends on an unverified
+	 * client-side swap or a stale WItem wrapper. */
+	Coord free = findFreeCell(inv.isz, maskGrid, entries);
+	for (Entry desired : placementOrder) {
+	    if (isMulti(desired) || same(desired.current, desired.target)) continue;
+	    if (free == null)
+		throw new SortFailure("Sorting stopped safely: no empty 1x1 staging slot is available for the remaining items.");
 
-	// Phase 1: place multi-tile items
-	// For each, first evict any 1x1 items from its target cells, then take+drop it
-	boolean anyMultiSkipped = false;
-	for (Entry me : multis) {
-	    if (me.current.equals(me.target)) continue;
-	    boolean blocked = false;
-	    for (int tx = me.target.x; tx < me.target.x + me.slots.x && !blocked; tx++) {
-		for (int ty = me.target.y; ty < me.target.y + me.slots.y && !blocked; ty++) {
-		    Coord cell = new Coord(tx, ty);
-		    for (Entry se : singles) {
-			if (se.current.equals(cell)) {
-			    Coord free = findFreeCell(inv.isz, maskGrid, entries);
-			    if (free == null) { blocked = true; break; }
-			    se.w.item.wdgmsg("take", Coord.z);
-			    Thread.sleep(10);
-			    inv.wdgmsg("drop", free);
-			    Thread.sleep(10);
-			    se.current = free;
-			    break;
-			}
-		    }
-		}
+	    List<Entry> blockers = occupants(entries, desired.target, Coord.of(1, 1), desired);
+	    if (blockers.size() > 1 || (!blockers.isEmpty() && isMulti(blockers.get(0))))
+		throw new SortFailure("Inventory changed while sorting single-slot items; the target is occupied by a large item.");
+	    if (!blockers.isEmpty()) {
+		Entry blocker = blockers.get(0);
+		moveToEmpty(inv, blocker, free);
+		blocker.current = free;
+		free = desired.target;
 	    }
-	    if (blocked) { anyMultiSkipped = true; continue; }
-	    me.w.item.wdgmsg("take", Coord.z);
-	    Thread.sleep(10);
-	    inv.wdgmsg("drop", me.target);
-	    Thread.sleep(10);
-	    me.current = me.target;
-	}
-	if (anyMultiSkipped)
-	    gui.error("Could not move all large items — inventory too full");
 
-	// Phase 2: sort 1x1 items using chain/swap algorithm
-	for (Entry se : singles) {
-	    if (se.current.equals(se.target)) continue;
-	    se.w.item.wdgmsg("take", Coord.z);
-	    Entry handu = se;
-	    while (handu != null) {
-		inv.wdgmsg("drop", handu.target);
-		Entry next = null;
-		for (Entry x : singles) {
-		    if (x != handu && x.current.equals(handu.target)) { next = x; break; }
-		}
-		handu.current = handu.target;
-		handu = next;
-	    }
-	    Thread.sleep(10);
+	    Coord old = desired.current;
+	    moveToEmpty(inv, desired, desired.target);
+	    desired.current = desired.target;
+	    free = old;
 	}
     }
 
-    // Find the first position where an item of given slots fits (left-to-right, top-to-bottom)
-    private static Coord findFit(boolean[][] grid, Coord isz, Coord slots) {
+    private static List<Coord> sizesFor(List<Entry> entries) {
+	List<Coord> sizes = new ArrayList<>(entries.size());
+	for (Entry e : entries) sizes.add(e.slots);
+	return sizes;
+    }
+
+    private static boolean isMulti(Entry e) {
+	return itemArea(e) > 1;
+    }
+
+    private static int itemArea(Entry e) {
+	return e.slots.x * e.slots.y;
+    }
+
+    private static Coord slotsFor(GSprite sprite) {
+	Coord pixels = sprite.sz();
+	return Coord.of(
+	    InventorySortLayout.slotsForPixels(pixels.x, sqsz.x),
+	    InventorySortLayout.slotsForPixels(pixels.y, sqsz.y));
+    }
+
+    private static boolean same(Coord left, Coord right) {
+	return left != null && left.equals(right);
+    }
+
+    private static List<Entry> occupants(List<Entry> entries, Coord pos, Coord slots, Entry excluded) {
+	List<Entry> found = new ArrayList<>();
+	for (Entry e : entries) {
+	    if (e == excluded) continue;
+	    if (InventorySortLayout.overlaps(e.current, e.slots, pos, slots)) found.add(e);
+	}
+	return found;
+    }
+
+    private static Coord findFreePlacement(Coord isz, boolean[][] maskGrid, List<Entry> entries,
+								Coord slots, Entry moving, Coord avoid, Coord avoidSlots) {
 	for (int y = 0; y <= isz.y - slots.y; y++) {
 	    for (int x = 0; x <= isz.x - slots.x; x++) {
-		if (fits(grid, x, y, slots)) return new Coord(x, y);
+		Coord pos = Coord.of(x, y);
+		if (moving != null && same(moving.current, pos)) continue;
+		if (avoid != null && InventorySortLayout.overlaps(pos, slots, avoid, avoidSlots)) continue;
+		if (!InventorySortLayout.fits(maskGrid, x, y, slots)) continue;
+		boolean occupied = false;
+		for (Entry e : entries) {
+		    if (e == moving) continue;
+		    if (InventorySortLayout.overlaps(e.current, e.slots, pos, slots)) {
+			occupied = true;
+			break;
+		    }
+		}
+		if (!occupied) return pos;
 	    }
 	}
 	return null;
     }
 
-    private static boolean fits(boolean[][] grid, int ox, int oy, Coord slots) {
-	for (int x = 0; x < slots.x; x++)
-	    for (int y = 0; y < slots.y; y++)
-		if (grid[ox + x][oy + y]) return false;
+    private static Coord findFreeCell(Coord isz, boolean[][] maskGrid, List<Entry> entries) {
+	return findFreePlacement(isz, maskGrid, entries, Coord.of(1, 1), null, null, null);
+    }
+
+    private WItem findLiveItem(Inventory inv, GItem item) {
+	WItem mapped = inv.wmap.get(item);
+	if (mapped != null && mapped.parent == inv && mapped.visible) return mapped;
+	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
+	    if (wdg instanceof WItem && wdg.visible && ((WItem) wdg).item == item) return (WItem) wdg;
+	}
+	return null;
+    }
+
+    private Coord livePosition(Inventory inv, GItem item) {
+	WItem live = findLiveItem(inv, item);
+	return live == null ? null : live.c.sub(1, 1).div(sqsz);
+    }
+
+    private boolean cursorHolds(GItem item) {
+	return gui.vhand != null && gui.vhand.item == item;
+    }
+
+    private void moveToEmpty(Inventory inv, Entry entry, Coord destination)
+	    throws InterruptedException, SortFailure {
+	if (gui.vhand != null)
+	    throw new SortFailure("Sorting stopped because the cursor was no longer empty.");
+	WItem source = findLiveItem(inv, entry.item);
+	if (source == null)
+	    throw new SortFailure("Sorting stopped because an item moved or disappeared before it could be taken.");
+	if (!destinationIsEmpty(inv, entry.item, destination, entry.slots))
+	    throw new SortFailure("Sorting stopped because the destination is no longer empty.");
+
+	Coord origin = new Coord(entry.current);
+	activeInventory = inv;
+	activeItem = entry.item;
+	activeOrigin = origin;
+	source.item.wdgmsg("take", source.sz.div(2));
+	if (!await(() -> cursorHolds(entry.item), MOVE_TIMEOUT_MS))
+	    throw new SortFailure("Timed out waiting for " + itemName(entry) + " to reach the cursor.");
+
+	inv.wdgmsg("drop", destination);
+	if (!await(() -> gui.vhand == null && destination.equals(livePosition(inv, entry.item)), MOVE_TIMEOUT_MS))
+	    throw new SortFailure("Timed out waiting for " + itemName(entry) + " to land in its destination.");
+	clearActiveCursor();
+    }
+
+    private boolean destinationIsEmpty(Inventory inv, GItem moving, Coord destination, Coord slots) {
+	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
+	    if (!wdg.visible || !(wdg instanceof WItem)) continue;
+	    WItem w = (WItem) wdg;
+	    if (w.item == moving) continue;
+	    GSprite sprite = w.item.spr();
+	    if (sprite == null) return false;
+	    Coord otherSlots = slotsFor(sprite);
+	    Coord otherPosition = w.c.sub(1, 1).div(sqsz);
+	    if (InventorySortLayout.overlaps(otherPosition, otherSlots, destination, slots)) return false;
+	}
 	return true;
     }
 
-    // Find a free 1x1 cell not currently occupied by any item
-    private static Coord findFreeCell(Coord isz, boolean[][] maskGrid, List<Entry> entries) {
-	outer:
-	for (int y = 0; y < isz.y; y++) {
-	    for (int x = 0; x < isz.x; x++) {
-		if (maskGrid[x][y]) continue;
-		for (Entry e : entries) {
-		    for (int ex = e.current.x; ex < e.current.x + e.slots.x; ex++)
-			for (int ey = e.current.y; ey < e.current.y + e.slots.y; ey++)
-			    if (ex == x && ey == y) continue outer;
-		}
-		return new Coord(x, y);
-	    }
+    private static String itemName(Entry entry) {
+	try {
+	    return entry.item.getname();
+	} catch (RuntimeException ignored) {
+	    return "an item";
 	}
-	return null;
     }
 
-    private static boolean[][] copyGrid(boolean[][] src, Coord sz) {
-	boolean[][] copy = new boolean[sz.x][sz.y];
-	for (int x = 0; x < sz.x; x++)
-	    copy[x] = Arrays.copyOf(src[x], sz.y);
-	return copy;
+    private boolean recoverActiveCursor() throws InterruptedException {
+	if (activeItem == null || activeInventory == null || activeOrigin == null)
+	    return gui.vhand == null;
+	if (gui.vhand == null && livePosition(activeInventory, activeItem) == null) {
+	    /* A cancellation can interrupt the wait just before the server's take
+	     * message is reflected in the UI. Give that message one bounded chance
+	     * to settle before deciding whether recovery is needed. */
+	    await(() -> gui.vhand != null || livePosition(activeInventory, activeItem) != null,
+		MOVE_TIMEOUT_MS);
+	}
+	if (gui.vhand == null) return true;
+	if (gui.vhand.item != activeItem)
+	    return false;
+	activeInventory.wdgmsg("drop", activeOrigin);
+	return await(() -> gui.vhand == null, MOVE_TIMEOUT_MS);
     }
 
-    private static void markGrid(boolean[][] grid, Coord pos, Coord slots, boolean val) {
-	for (int x = 0; x < slots.x; x++)
-	    for (int y = 0; y < slots.y; y++)
-		grid[pos.x + x][pos.y + y] = val;
+    private void reportFailure(String message) throws InterruptedException {
+	boolean recovered = recoverActiveCursor();
+	if (!recovered && gui.vhand != null)
+	    message += " The cursor could not be recovered; place the item manually.";
+	gui.error(message);
+    }
+
+    private void clearActiveCursor() {
+	activeInventory = null;
+	activeItem = null;
+	activeOrigin = null;
+    }
+
+    private interface Condition {
+	boolean satisfied();
+    }
+
+    private static boolean await(Condition condition, long timeoutMs) throws InterruptedException {
+	long deadline = System.currentTimeMillis() + timeoutMs;
+	while (!condition.satisfied()) {
+	    if (System.currentTimeMillis() >= deadline) return false;
+	    Thread.sleep(MOVE_POLL_INTERVAL_MS);
+	}
+	return true;
     }
 
     public static void cancel() {
 	synchronized (lock) {
 	    if (current != null) {
-		current.task.cancel();
+		if (current.task != null) current.task.cancel();
 		current = null;
 	    }
 	}
