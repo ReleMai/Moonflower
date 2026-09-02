@@ -53,6 +53,7 @@ jobs:
             $normalized = $path.Replace('\', '/')
             if ($normalized -like 'client/*' -or
                 $normalized -eq 'scripts/New-MoonFlowerUpdateManifest.ps1' -or
+                $normalized -eq 'scripts/New-MoonFlowerDeltaPackage.ps1' -or
                 $normalized -eq 'scripts/Test-MoonFlowerUpdater.ps1' -or
                 $normalized -eq '.github/workflows/moonflower-rolling-release.yml') {
               $packageChanged = $true

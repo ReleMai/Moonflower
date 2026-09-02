@@ -6,13 +6,27 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^https://github\.com/')][string]$AssetUrl,
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')][string]$Repository,
     [ValidateSet('stable')][string]$Channel = 'stable',
-    [string]$PreviousFeedPath
+    [string]$PreviousFeedPath,
+    [string]$PatchPath,
+    [ValidatePattern('^https://github\.com/')][string]$PatchUrl,
+    [ValidatePattern('^[0-9a-fA-F]{40}$')][string]$PatchFromCommit
 )
 
 $ErrorActionPreference = 'Stop'
 
 $package = Get-Item -LiteralPath $PackagePath
 $outputFullPath = [System.IO.Path]::GetFullPath($OutputPath)
+$patchArguments = @($PatchPath, $PatchUrl, $PatchFromCommit) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+if ($patchArguments.Count -ne 0 -and $patchArguments.Count -ne 3) {
+    throw 'PatchPath, PatchUrl, and PatchFromCommit must be provided together.'
+}
+$patch = $null
+if ($patchArguments.Count -eq 3) {
+    $patch = Get-Item -LiteralPath $PatchPath
+    if ($patch.Length -lt 1 -or $patch.Length -gt 1073741824) {
+        throw "The patch package size is outside the allowed range: $($patch.Length)"
+    }
+}
 $outputParent = Split-Path -Parent $outputFullPath
 if ($outputParent) {
     New-Item -ItemType Directory -Path $outputParent -Force | Out-Null
@@ -56,6 +70,19 @@ if (-not [string]::IsNullOrWhiteSpace($PreviousFeedPath)) {
                 sha256 = [string]$previous.package.sha256
             }
         }
+    }
+}
+
+if ($null -ne $patch) {
+    if ($null -eq $manifest['previous'] -or
+        [string]$manifest['previous'].commit -ne $PatchFromCommit.ToLowerInvariant()) {
+        throw 'The patch base commit must match the previous feed commit.'
+    }
+    $manifest['patch'] = [ordered]@{
+        fromCommit = $PatchFromCommit.ToLowerInvariant()
+        url = $PatchUrl
+        size = $patch.Length
+        sha256 = (Get-FileHash -LiteralPath $patch.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 }
 
