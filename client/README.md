@@ -29,7 +29,9 @@ Run `Play.bat` from `client/bin` after a successful build. Linux users can use
 `Play_Linux.sh`.
 
 On Windows, `Play.bat` checks the public MoonFlower stable release feed before
-each launch. A verified build is installed under
+each launch. When the matching previous build is cached, the updater prefers a
+verified file-level delta; otherwise it uses the full package. A verified build
+is installed under
 `%LOCALAPPDATA%\MoonFlower\AutoUpdate\versions` and used without replacing a
 JAR that is already running. If GitHub is unavailable or verification fails,
 the launcher uses the last verified download or the packaged client.

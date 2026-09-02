@@ -7,6 +7,7 @@ on:
     paths:
       - "client/**"
       - "scripts/New-MoonFlowerUpdateManifest.ps1"
+      - "scripts/New-MoonFlowerDeltaPackage.ps1"
   workflow_dispatch:
 
 permissions:
@@ -78,6 +79,10 @@ jobs:
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.multisession.SessionConservatoryChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.automated.FishingPreparationChecks
 
+      - name: Run updater checks
+        shell: pwsh
+        run: ./scripts/Test-MoonFlowerUpdater.ps1
+
       - name: Create update package and feed
         id: package
         shell: pwsh
@@ -85,9 +90,13 @@ jobs:
           $releaseRoot = Join-Path $env:RUNNER_TEMP "moonflower-release"
           New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
           $archive = Join-Path $releaseRoot "moonflower-client.zip"
+          $patch = Join-Path $releaseRoot "moonflower-client.patch.zip"
+          $previousPackage = Join-Path $releaseRoot "previous-client.zip"
           $manifest = Join-Path $releaseRoot "moonflower-update.json"
           $previousFeed = Join-Path $releaseRoot "previous-update.json"
           $buildTag = "moonflower-build-${{ github.sha }}"
+          $patchUrl = "https://github.com/${{ github.repository }}/releases/download/$buildTag/moonflower-client.patch.zip"
+          $hasPatch = $false
           Compress-Archive -Path "client/bin/*" -DestinationPath $archive -CompressionLevel Optimal
           $assetUrl = "https://github.com/${{ github.repository }}/releases/download/$buildTag/moonflower-client.zip"
 
@@ -103,6 +112,42 @@ jobs:
             Remove-Item -LiteralPath $previousFeed -Force -ErrorAction SilentlyContinue
           }
 
+          if (Test-Path -LiteralPath $previousFeed -PathType Leaf) {
+            $previousDocument = Get-Content -LiteralPath $previousFeed -Raw | ConvertFrom-Json
+            if ([string]$previousDocument.commit -eq "${{ github.sha }}") {
+              Write-Host "The stable feed already points at this commit; skipping delta generation."
+            } else {
+              try {
+                $previousPackageUrl = [string]$previousDocument.package.url
+                if ($previousPackageUrl -notmatch '^https://github\.com/') {
+                  throw "The previous package URL is not a GitHub release URL."
+                }
+                Invoke-WebRequest -Uri $previousPackageUrl -OutFile $previousPackage -UseBasicParsing -TimeoutSec 300
+                $previousPackageInfo = Get-Item -LiteralPath $previousPackage
+                if ($previousPackageInfo.Length -ne [int64]$previousDocument.package.size) {
+                  throw "The previous package size did not match its feed descriptor."
+                }
+                $previousHash = (Get-FileHash -LiteralPath $previousPackage -Algorithm SHA256).Hash.ToLowerInvariant()
+                if ($previousHash -ne [string]$previousDocument.package.sha256) {
+                  throw "The previous package hash did not match its feed descriptor."
+                }
+                & ./scripts/New-MoonFlowerDeltaPackage.ps1 -PreviousPackagePath $previousPackage -CurrentPackagePath $archive -FromCommit ([string]$previousDocument.commit) -ToCommit "${{ github.sha }}" -OutputPath $patch
+                $archiveInfo = Get-Item -LiteralPath $archive
+                $patchInfo = Get-Item -LiteralPath $patch
+                if ($patchInfo.Length -lt ($archiveInfo.Length - 65536)) {
+                  $hasPatch = $true
+                  Write-Host "Using delta package: $($patchInfo.Length) bytes versus $($archiveInfo.Length) full-package bytes."
+                } else {
+                  Write-Host "Delta package did not save at least 64 KiB; publishing the full package only."
+                  Remove-Item -LiteralPath $patch -Force
+                }
+              } catch {
+                Write-Warning "Delta package creation was skipped; the verified full package remains available. $($_.Exception.Message)"
+                Remove-Item -LiteralPath $patch -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
           $manifestParameters = @{
             PackagePath = $archive
             OutputPath = $manifest
@@ -113,6 +158,11 @@ jobs:
           }
           if (Test-Path -LiteralPath $previousFeed -PathType Leaf) {
             $manifestParameters.PreviousFeedPath = $previousFeed
+          }
+          if ($hasPatch) {
+            $manifestParameters.PatchPath = $patch
+            $manifestParameters.PatchUrl = $patchUrl
+            $manifestParameters.PatchFromCommit = [string]$previousDocument.commit
           }
           & ./scripts/New-MoonFlowerUpdateManifest.ps1 @manifestParameters
           "release_root=$releaseRoot" >> $env:GITHUB_OUTPUT
@@ -126,8 +176,17 @@ jobs:
           BUILD_TAG: ${{ steps.package.outputs.build_tag }}
         run: |
           $archive = Join-Path $env:RELEASE_ROOT "moonflower-client.zip"
+          $patch = Join-Path $env:RELEASE_ROOT "moonflower-client.patch.zip"
           $manifest = Join-Path $env:RELEASE_ROOT "moonflower-update.json"
           $buildTag = $env:BUILD_TAG
+          $generatedFeed = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          $releaseAssets = @($archive, $manifest)
+          if ($null -ne $generatedFeed.patch) {
+            if (-not (Test-Path -LiteralPath $patch -PathType Leaf)) {
+              throw "The generated feed references a delta package that is missing."
+            }
+            $releaseAssets += $patch
+          }
 
           gh release view $buildTag --repo "${{ github.repository }}" *> $null
           if ($LASTEXITCODE -ne 0) {
@@ -140,8 +199,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Creating immutable build release failed." }
 
             gh release upload $buildTag `
-              $archive `
-              $manifest `
+              @releaseAssets `
               --repo "${{ github.repository }}"
             if ($LASTEXITCODE -ne 0) { throw "Uploading immutable build assets failed." }
           } else {
@@ -161,6 +219,11 @@ jobs:
               --dir $reuseRoot
             if ($LASTEXITCODE -ne 0) { throw "Downloading the immutable manifest for reuse failed." }
             Copy-Item -LiteralPath (Join-Path $reuseRoot 'moonflower-update.json') -Destination $manifest -Force
+            $reusedFeed = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+            if ($null -ne $reusedFeed.patch -and
+                $assetNames -notcontains 'moonflower-client.patch.zip') {
+              throw "Existing immutable release $buildTag references a missing delta asset; refusing to continue."
+            }
           }
 
           $publishedFeed = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json

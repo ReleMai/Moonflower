@@ -7,17 +7,35 @@ MoonFlower. The exact feature commit must first pass the protected release
 validation and Gitleaks checks. Package-affecting `main` changes are then built
 on a clean GitHub Actions runner, checked, packaged, hashed, and published under
 an immutable `moonflower-build-<git-commit>` release. The
-`moonflower-latest` feed points to that immutable package.
+`moonflower-latest` feed points to that immutable package and may include an
+optional delta from the immediately previous build.
 
-The launcher downloads a new package into a commit-specific directory under:
+The launcher installs a new build into a commit-specific directory under:
 
 ```text
 %LOCALAPPDATA%\MoonFlower\AutoUpdate\versions\<git-commit>
 ```
 
-It verifies the package size and SHA-256 hash before extraction. Extraction is
-path-constrained, and the active version changes only after the complete package
-has been verified. A running JAR is never overwritten.
+It verifies the package size and SHA-256 hash before activation. Full-package
+extraction is path-constrained, and the active version changes only after the
+complete package has been verified. A running JAR is never overwritten.
+
+## Faster update path
+
+When CI has a verified previous build, it also compares the two immutable ZIPs
+and publishes `moonflower-client.patch.zip` when that delta saves at least
+64 KiB. The launcher uses the delta only when the matching previous build is
+already cached locally. Unchanged files are hard-linked into the new staging
+directory when Windows permits it, changed files are applied from the delta,
+and the reconstructed file tree is verified before activation.
+
+If the previous build is not cached, the delta is unavailable, or any delta
+check fails, the launcher automatically falls back to the verified full ZIP.
+Full and delta downloads use commit-specific `.partial` files, so an
+interrupted HTTP download can resume on the next launch. Older launchers
+ignore the optional delta field and continue using the full package. The feed
+probe has a five-second default timeout, after which the last verified build is
+used so an unavailable GitHub service does not hold up launch unnecessarily.
 
 ## Normal Workflow
 
@@ -47,6 +65,7 @@ Useful launch options:
 .\Play.bat -NoUpdate
 powershell -File .\MoonFlower-Update.ps1 -CheckOnly
 .\Play.bat -Rollback
+.\Play.bat -NoDelta
 ```
 
 `-Rollback` selects the immediately previous build declared by the verified
@@ -96,8 +115,9 @@ publication still refuse to proceed while a client is running.
 
 ## Verification
 
-The updater's deterministic schema-compatibility, stable-install, cached and
-downloaded rollback, unavailable-rollback, and corruption-fallback check is:
+The updater's deterministic schema-compatibility, delta-install, full-package
+fallback, stable-install, cached and downloaded rollback, unavailable-rollback,
+and corruption-fallback check is:
 
 ```powershell
 .\scripts\Test-MoonFlowerUpdater.ps1
