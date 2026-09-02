@@ -105,6 +105,7 @@ jobs:
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.MoonFlowerHudChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.WorldClockChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.InventorySlotLockChecks
+          java '-Dhaven.uiscale=1' -cp "bin/*" haven.automated.InventorySorterChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.ContainerWindowPlacementChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.cookbook.CookbookChecks
           java '-Dhaven.uiscale=1' -cp "bin/*" haven.fishing.FishingChecks
