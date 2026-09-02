@@ -1139,12 +1139,20 @@ public class UI {
 	private void processWindowContent(Window pwdg, Widget wdg) {
 		String cap = pwdg.cap;
         Inventory inv = Inventory.fromWidget(wdg);
-		if (inv != null && (cap.contains("Study Desk"))) {
+		if (inv != null && cap != null && cap.contains("Study Desk")) {
 			initStudydeskUi(pwdg, inv);
 		}
-		if (inv != null && cap.equals("Table")) {
-			if (!inv.isz.equals(3, 3) && !inv.isz.equals(1, 2))
-				initTableUi(pwdg, inv);
+		if(inv == null)
+			return;
+		switch(TableWindowDetector.classify(pwdg, inv)) {
+		case ALCHEMIST_TABLE:
+			initAlchemyUi(pwdg, inv);
+			break;
+		case FEASTING_TABLE:
+			initTableUi(pwdg, inv);
+			break;
+		default:
+			break;
 		}
 	}
 
@@ -1160,6 +1168,14 @@ public class UI {
 		TableInfo tableInfo = new TableInfo(pwdg, inv.sz.x);
 		pwdg.add(tableInfo, new Coord(UI.scale(0), inv.sz.y + UI.scale(194)));
 
+		pwdg.pack();
+	}
+
+	public static void initAlchemyUi(Window pwdg, Inventory inv) {
+		if(pwdg.getchild(AlchemyTableInfo.class) != null)
+			return;
+		AlchemyTableInfo alchemyInfo = new AlchemyTableInfo(pwdg);
+		pwdg.add(alchemyInfo, new Coord(UI.scale(0), inv.sz.y + UI.scale(194)));
 		pwdg.pack();
 	}
 

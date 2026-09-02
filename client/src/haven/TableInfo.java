@@ -5,11 +5,15 @@ import haven.feasting.FeastingPanel;
 public class TableInfo extends Widget {
 
     private static final int HEADER_HEIGHT = UI.scale(28);
+    private static final String LOCKED_PREFERENCE = "feastingHelperLocked";
+    private static final String EXPANDED_PREFERENCE = "feastingHelperExpanded";
     private final Window table;
     private final int collapsedWidth;
     private final Button toggleButton;
+    private final CheckBox lockButton;
     private FeastingPanel feastingPanel;
-    private boolean expanded = true;
+    private boolean expanded;
+    private boolean locked;
 
     public static CheckBox preventTablewareFromBreakingCheckBox = new CheckBox("Prevent Tableware from Breaking"){
         {a = Utils.getprefb("preventTablewareFromBreaking", true);}
@@ -21,7 +25,11 @@ public class TableInfo extends Widget {
 
     public TableInfo(Window table, int width) {
         this.table = table;
-        this.collapsedWidth = Math.max(width, UI.scale(390));
+        this.locked = Utils.getprefb(LOCKED_PREFERENCE, false);
+        this.expanded = locked && Utils.getprefb(EXPANDED_PREFERENCE, true);
+        if(!locked)
+            this.expanded = true;
+        this.collapsedWidth = Math.max(width, UI.scale(500));
         this.sz = new Coord(collapsedWidth, HEADER_HEIGHT);
         add(preventTablewareFromBreakingCheckBox, 10, 0);
         preventTablewareFromBreakingCheckBox.tooltip = OptWnd.preventTablewareFromBreakingCheckBox.tooltip;
@@ -31,6 +39,17 @@ public class TableInfo extends Widget {
                 setExpanded(!expanded, true);
             }
         }, UI.scale(240), 0);
+        lockButton = add(new CheckBox("Lock helper") {
+            {
+                a = TableInfo.this.locked;
+            }
+
+            @Override
+            public void set(boolean value) {
+                setLocked(value);
+            }
+        }, UI.scale(395), 0);
+        lockButton.settip("Remember whether the Feasting Helper is open or closed for newly opened Tables.");
     }
 
     @Override
@@ -38,12 +57,14 @@ public class TableInfo extends Widget {
         super.added();
         if(feastingPanel == null) {
             feastingPanel = add(new FeastingPanel(ui.gui, table), 0, HEADER_HEIGHT);
-            setExpanded(true, false);
+            setExpanded(expanded, false);
         }
     }
 
     private void setExpanded(boolean value, boolean animate) {
         expanded = value;
+        if(locked)
+            Utils.setprefb(EXPANDED_PREFERENCE, value);
         toggleButton.change(value ? "Hide Feasting Helper" : "Show Feasting Helper");
         Coord from = sz;
         Coord to = value ? UI.scale(FeastingPanel.CONTENT_WIDTH,
@@ -63,6 +84,14 @@ public class TableInfo extends Widget {
                 table.pack();
             }
         };
+    }
+
+    private void setLocked(boolean value) {
+        locked = value;
+        lockButton.a = value;
+        Utils.setprefb(LOCKED_PREFERENCE, value);
+        if(value)
+            Utils.setprefb(EXPANDED_PREFERENCE, expanded);
     }
 
     @Override
