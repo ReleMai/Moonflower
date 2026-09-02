@@ -14,7 +14,8 @@ Unstack, slot locking, Extended View when available, Butcher all, Crack all,
 and Stop. No secondary window or outer frame is created. Bulk actions probe the selected inventory's native
 flower menus one item at a time. Animal processing temporarily equips
 the highest-quality supported one-handed sharp tool in the main inventory or
-equipped Belt and restores the displaced hand item afterward. Inspect refill
+equipped Belt, parks the displaced hand item in a verified Belt or Inventory
+slot until processing completes, and restores it afterward. Inspect refill
 messages become a ticking world label and hover detail for that Gob.
 
 Classic behavior that must remain available: Existing item right-click menus,

@@ -43,13 +43,23 @@ public final class SharpToolAutoManager implements AutoCloseable {
         if(closed || !occupied.compareAndSet(false, true))
             return(Batch.error(this, "Another sharp-tool action is still running."));
         batchActive = true;
-        SharpToolSwapper.Session session = swapper.equipBest();
-        if(!session.success()) {
+        try {
+            SharpToolSwapper.Session session = swapper.equipBest();
+            if(!session.success()) {
+                batchActive = false;
+                occupied.set(false);
+                return(Batch.error(this, session.error));
+            }
+            return(new Batch(this, session, null));
+        } catch(InterruptedException interrupted) {
             batchActive = false;
             occupied.set(false);
-            return(Batch.error(this, session.error));
+            throw interrupted;
+        } catch(RuntimeException failure) {
+            batchActive = false;
+            occupied.set(false);
+            throw failure;
         }
-        return(new Batch(this, session, null));
     }
 
     public boolean batchActive() {
@@ -102,17 +112,24 @@ public final class SharpToolAutoManager implements AutoCloseable {
         SharpToolSwapper.Session session = null;
         try {
             session = swapper.equipBest();
-            if(!session.success())
+            if(!session.success()) {
                 gui.error(session.error);
+                menu.choosePrepared(null);
+                return;
+            }
             menu.choosePrepared(option);
             waitForProcessing();
         } catch(InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             gui.error("Sharp-tool switching was interrupted; check the cursor and hand slots.");
+            try {
+                menu.choosePrepared(null);
+            } catch(RuntimeException ignored) {
+            }
         } catch(RuntimeException failure) {
             gui.error("Sharp-tool switching failed: " + failure.getMessage() + ".");
             try {
-                menu.choosePrepared(option);
+                menu.choosePrepared(null);
             } catch(RuntimeException ignored) {
             }
         } finally {

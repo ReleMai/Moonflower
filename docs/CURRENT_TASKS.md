@@ -42,7 +42,8 @@ queued and is not part of the completed item 4 implementation.
 Validate the new attached Inventory action vine in one visible, supervised
 session. The offline implementation serially selects native flower-menu actions,
 temporarily equips the highest-quality supported one-handed sharp tool reachable
-in the main Inventory or equipped Belt, restores the displaced hand item, and
+in the main Inventory or equipped Belt, parks the displaced hand item in a
+verified Belt or Inventory slot until processing completes, restores it, and
 turns a server Inspect refill duration into a session-local `CALC` countdown on
 that exact Gob.
 

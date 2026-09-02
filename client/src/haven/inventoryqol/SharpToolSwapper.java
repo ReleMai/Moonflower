@@ -58,18 +58,25 @@ final class SharpToolSwapper {
             return(Session.error(gui, "The server did not acknowledge equipping the selected sharp tool."));
         }
 
+        ParkingSpot parking = null;
         if(prior != null) {
+            if(!await(() -> !inventoryContains(best.inventory, tool), STEP_TIMEOUT_MS))
+                return(Session.error(gui, "The selected sharp tool did not clear its Belt or Inventory slot."));
+            parking = findParkingSpot(equipment, best);
+            if(parking == null)
+                return(Session.error(gui, "No free Belt or Inventory slot is available for the displaced hand item."));
             if(!await(() -> gui.vhand != null && prior.matches(gui.vhand.item), STEP_TIMEOUT_MS))
                 return(Session.error(gui, "The displaced hand item could not be verified on the cursor."));
-            best.inventory.wdgmsg("drop", best.coordinate);
-            if(!await(() -> gui.vhand == null, STEP_TIMEOUT_MS))
-                return(Session.error(gui, "The displaced hand item could not be parked in the sharp tool's original slot."));
+            parking.inventory.wdgmsg("drop", parking.coordinate);
+            ParkingSpot acknowledgedParking = parking;
+            if(!await(() -> gui.vhand == null && inventoryContains(acknowledgedParking.inventory, prior), STEP_TIMEOUT_MS))
+                return(Session.error(gui, "The displaced hand item could not be parked in the Belt or Inventory."));
         } else if(!await(() -> gui.vhand == null, STEP_TIMEOUT_MS)) {
             return(Session.error(gui, "The cursor did not clear after equipping the sharp tool."));
         }
 
         return(new Session(gui, equipment, best.inventory, best.coordinate, handSlot,
-                tool, prior, best.displayName, best.quality, null, true));
+                tool, prior, parking, best.displayName, best.quality, null, true));
     }
 
     private Candidate bestCandidate(Equipory equipment) {
@@ -110,6 +117,53 @@ final class SharpToolSwapper {
             return;
         for(WItem item : inventory.getAllItems())
             addCandidate(out, seen, item, inventory, item.c.div(Inventory.sqsz));
+    }
+
+    private ParkingSpot findParkingSpot(Equipory equipment, Candidate tool) {
+        Set<Inventory> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        List<Inventory> inventories = new ArrayList<>();
+        addParkingInventory(inventories, seen, gui.maininv);
+        for(WItem equipped : equipment.slots) {
+            if(equipped == null || equipped.item == null || !isBelt(equipped.item))
+                continue;
+            addParkingInventory(inventories, seen, Inventory.fromWidget(equipped.item.contents));
+            if(equipped.item.contentswnd != null)
+                addParkingInventory(inventories, seen, Inventory.fromWidget(equipped.item.contentswnd.inv));
+        }
+
+        for(Inventory inventory : inventories) {
+            Coord free = freeSlot(inventory);
+            if(free != null)
+                return(new ParkingSpot(inventory, free));
+        }
+
+        /* The selected tool's origin is known to become available when the
+         * tool enters the hand. Keep it as the final one-slot fallback. */
+        return(tool.inventory == null || tool.coordinate == null
+                ? null : new ParkingSpot(tool.inventory, tool.coordinate));
+    }
+
+    private static void addParkingInventory(List<Inventory> inventories, Set<Inventory> seen,
+                                             Inventory inventory) {
+        if(inventory != null && seen.add(inventory))
+            inventories.add(inventory);
+    }
+
+    private static Coord freeSlot(Inventory inventory) {
+        try {
+            return(inventory == null ? null : inventory.isRoom(1, 1));
+        } catch(RuntimeException ignored) {
+            return(null);
+        }
+    }
+
+    private static boolean inventoryContains(Inventory inventory, ItemIdentity item) {
+        if(inventory == null || item == null)
+            return(false);
+        for(WItem candidate : inventory.getAllItems())
+            if(candidate != null && item.matches(candidate.item))
+                return(true);
+        return(false);
     }
 
     private static void addCandidate(List<Candidate> out, Set<GItem> seen, WItem item,
@@ -161,14 +215,14 @@ final class SharpToolSwapper {
     private static int chooseHandSlot(Equipory equipment) {
         WItem first = equipment.slots[6];
         WItem second = equipment.slots[7];
-        return(chooseHandSlot(first != null, first != null && isShield(first.item),
+        return(chooseHandSlot(first != null, protectedHand(first == null ? null : first.item),
                         first != null && isSupportedSharpTool(safeName(first.item), safeResource(first.item)),
-                second != null, second != null && isShield(second.item),
+                second != null, protectedHand(second == null ? null : second.item),
                         second != null && isSupportedSharpTool(safeName(second.item), safeResource(second.item))));
     }
 
-    static int chooseHandSlot(boolean occupied6, boolean shield6, boolean sharp6,
-                              boolean occupied7, boolean shield7, boolean sharp7) {
+    static int chooseHandSlot(boolean occupied6, boolean protected6, boolean sharp6,
+                              boolean occupied7, boolean protected7, boolean sharp7) {
         if(occupied6 && sharp6)
             return(6);
         if(occupied7 && sharp7)
@@ -177,9 +231,9 @@ final class SharpToolSwapper {
             return(6);
         if(!occupied7)
             return(7);
-        if(!shield6)
+        if(!protected6)
             return(6);
-        if(!shield7)
+        if(!protected7)
             return(7);
         return(-1);
     }
@@ -187,6 +241,15 @@ final class SharpToolSwapper {
     private static boolean isShield(GItem item) {
         String joined = normalize(safeName(item) + " " + safeResource(item));
         return(joined.contains("shield") || joined.contains("buckler") || joined.contains("targe"));
+    }
+
+    private static boolean protectedHand(GItem item) {
+        if(item == null)
+            return(false);
+        /* An unreadable hand item may be a shield that is still loading. Treat
+         * it as protected until its identity is known instead of risking an
+         * automatic shield displacement. */
+        return(isShield(item) || (safeName(item).isEmpty() && safeResource(item).isEmpty()));
     }
 
     private void returnHeld(Inventory inventory, Coord coordinate) throws InterruptedException {
@@ -263,21 +326,31 @@ final class SharpToolSwapper {
         }
     }
 
+    private static final class ParkingSpot {
+        final Inventory inventory;
+        final Coord coordinate;
+
+        ParkingSpot(Inventory inventory, Coord coordinate) {
+            this.inventory = inventory;
+            this.coordinate = coordinate == null ? null : new Coord(coordinate);
+        }
+    }
+
     private static final class ItemIdentity {
         final GItem original;
-        final String name;
-        final String resource;
+        final int widgetId;
 
         ItemIdentity(GItem item) {
             original = item;
-            name = safeName(item);
-            resource = safeResource(item);
+            widgetId = item == null ? -1 : item.wdgid();
         }
 
         boolean matches(GItem item) {
+            /* Names and resources are not identities: two identical tools can
+             * be present at once. Keep the server widget identity when the
+             * client recreates the visual item while moving it between slots. */
             return(item != null && (item == original ||
-                    (!resource.isEmpty() && resource.equals(safeResource(item)) &&
-                            normalize(name).equals(normalize(safeName(item))))));
+                    widgetId >= 0 && item.wdgid() == widgetId));
         }
     }
 
@@ -289,6 +362,7 @@ final class SharpToolSwapper {
         private final int handSlot;
         private final ItemIdentity tool;
         private final ItemIdentity prior;
+        private final ParkingSpot parking;
         final String toolName;
         final double quality;
         final String error;
@@ -296,7 +370,8 @@ final class SharpToolSwapper {
         private boolean closed;
 
         private Session(GameUI gui, Equipory equipment, Inventory origin, Coord coordinate,
-                        int handSlot, ItemIdentity tool, ItemIdentity prior, String toolName,
+                        int handSlot, ItemIdentity tool, ItemIdentity prior, ParkingSpot parking,
+                        String toolName,
                         double quality, String error, boolean changed) {
             this.gui = gui;
             this.equipment = equipment;
@@ -305,6 +380,7 @@ final class SharpToolSwapper {
             this.handSlot = handSlot;
             this.tool = tool;
             this.prior = prior;
+            this.parking = parking;
             this.toolName = toolName;
             this.quality = quality;
             this.error = error;
@@ -312,12 +388,12 @@ final class SharpToolSwapper {
         }
 
         static Session error(GameUI gui, String error) {
-            return(new Session(gui, null, null, null, -1, null, null,
+            return(new Session(gui, null, null, null, -1, null, null, null,
                     "", 0, error, false));
         }
 
         static Session unchanged(GameUI gui, String name, double quality) {
-            return(new Session(gui, null, null, null, -1, null, null,
+            return(new Session(gui, null, null, null, -1, null, null, null,
                     name, quality, null, false));
         }
 
@@ -344,15 +420,17 @@ final class SharpToolSwapper {
                         throw new IllegalStateException("sharp tool did not return to its origin");
                     return;
                 }
+                if(parking == null || parking.inventory == null)
+                    throw new IllegalStateException("the displaced hand item has no parking slot");
                 WItem parked = null;
-                for(WItem item : origin.getAllItems()) {
+                for(WItem item : parking.inventory.getAllItems()) {
                     if(prior.matches(item.item)) {
                         parked = item;
                         break;
                     }
                 }
                 if(parked == null)
-                    throw new IllegalStateException("displaced hand item is no longer in the tool origin");
+                    throw new IllegalStateException("displaced hand item is no longer in the Belt or Inventory");
                 parked.item.wdgmsg("take", center(parked));
                 if(!await(() -> gui.vhand != null && prior.matches(gui.vhand.item), STEP_TIMEOUT_MS))
                     throw new IllegalStateException("displaced hand item was not taken");
