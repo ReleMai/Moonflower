@@ -29,6 +29,10 @@ public class GobQualityInfo extends GobInfo {
 	gobQ.put(gob.id, q);
 	this.q = q;
     }
+
+    public int qualityValue() {
+	return(q);
+    }
     
     @Override
 	protected boolean enabled() {
@@ -39,7 +43,7 @@ public class GobQualityInfo extends GobInfo {
     protected Tex render() {
 	if(gob == null || gob.getres() == null) { return null;}
 
-	BufferedImage quality = quality();
+	BufferedImage quality = qualityTexture();
 
 	if(quality == null) {
 	    return null;
@@ -53,7 +57,7 @@ public class GobQualityInfo extends GobInfo {
 	super.dispose();
     }
 
-    private BufferedImage quality() {
+    private BufferedImage qualityTexture() {
 	if(q != 0) {
 		return Text.renderstroked(String.format("Q: %d", q), Color.white, Color.BLACK, Text.num12boldFnd).img;
 	}

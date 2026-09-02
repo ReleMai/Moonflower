@@ -2410,6 +2410,8 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 					}
 					return;
 				}
+				if((clickb == 1 || clickb == 3) && ui.gui != null)
+					ui.gui.noteActivityGob(gob);
 				if(ui.checkCursorImage("gfx/hud/curs/study") && clickb == 1) {
 					if (!gob.getres().name.equals("gfx/borka/body")) { // ND: helps with ignoring if you clicked yourself by mistake, after trying to inspect something
 						ui.gui.noteInspectedGob(gob);

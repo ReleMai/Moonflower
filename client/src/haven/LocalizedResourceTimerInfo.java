@@ -1,16 +1,13 @@
 package haven;
 
 import java.awt.Color;
-import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import haven.worldactivity.WorldActivityDetector;
+import haven.worldactivity.WorldActivityTimingParser;
+import haven.worldactivity.WorldActivityType;
 
 /** A session-local countdown derived from the server's Inspect response. */
 public final class LocalizedResourceTimerInfo extends GobInfo {
-    private static final Pattern DURATION = Pattern.compile(
-            "(?i)(\\d+(?:\\.\\d+)?)\\s*(?:real\\s+)?(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)");
-    private static final Pattern REFILL = Pattern.compile(
-            "(?i)\\b(refill|replenish|regenerate|respawn|available|collect(?:ion)?)\\w*\\b");
     private static final Text.Foundry FONT = new Text.Foundry(Text.sans, 12);
 
     private final long observedAtMillis;
@@ -28,9 +25,10 @@ public final class LocalizedResourceTimerInfo extends GobInfo {
 
     /** Installs a timer only when the message contains both refill semantics and a duration. */
     public static boolean noteInspection(Gob gob, String message) {
-        if(gob == null || message == null || !REFILL.matcher(message).find())
+        if(gob == null || message == null
+                || WorldActivityDetector.classify(gob) != WorldActivityType.LOCALIZED_RESOURCE)
             return(false);
-        long duration = parseDurationMillis(message);
+        long duration = WorldActivityTimingParser.parseLocalizedResourceDurationMillis(message);
         if(duration <= 0)
             return(false);
         long now = System.currentTimeMillis();
@@ -40,45 +38,11 @@ public final class LocalizedResourceTimerInfo extends GobInfo {
     }
 
     public static long parseDurationMillis(String text) {
-        if(text == null || !REFILL.matcher(text).find())
-            return(-1);
-        Matcher matcher = DURATION.matcher(text);
-        double totalSeconds = 0;
-        while(matcher.find()) {
-            double amount;
-            try {
-                amount = Double.parseDouble(matcher.group(1));
-            } catch(NumberFormatException ignored) {
-                return(-1);
-            }
-            String unit = matcher.group(2).toLowerCase(Locale.ROOT);
-            if(unit.startsWith("day"))
-                totalSeconds += amount * 86_400d;
-            else if(unit.startsWith("hour") || unit.startsWith("hr"))
-                totalSeconds += amount * 3_600d;
-            else if(unit.startsWith("minute") || unit.startsWith("min"))
-                totalSeconds += amount * 60d;
-            else
-                totalSeconds += amount;
-        }
-        if(totalSeconds <= 0 || totalSeconds > (3650d * 86_400d))
-            return(-1);
-        return(Math.max(1L, Math.round(totalSeconds * 1000d)));
+        return(WorldActivityTimingParser.parseLocalizedResourceDurationMillis(text));
     }
 
     public static String formatRemaining(long millis) {
-        if(millis <= 0)
-            return("due now");
-        long seconds = (millis + 999L) / 1000L;
-        long days = seconds / 86_400L;
-        seconds %= 86_400L;
-        long hours = seconds / 3_600L;
-        seconds %= 3_600L;
-        long minutes = seconds / 60L;
-        seconds %= 60L;
-        if(days > 0)
-            return(String.format("%dd %02d:%02d:%02d", days, hours, minutes, seconds));
-        return(String.format("%02d:%02d:%02d", hours, minutes, seconds));
+        return(WorldActivityTimingParser.formatRemaining(millis));
     }
 
     public long remainingMillis() {
@@ -100,6 +64,10 @@ public final class LocalizedResourceTimerInfo extends GobInfo {
 
     public long observedAtMillis() {
         return(observedAtMillis);
+    }
+
+    public long dueAtMillis() {
+        return(dueAtMillis);
     }
 
     @Override
