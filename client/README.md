@@ -41,6 +41,10 @@ Use `Play.bat -NoUpdate` for one offline launch, or set
 See [the auto-update guide](../docs/MOONFLOWER_AUTO_UPDATE.md) for release and
 Steam behavior.
 
+For repository-owner development, `Play.bat -BranchSelect` opens the isolated
+branch tester. Source checkout synchronization and Task Scheduler setup are
+documented in [the developer workflow guide](../docs/MOONFLOWER_DEVELOPER_WORKFLOW.md).
+
 ## Local Data
 
 Preferences are stored in `%APPDATA%\Haven and Hearth\MoonFlower-prefs.xml`.
