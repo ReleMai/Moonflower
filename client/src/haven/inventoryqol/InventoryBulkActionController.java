@@ -17,9 +17,10 @@ import java.util.concurrent.TimeoutException;
 /** Runs explicit, serial native flower-menu actions against one inventory. */
 final class InventoryBulkActionController implements AutoCloseable {
     enum Action {
-        /* Keep this order deliberate: the native menu may expose several stages
-         * at once, so the first matching label is the only safe stage gate. */
-        BUTCHER_ALL("Butcher all", true, "Skin", "Clean", "Butcher", "Collect Bones", "Collect bones", "Gather Bones",
+        /* This is the non-bird fallback. Bird carcasses use a narrower sequence
+         * because Pluck must happen before Clean and Butcher. */
+        BUTCHER_ALL("Butcher all", true, "Wring Neck", "Skin", "Flay", "Clean", "Butcher",
+                "Collect Bones", "Collect bones", "Gather Bones",
                 "Gather bones", "Take Bones", "Take bones"),
         CRACK_ALL("Crack all", false, "Crack", "Crack Open", "Crack open");
 
@@ -32,9 +33,22 @@ final class InventoryBulkActionController implements AutoCloseable {
             this.needsSharpTool = needsSharpTool;
             this.options = Arrays.asList(options);
         }
+
+        List<String> optionsFor(String itemText) {
+            return(this == BUTCHER_ALL ? butcherOptionsForText(itemText) : options);
+        }
     }
 
     private static final int MAX_PASSES = 12;
+    private static final String[] LIVE_BUTCHERABLE_ANIMAL_RESOURCES = {
+            "adder", "buck", "chick", "chicken", "cock", "doe", "drake", "duck", "hedgehog",
+            "hen", "mallard", "mole", "rabbit", "rooster", "squirrel"
+    };
+    private static final String[] BIRD_MARKERS = {
+            "bird", "bullfinch", "chick", "chicken", "cock", "crane", "duck", "drake", "eagle",
+            "goshawk", "hen", "magpie", "mallard", "pelican", "ptarmigan", "quail", "rock dove",
+            "rockdove", "seagull", "swan", "wood grouse", "woodgrouse"
+    };
     private final GameUI gui;
     private final Inventory inventory;
     private volatile Thread worker;
@@ -110,7 +124,8 @@ final class InventoryBulkActionController implements AutoCloseable {
                     if(!attached(item))
                         continue;
                     status = action.label + " — checking " + (index + 1) + "/" + snapshot.size();
-                    FlowerMenu.AutoSelection request = FlowerMenu.requestNextSelection(action.options);
+                    FlowerMenu.AutoSelection request = FlowerMenu.requestNextSelection(
+                            action.optionsFor(itemText(item)));
                     long before = inventoryStamp();
                     item.wdgmsg("iact", Coord.z, 0);
                     boolean matched;
@@ -160,23 +175,64 @@ final class InventoryBulkActionController implements AutoCloseable {
     static boolean candidate(Action action, GItem item) {
         if(action == null || item == null)
             return(false);
-        String name = "";
-        String resource = "";
-        try { name = item.getname(); } catch(RuntimeException ignored) {}
-        try { resource = item.getres() == null ? "" : item.getres().name; } catch(RuntimeException ignored) {}
-        return(candidateText(action, name + " " + resource));
+        return(candidateText(action, itemText(item)));
     }
 
     static boolean candidateText(Action action, String text) {
         String target = text == null ? "" : text.toLowerCase(java.util.Locale.ROOT)
                 .replace('-', ' ');
         if(action == Action.BUTCHER_ALL)
-            return(target.contains("dead") || target.contains("carcass") || target.contains("corpse") ||
-                    target.contains("cleaned") || target.contains("skinned") || target.contains("plucked") ||
-                    target.contains("gutted") || target.contains("butchered") || target.contains("skeleton"));
+            return(isCarcassStageText(target) || isLiveButcherableAnimalText(target));
         return(target.contains("nut") || target.contains("acorn") || target.contains("almond") ||
                 target.contains("chestnut") || target.contains("hazel") || target.contains("pecan") ||
-                target.contains("pistachio") || target.contains("pine cone") || target.contains("pinecone"));
+                target.contains("pistachio") || target.contains("pine cone") || target.contains("pinecone") ||
+                target.contains("crab claw") || target.contains("crabclaw") ||
+                hasResourceSuffix(target, "crab") || hasResourceSuffix(target, "lobster"));
+    }
+
+    static List<String> butcherOptionsForText(String text) {
+        if(isBirdText(text))
+            return(Arrays.asList("Wring Neck", "Pluck", "Clean", "Butcher", "Collect Bones", "Collect bones",
+                    "Gather Bones", "Gather bones", "Take Bones", "Take bones"));
+        return(Arrays.asList("Wring Neck", "Skin", "Flay", "Clean", "Butcher", "Collect Bones", "Collect bones",
+                "Gather Bones", "Gather bones", "Take Bones", "Take bones"));
+    }
+
+    static boolean isBirdText(String text) {
+        String target = text == null ? "" : text.toLowerCase(java.util.Locale.ROOT).replace('-', ' ');
+        for(String marker : BIRD_MARKERS) {
+            if(target.contains(marker))
+                return(true);
+        }
+        return(false);
+    }
+
+    private static boolean isCarcassStageText(String target) {
+        return(target.contains("dead") || target.contains("carcass") || target.contains("corpse") ||
+                target.contains("cleaned") || target.contains("skinned") ||
+                target.contains("flayed") || target.contains("plucked") || target.contains("gutted") ||
+                target.contains("butchered") || target.contains("skeleton"));
+    }
+
+    private static boolean isLiveButcherableAnimalText(String target) {
+        for(String resource : LIVE_BUTCHERABLE_ANIMAL_RESOURCES) {
+            if(hasResourceSuffix(target, resource))
+                return(true);
+        }
+        return(false);
+    }
+
+    private static String itemText(GItem item) {
+        String name = "";
+        String resource = "";
+        try { name = item.getname(); } catch(RuntimeException ignored) {}
+        try { resource = item.getres() == null ? "" : item.getres().name; } catch(RuntimeException ignored) {}
+        return(name + " " + resource);
+    }
+
+    private static boolean hasResourceSuffix(String target, String basename) {
+        String suffix = basename == null ? "" : basename.toLowerCase(java.util.Locale.ROOT);
+        return(!suffix.isEmpty() && (target.endsWith("/" + suffix) || target.endsWith("\\" + suffix)));
     }
 
     private boolean attached(GItem item) {

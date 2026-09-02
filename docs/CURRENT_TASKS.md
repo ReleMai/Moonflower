@@ -53,10 +53,11 @@ Acceptance criteria:
    hinge into an eased, clipped drawer containing Sort, Stack, Unstack, slot
    locking, optional Extended View, Butcher all, Crack all, and Stop without
    covering the grid or placing controls outside the frame.
-2. Butcher all repeatedly handles the current server's Skin, Clean, and Butcher
-   labels in that strict order, then optional Collect/Gather/Take Bones labels,
-   one acknowledged item at a time. Crack all selects only Crack/Crack Open.
-   Stop cancels safely.
+2. Butcher all detects the current live animal or carcass type. Birds use the
+   current server's Wring Neck, Pluck, Clean, and Butcher labels in that strict
+   order; non-birds use Wring Neck, Skin/Flay, Clean, and Butcher without Pluck.
+   Optional Collect/Gather/Take Bones labels follow, one acknowledged item at a
+   time. Crack all selects only Crack/Crack Open. Stop cancels safely.
 3. Manual animal-processing flower choices and Butcher all select the highest
    quality supported one-handed sharp tool from main Inventory or equipped Belt.
 4. Empty and occupied hand cases both restore the exact prior hand/tool state.

@@ -120,9 +120,11 @@ authoritative source is the current server Inspect response.
 
 1. Inventory shows only Close and one non-overlapping Inventory Tools control;
    every former title action remains available inside one expanded frame.
-2. Butcher all uses native flower-menu options in strict `Skin`, `Clean`,
-   `Butcher` priority (then optional bone collection), processing one
-   acknowledged item at a time; Stop clears pending selection.
+2. Butcher all detects the current live animal or carcass type and uses native
+   flower-menu options in strict bird `Wring Neck`, `Pluck`, `Clean`,
+   `Butcher` order or non-bird `Wring Neck`, `Skin`/`Flay`, `Clean`, `Butcher`
+   order (then optional bone collection), processing one acknowledged item at
+   a time; Stop clears pending selection.
 3. Butchering uses the highest-quality supported one-handed sharp tool reachable
    in main Inventory or an equipped Belt and restores the exact displaced item.
 4. Manual Skin, Flay, Clean, Butcher, and Collect Bones choices use the same

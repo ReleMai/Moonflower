@@ -7,6 +7,8 @@ import haven.Inventory;
 import haven.UI;
 import haven.Window;
 
+import java.util.List;
+
 /** Deterministic checks for option routing, sharp tools, timer parsing, and title art. */
 public final class InventoryQolChecks {
     public static void main(String[] args) {
@@ -40,12 +42,34 @@ public final class InventoryQolChecks {
 				InventoryBulkActionController.Action.BUTCHER_ALL, "Raw Rabbit Meat gfx/invobjs/meat"),
 				"ordinary food is not right-click probed");
 		check(InventoryBulkActionController.candidateText(
+				InventoryBulkActionController.Action.BUTCHER_ALL, "Chicken gfx/invobjs/chicken"),
+				"live birds are included for Wring Neck processing");
+		check(InventoryBulkActionController.candidateText(
+				InventoryBulkActionController.Action.BUTCHER_ALL, "Rabbit gfx/invobjs/rabbit"),
+				"live non-birds are included for Wring Neck processing");
+		check(InventoryBulkActionController.candidateText(
 				InventoryBulkActionController.Action.CRACK_ALL, "Walnut gfx/invobjs/walnut"),
 				"nuts are probed for crack options");
-		check(InventoryBulkActionController.Action.BUTCHER_ALL.options.indexOf("Skin") == 0 &&
-				InventoryBulkActionController.Action.BUTCHER_ALL.options.indexOf("Clean") == 1 &&
-				InventoryBulkActionController.Action.BUTCHER_ALL.options.indexOf("Butcher") == 2,
-				"butchering enforces Skin then Clean then Butcher priority");
+		check(InventoryBulkActionController.candidateText(
+				InventoryBulkActionController.Action.CRACK_ALL, "Crab Claw gfx/invobjs/crabclaw"),
+				"crab claws are probed for crack options");
+		check(InventoryBulkActionController.candidateText(
+				InventoryBulkActionController.Action.CRACK_ALL, "Lobster gfx/invobjs/lobster"),
+				"lobsters are probed for crack options");
+		check(!InventoryBulkActionController.candidateText(
+				InventoryBulkActionController.Action.CRACK_ALL, "Rock Lobster gfx/invobjs/rocklobster"),
+				"rock lobster fish is not assumed to have a crack option");
+		List<String> birdOptions = InventoryBulkActionController.butcherOptionsForText(
+				"Dead Chicken gfx/invobjs/chicken-dead");
+		check(birdOptions.indexOf("Wring Neck") == 0 && birdOptions.indexOf("Pluck") == 1 &&
+				birdOptions.indexOf("Clean") == 2 && birdOptions.indexOf("Butcher") == 3,
+				"birds use Wring Neck then Pluck then Clean then Butcher");
+		List<String> animalOptions = InventoryBulkActionController.butcherOptionsForText(
+				"Dead Rabbit gfx/invobjs/rabbit-dead");
+		check(animalOptions.indexOf("Wring Neck") == 0 && animalOptions.indexOf("Skin") == 1 &&
+				animalOptions.indexOf("Flay") == 2 && animalOptions.indexOf("Clean") == 3 &&
+				animalOptions.indexOf("Butcher") == 4 && !animalOptions.contains("Pluck"),
+				"non-birds use Wring Neck, skin/flay, Clean, then Butcher without Pluck");
 
         long parsed = LocalizedResourceTimerInfo.parseDurationMillis(
                 "This resource will refill in 2 days, 3 hours and 4 minutes.");
