@@ -60,6 +60,8 @@ import haven.multisession.SessionConservatoryLayout;
 import haven.multisession.SessionConservatoryWindow;
 import haven.wiki.RingOfBrodgarWikiService;
 import haven.wiki.WikiWindow;
+import haven.worldactivity.WorldActivityBoardService;
+import haven.worldactivity.WorldActivityBoardWindow;
 import haven.render.Location;
 import haven.res.ui.stackinv.ItemStack;
 
@@ -127,6 +129,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public final SharpToolAutoManager sharpToolAutoManager;
 	public final RingOfBrodgarWikiService wikiService;
 	public final WikiWindow wikiWindow;
+	public final WorldActivityBoardService worldActivityBoardService;
+	public final WorldActivityBoardWindow worldActivityBoardWindow;
 	public TileHighlight.TileHighlightCFG tileHighlight;
 	public QuickSlotsWdg quickslots;
 	private Coord classicQuickSlotPosition;
@@ -422,6 +426,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	fishingCatchTracker = new FishingCatchTracker(this, fishingJournalService);
 	fishingMapMarkers = new FishingMapMarkers(fishingJournalService);
 	sharpToolAutoManager = new SharpToolAutoManager(this);
+	worldActivityBoardService = new WorldActivityBoardService(this);
 	setcanfocus(true);
 	setfocusctl(true);
 	chat = new ChatUI();
@@ -614,6 +619,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		Utils.getprefc("wndsz-wiki", WikiWindow.defaultSize())),
 		Utils.getprefc("wndc-wiki", new Coord(260, 130)));
 	wikiWindow.hide();
+	worldActivityBoardWindow = add(new WorldActivityBoardWindow(worldActivityBoardService),
+		Utils.getprefc("wndc-World Activity Board", new Coord(220, 140)));
+	worldActivityBoardWindow.hide();
 	zerg = add(new Zergwnd(), Utils.getprefc("wndc-zerg", UI.scale(new Coord(187, 50))));
 	zerg.hide();
 	moonFlowerHud = add(new MoonFlowerPortraitHub(this), Coord.z);
@@ -705,6 +713,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		foragingController.close();
 		sharpToolAutoManager.close();
 		wikiService.close();
+		worldActivityBoardService.close();
 		super.destroy();
 		ui.clearGUI(this);
 	}
@@ -804,6 +813,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	Debug.log = ui.cons.out;
 	opts.c = sz.sub(opts.sz).div(2);
 	mapfile.fixAndSavePos(true);
+	worldActivityBoardService.start();
     }
 
     public void dispose() {
@@ -2044,6 +2054,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public boolean isForagingOpen() {return(wndstate(foragingWindow));}
     public boolean isSessionConservatoryOpen() {return(wndstate(sessionConservatoryWindow));}
     public boolean isWikiOpen() {return(wndstate(wikiWindow));}
+    public boolean isWorldActivityBoardOpen() {return(wndstate(worldActivityBoardWindow));}
 
     public void toggleInventoryWindow() {togglewnd(invwnd);}
     public void toggleEquipmentWindow() {togglewnd(equwnd);}
@@ -2119,6 +2130,15 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		if(opening) {
 			fitwdg(wikiWindow);
 			wikiWindow.focusSearch();
+		}
+	}
+
+	public void toggleWorldActivityBoard() {
+		boolean opening = !worldActivityBoardWindow.visible();
+		togglewnd(worldActivityBoardWindow);
+		if(opening) {
+			worldActivityBoardService.refresh();
+			fitwdg(worldActivityBoardWindow);
 		}
 	}
 
@@ -2208,6 +2228,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private static final BufferedImage fishingJournalMenuIcon = fishingJournalMenuIcon();
     private static final BufferedImage fishingHelperMenuIcon = fishingHelperMenuIcon();
     private static final BufferedImage wikiMenuIcon = wikiMenuIcon();
+    private static final BufferedImage worldActivityMenuIcon = worldActivityMenuIcon();
     private static final BufferedImage featureMenuClosedIcon = featureMenuArrow(false);
     private static final BufferedImage featureMenuOpenIcon = featureMenuArrow(true);
     private static final Tex cookbookMenuUp = new TexI(customMenuImage(cookbookMenuIcon, false, false));
@@ -2226,6 +2247,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private static final Tex wikiMenuDown = new TexI(customMenuImage(wikiMenuIcon, true, false));
     private static final Tex wikiMenuHover = new TexI(customMenuImage(wikiMenuIcon, false, true));
     private static final Tex wikiMenuHoverDown = new TexI(customMenuImage(wikiMenuIcon, true, true));
+    private static final Tex worldActivityMenuUp = new TexI(customMenuImage(worldActivityMenuIcon, false, false));
+    private static final Tex worldActivityMenuDown = new TexI(customMenuImage(worldActivityMenuIcon, true, false));
+    private static final Tex worldActivityMenuHover = new TexI(customMenuImage(worldActivityMenuIcon, false, true));
+    private static final Tex worldActivityMenuHoverDown = new TexI(customMenuImage(worldActivityMenuIcon, true, true));
     private static final Tex featureMenuClosed = new TexI(customMenuImage(featureMenuClosedIcon, false, false));
     private static final Tex featureMenuClosedHover = new TexI(customMenuImage(featureMenuClosedIcon, false, true));
     private static final Tex featureMenuOpen = new TexI(customMenuImage(featureMenuOpenIcon, true, false));
@@ -2384,6 +2409,32 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	return(image);
     }
 
+    private static BufferedImage worldActivityMenuIcon() {
+	int size = UI.scale(24);
+	BufferedImage image = TexI.mkbuf(Coord.of(size, size));
+	Graphics2D graphics = image.createGraphics();
+	graphics.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+		java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+	graphics.setStroke(new java.awt.BasicStroke(Math.max(1, UI.scale(1.5f)),
+		java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+	graphics.setColor(new Color(45, 29, 19));
+	graphics.fillOval(UI.scale(3), UI.scale(2), UI.scale(19), UI.scale(19));
+	graphics.setColor(new Color(237, 202, 110));
+	graphics.drawOval(UI.scale(4), UI.scale(3), UI.scale(17), UI.scale(17));
+	graphics.setColor(new Color(43, 160, 179));
+	graphics.drawLine(UI.scale(12), UI.scale(7), UI.scale(12), UI.scale(12));
+	graphics.drawLine(UI.scale(12), UI.scale(12), UI.scale(16), UI.scale(14));
+	graphics.setColor(new Color(239, 225, 185));
+	graphics.fillOval(UI.scale(10), UI.scale(10), UI.scale(4), UI.scale(4));
+	graphics.setColor(new Color(148, 56, 61));
+	java.awt.Polygon flame = new java.awt.Polygon(
+		new int[]{UI.scale(4), UI.scale(7), UI.scale(6), UI.scale(4)},
+		new int[]{UI.scale(21), UI.scale(19), UI.scale(23), UI.scale(23)}, 4);
+	graphics.fillPolygon(flame);
+	graphics.dispose();
+	return(image);
+    }
+
     private static class CookbookMenuCheckBox extends ICheckBox {
 	CookbookMenuCheckBox() {
 	    super(cookbookMenuUp, cookbookMenuDown, cookbookMenuHover, cookbookMenuHoverDown);
@@ -2446,6 +2497,22 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     }
 
+    private static class WorldActivityMenuCheckBox extends ICheckBox {
+	WorldActivityMenuCheckBox() {
+	    super(worldActivityMenuUp, worldActivityMenuDown,
+		    worldActivityMenuHover, worldActivityMenuHoverDown);
+	    setgkey(kb_worldActivityBoard);
+	    settip("World Activity Board");
+	}
+
+	@Override
+	public boolean checkhit(Coord c) {
+	    Coord center = Coord.of(UI.scale(23), baseMenuBackground.getHeight() - UI.scale(17));
+	    int radius = UI.scale(15);
+	    return(c.isect(Coord.z, sz) && c.dist(center) <= radius);
+	}
+    }
+
     private static class FeatureMenuCheckBox extends ICheckBox {
 	FeatureMenuCheckBox() {
 	    super(featureMenuClosed, featureMenuOpen, featureMenuClosedHover, featureMenuOpenHover);
@@ -2482,6 +2549,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    .state(() -> isFishingJournalOpen() || isFishingHelperOpen()).click(() -> toggleFishingSystem());
 	    featureTray.add(new WikiMenuCheckBox(), customMenuSlotWidth * 2, 0)
 		    .state(() -> wndstate(wikiWindow)).click(() -> toggleWiki());
+	    featureTray.add(new WorldActivityMenuCheckBox(), customMenuSlotWidth * 3, 0)
+		    .state(() -> isWorldActivityBoardOpen()).click(() -> toggleWorldActivityBoard());
 
 	    featureToggle = add(new FeatureMenuCheckBox(), 0, 0);
 	    featureToggle.state(() -> featuresExpanded).click(() -> setFeaturesExpanded(!featuresExpanded));
@@ -2619,6 +2688,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		KeyMatch.forchar('F', KeyMatch.C | KeyMatch.M));
 	public static KeyBinding kb_wiki = KeyBinding.get("ring-of-brodgar-wiki",
 		KeyMatch.forchar('W', KeyMatch.C | KeyMatch.M));
+	public static KeyBinding kb_worldActivityBoard = KeyBinding.get("world-activity-board",
+		KeyMatch.forchar('T', KeyMatch.C | KeyMatch.M));
 	public static KeyBinding kb_foraging = KeyBinding.get("botanical-wayfinder",
 		KeyMatch.forchar('G', KeyMatch.C | KeyMatch.M));
 	public static KeyBinding kb_foragingEmergencyStop = KeyBinding.get("foraging-emergency-stop",
@@ -2671,6 +2742,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		return(true);
 	} else if(kb_wiki.key().match(ev)) {
 		toggleWiki();
+		return(true);
+	} else if(kb_worldActivityBoard.key().match(ev)) {
+		toggleWorldActivityBoard();
 		return(true);
 	} else if (kb_drinkButton.key().match(ev)) {
 		wdgmsg("act", "drink");
@@ -3029,6 +3103,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		g = null;
 	}
 	if(g != null) {
+		boolean activityCaptured = worldActivityBoardService.noteInspection(g, msg.message());
 		boolean inspectionCaptured = LocalizedResourceTimerInfo.noteInspection(g, msg.message());
 		Matcher m = GobQualityInfo.GOB_Q.matcher(msg.message());
 		if(m.matches()) {
@@ -3038,7 +3113,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			} catch (Exception ignored) {}
 			inspectionCaptured = true;
 		}
-		if(inspectionCaptured)
+		boolean awaitingActivityFollowup = activityCaptured && worldActivityBoardService.shouldAwaitFollowup(g);
+		if((inspectionCaptured || activityCaptured) && !awaitingActivityFollowup)
 			lastInspectedGob = null;
 	}
 	return(true);
@@ -3047,6 +3123,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public void noteInspectedGob(Gob gob) {
 		lastInspectedGob = gob;
 		lastInspectedAt = System.currentTimeMillis();
+	}
+
+	/** Records a passive activity target without changing the native interaction. */
+	public void noteActivityGob(Gob gob) {
+		if(gob != null && worldActivityBoardService.noteActivityGob(gob)) {
+			lastInspectedGob = gob;
+			lastInspectedAt = System.currentTimeMillis();
+		}
 	}
 
 	public void msg(String msg, Color color, Audio.Clip sfx){
