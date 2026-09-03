@@ -50,6 +50,16 @@ Rule to remember next time: Keep branch discovery repository-derived, show the e
 ```
 
 ```text
+Date: 2026-09-02
+Task: Repair the branch-selector refresh after adding live progress.
+What worked: Keeping the Windows Forms event flow in the PowerShell UI thread and pumping form updates while external Git/Ant processes run keeps the controls usable without cross-thread runspace failures.
+What was confusing: A .NET BackgroundWorker can be valid in compiled code but cannot safely invoke ordinary PowerShell scriptblocks without an explicit runspace.
+What broke or almost broke: The refresh worker failed before fetching branch data and its error handling hid the useful exception text.
+What I learned: In this script, asynchronous-looking progress should use a non-blocking process loop plus Application.DoEvents rather than a PowerShell callback on a worker thread.
+Rule to remember next time: Do not attach normal PowerShell operation logic to BackgroundWorker DoWork; keep the UI thread responsible for form updates and surface the actual exception text on failure.
+```
+
+```text
 Date: 2026-08-31
 Task: Make GitHub-first MoonFlower production updates an automatic project rule.
 What worked: Pairing project-level AGENTS.md instructions with an executable privacy and commit-detail gate made the release process both discoverable in new chats and enforceable in GitHub Actions.

@@ -13,6 +13,7 @@ $script:RepoRoot = $null
 $script:Remote = $Remote
 $script:WorktreeRoot = $null
 $script:CurrentBranchInfo = $null
+$script:ProgressDialog = $null
 
 function ConvertTo-RedactedText {
     param([AllowNull()][string]$Text)
@@ -355,6 +356,10 @@ function Invoke-TestLaunch {
         throw 'No generated client package exists in the temporary worktree. Choose Clean build + launch; Run existing build requires client\hafen.jar or client\bin\hafen.jar to already be present.'
     }
     Report-OperationProgress -Worker $Worker -Percent 82 -Stage 'LAUNCH' -Message ("Launching Play.bat -NoUpdate from {0}. The stable GitHub updater is bypassed." -f $packagePath) -WriteLog
+    if ($null -ne $script:ProgressDialog -and $script:ProgressDialog.Form.WindowState -ne [System.Windows.Forms.FormWindowState]::Minimized) {
+        $script:ProgressDialog.Form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
+        Write-Host 'Selector minimized while the selected client is running; restore it to inspect the live operation status.' -ForegroundColor Yellow
+    }
     Push-Location $clientPath
     try {
         & .\Play.bat -NoUpdate 2>&1 | ForEach-Object { Write-Host ([string]$_) }
@@ -744,6 +749,9 @@ function Report-OperationProgress {
     $payload = New-ProgressPayload -Percent $Percent -Stage $Stage -Message $Message -Indeterminate:$Indeterminate -WriteLog:$WriteLog
     if ($null -ne $Worker) {
         $Worker.ReportProgress($payload.Percent, $payload)
+    } elseif ($null -ne $script:ProgressDialog) {
+        Apply-ProgressPayload $script:ProgressDialog $payload
+        [System.Windows.Forms.Application]::DoEvents()
     } else {
         Write-Host ('[{0}] {1}' -f $Stage, $Message) -ForegroundColor Cyan
     }
@@ -838,54 +846,38 @@ function Start-BranchRefresh {
     Set-DialogBusy $Dialog $true
     $Dialog.Status.Text = 'FETCH: Starting repository refresh...'
     Add-DialogActivity $Dialog ("Refreshing '{0}' branch information from the repository remote." -f $script:Remote)
-    $worker = New-Object System.ComponentModel.BackgroundWorker
-    $worker.WorkerReportsProgress = $true
-    $worker.add_DoWork({
-        param($sender, $eventArgs)
-        try {
-            Report-OperationProgress -Worker $sender -Percent 1 -Stage 'FETCH' -Message ("Contacting remote '{0}'..." -f $script:Remote) -Indeterminate -WriteLog
-            $foundBranches = Get-AvailableBranches -Worker $sender
-            $eventArgs.Result = [pscustomobject]@{
-                Branches = @($foundBranches)
-            }
-        } catch {
-            throw
+    $script:ProgressDialog = $Dialog
+    try {
+        $freshBranches = @(Get-AvailableBranches)
+        if ($freshBranches.Count -eq 0) {
+            throw "No remote branches were found for '$script:Remote'."
         }
-    })
-    $worker.add_ProgressChanged({
-        param($sender, $eventArgs)
-        Apply-ProgressPayload $Dialog $eventArgs.UserState
-    })
-    $worker.add_RunWorkerCompleted({
-        param($sender, $eventArgs)
+        $Dialog.ExitCode = $null
+        $Dialog.CurrentValue.Text = '{0}  |  commit {1}  |  worktree {2}' -f $script:CurrentBranchInfo.Branch, $script:CurrentBranchInfo.CommitShort, $script:CurrentBranchInfo.WorktreeState
+        Set-BranchItems $Dialog $freshBranches $PreferredBranch
+        Update-BranchDetails $Dialog
+        $Dialog.Progress.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
+        $Dialog.Progress.Value = 100
+        $Dialog.Status.Text = ('READY: {0} remote branch(es) available.' -f $freshBranches.Count)
+        Add-DialogActivity $Dialog ('Branch information refreshed; selected ref is ready to run.')
+    } catch {
+        $message = ConvertTo-RedactedText $_.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = ConvertTo-RedactedText $_.ToString()
+        }
+        $Dialog.Status.Text = 'FAILED: Branch refresh could not complete.'
+        $Dialog.ExitCode = 1
+        Add-DialogActivity $Dialog $message
+        [System.Windows.Forms.MessageBox]::Show(
+            $Dialog.Form,
+            $message,
+            'MoonFlower Branch Selector',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    } finally {
+        $script:ProgressDialog = $null
         Complete-DialogOperation $Dialog
-        if ($null -ne $eventArgs.Error) {
-            $Dialog.Status.Text = 'FAILED: Branch refresh could not complete.'
-            $Dialog.ExitCode = 1
-            Add-DialogActivity $Dialog (ConvertTo-RedactedText $eventArgs.Error.Exception.Message)
-            [System.Windows.Forms.MessageBox]::Show(
-                $Dialog.Form,
-                (ConvertTo-RedactedText $eventArgs.Error.Exception.Message),
-                'MoonFlower Branch Selector',
-                [System.Windows.Forms.MessageBoxButtons]::OK,
-                [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
-        } else {
-            $freshBranches = @($eventArgs.Result.Branches)
-            if ($freshBranches.Count -eq 0) {
-                $Dialog.Status.Text = 'FAILED: No remote branches were found.'
-                $Dialog.ExitCode = 1
-            } else {
-                $Dialog.ExitCode = $null
-                $Dialog.CurrentValue.Text = '{0}  |  commit {1}  |  worktree {2}' -f $script:CurrentBranchInfo.Branch, $script:CurrentBranchInfo.CommitShort, $script:CurrentBranchInfo.WorktreeState
-                Set-BranchItems $Dialog $freshBranches $PreferredBranch
-                Update-BranchDetails $Dialog
-                $Dialog.Status.Text = ('READY: {0} remote branch(es) available.' -f $freshBranches.Count)
-                Add-DialogActivity $Dialog ('Branch information refreshed; selected ref is ready to run.')
-            }
-        }
-        $sender.Dispose()
-    })
-    $worker.RunWorkerAsync()
+    }
 }
 
 function Invoke-SelectedBranch {
@@ -965,57 +957,43 @@ function Start-SelectedBranchOperation {
     Set-DialogBusy $Dialog $true
     $Dialog.Status.Text = 'START: Preparing {0}...' -f $operationName
     Add-DialogActivity $Dialog ("Starting '{0}' for {1}/{2} at {3}." -f $operationName, $script:Remote, $selected.Name, $selected.CommitShort)
-    $worker = New-Object System.ComponentModel.BackgroundWorker
-    $worker.WorkerReportsProgress = $true
-    $worker.add_DoWork({
-        param($sender, $eventArgs)
-        try {
-            $eventArgs.Result = Invoke-SelectedBranch -SelectedBranch $selected -Build $Build -Keep $keep -Worker $sender
-        } catch {
-            throw
+    $script:ProgressDialog = $Dialog
+    $dialogResult = $null
+    try {
+        $outcome = Invoke-SelectedBranch -SelectedBranch $selected -Build $Build -Keep $keep
+        $Dialog.ExitCode = [int]$outcome.ExitCode
+        if ($Dialog.ExitCode -eq 0) {
+            $Dialog.Status.Text = 'DONE: Selected client exited successfully.'
+        } else {
+            $Dialog.Status.Text = 'DONE: Selected client exited with code {0}.' -f $Dialog.ExitCode
         }
-    })
-    $worker.add_ProgressChanged({
-        param($sender, $eventArgs)
-        Apply-ProgressPayload $Dialog $eventArgs.UserState
-        $payload = $eventArgs.UserState
-        if ($null -ne $payload -and $payload.Stage -eq 'LAUNCH' -and $Dialog.Form.WindowState -ne [System.Windows.Forms.FormWindowState]::Minimized) {
-            $Dialog.Form.WindowState = [System.Windows.Forms.FormWindowState]::Minimized
-            Write-Host 'Selector minimized while the selected client is running; restore it to inspect the live operation status.' -ForegroundColor Yellow
+        Add-DialogActivity $Dialog ('Operation finished with exit code {0}.' -f $Dialog.ExitCode)
+        $dialogResult = if ($Dialog.ExitCode -eq 0) { [System.Windows.Forms.DialogResult]::OK } else { [System.Windows.Forms.DialogResult]::Abort }
+    } catch {
+        $message = ConvertTo-RedactedText $_.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = ConvertTo-RedactedText $_.ToString()
         }
-    })
-    $worker.add_RunWorkerCompleted({
-        param($sender, $eventArgs)
+        $Dialog.ExitCode = 1
+        $Dialog.Status.Text = 'FAILED: The selected operation stopped.'
+        Add-DialogActivity $Dialog $message
+        [System.Windows.Forms.MessageBox]::Show(
+            $Dialog.Form,
+            $message,
+            'MoonFlower Branch Selector',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    } finally {
+        $script:ProgressDialog = $null
         Complete-DialogOperation $Dialog
         if ($Dialog.Form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
             $Dialog.Form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
             $Dialog.Form.Activate()
         }
-        if ($null -ne $eventArgs.Error) {
-            $message = ConvertTo-RedactedText $eventArgs.Error.Exception.Message
-            $Dialog.ExitCode = 1
-            $Dialog.Status.Text = 'FAILED: The selected operation stopped.'
-            Add-DialogActivity $Dialog $message
-            [System.Windows.Forms.MessageBox]::Show(
-                $Dialog.Form,
-                $message,
-                'MoonFlower Branch Selector',
-                [System.Windows.Forms.MessageBoxButtons]::OK,
-                [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
-        } else {
-            $outcome = $eventArgs.Result
-            $Dialog.ExitCode = [int]$outcome.ExitCode
-            if ($Dialog.ExitCode -eq 0) {
-                $Dialog.Status.Text = 'DONE: Selected client exited successfully.'
-            } else {
-                $Dialog.Status.Text = 'DONE: Selected client exited with code {0}.' -f $Dialog.ExitCode
-            }
-            Add-DialogActivity $Dialog ('Operation finished with exit code {0}.' -f $Dialog.ExitCode)
-            $Dialog.Form.DialogResult = if ($Dialog.ExitCode -eq 0) { [System.Windows.Forms.DialogResult]::OK } else { [System.Windows.Forms.DialogResult]::Abort }
-        }
-        $sender.Dispose()
-    })
-    $worker.RunWorkerAsync()
+    }
+    if ($null -ne $dialogResult) {
+        $Dialog.Form.DialogResult = $dialogResult
+    }
 }
 
 try {
