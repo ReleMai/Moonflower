@@ -2,7 +2,7 @@ package haven.foraging;
 
 import haven.Coord;
 
-/** User-selected travel mode. ROUTE preserves Checkpoint Manager behavior. */
+/** User-selected travel mode. ROUTE follows the points plotted in the Wayfinder map. */
 public enum ForagingDirection {
     ROUTE("Route", 0, 0),
     NORTH("N", 0, -1),

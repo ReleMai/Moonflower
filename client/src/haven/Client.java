@@ -72,7 +72,7 @@ public class Client implements Console.Directory {
 	    wnd.sizing(new Windeye.Sizing().fixsize(fsz));
 	if(initfullscreen.get())
 	    wnd.state(Windeye.State.EXCLUSIVE);
-	else if(Utils.getprefb("mainwnd/max", false))
+	else if(fsz == null && Utils.getprefb("mainwnd/max", false))
 	    wnd.state(Windeye.State.MAXIMIZED);
 	try(InputStream icon = Client.class.getResourceAsStream("icon.png")) {
 	    wnd.icon(javax.imageio.ImageIO.read(icon));
@@ -276,17 +276,15 @@ public class Client implements Console.Directory {
 	    }
 	});
 	cmdmap.put("sz", (cons, args) -> {
-	    if(args.length >= 3) {
+	    if(args.length >= 2 && args[1].equalsIgnoreCase("screen")) {
+		Coord sz = screenWorkingAreaSize();
+		if(sz == null)
+		    throw(new Exception("Could not determine the current screen working area."));
+		setWindowSize(sz, args.length >= 3 && args[2].equalsIgnoreCase("lock"));
+	    } else if(args.length >= 3) {
 		Coord sz = Coord.of(Integer.parseInt(args[1]),
 				    Integer.parseInt(args[2]));
-		Windeye wnd = Client.this.wnd;
-		if((args.length >= 4) && args[3].equals("lock")) {
-		    Utils.setprefc("mainwnd/locksize", sz);
-		    wnd.sizing(new Windeye.Sizing().fixsize(sz));
-		} else {
-		    Utils.setprefc("mainwnd/locksize", null);
-		    wnd.sizing(new Windeye.Sizing().minsize(new Coord(800, 600)).normsize(sz));
-		}
+		setWindowSize(sz, args.length >= 4 && args[3].equalsIgnoreCase("lock"));
 	    }
 	});
 	cmdmap.put("window", (cons, args) -> {
@@ -302,6 +300,35 @@ public class Client implements Console.Directory {
 	    }, "Haven alt-window thread");
 	    th.start();
 	});
+    }
+
+    private void setWindowSize(Coord sz, boolean lock) {
+	if(lock) {
+	    Utils.setprefc("mainwnd/locksize", sz);
+	    // A fixed lock must win over a stale maximize preference on the next launch.
+	    Utils.setprefb("mainwnd/max", false);
+	    if(wnd.state() == Windeye.State.MAXIMIZED)
+		wnd.state(Windeye.State.NORMAL);
+	    wnd.sizing(new Windeye.Sizing().fixsize(sz));
+	} else {
+	    Utils.setprefc("mainwnd/locksize", null);
+	    Utils.setprefb("mainwnd/max", false);
+	    if(wnd.state() == Windeye.State.MAXIMIZED)
+		wnd.state(Windeye.State.NORMAL);
+	    wnd.sizing(new Windeye.Sizing().minsize(new Coord(800, 600)).normsize(sz));
+	}
+    }
+
+    /** Returns the usable area of the default display, excluding taskbars/docks. */
+    static Coord screenWorkingAreaSize() {
+	try {
+	    java.awt.Rectangle bounds = java.awt.GraphicsEnvironment
+		    .getLocalGraphicsEnvironment().getMaximumWindowBounds();
+	    if(bounds.width > 0 && bounds.height > 0)
+		return Coord.of(bounds.width, bounds.height);
+	} catch(java.awt.HeadlessException | SecurityException ignored) {
+	}
+	return null;
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);

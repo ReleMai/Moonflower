@@ -10,7 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Account-free deterministic checks for the Phase 1 contracts. */
+/** Account-free deterministic checks for the supervised foraging contracts. */
 public final class ForagingChecks {
     private ForagingChecks() {
     }
@@ -36,6 +36,12 @@ public final class ForagingChecks {
         check(ForagingInventoryService.basename("gfx/terobjs/herbs/chantrelle")
                         .equals("chantrelle"),
                 "ground and inventory compatibility should use exact basename");
+        check(ForagingHerbIconCache.inventoryIconResourceName("gfx/terobjs/herbs/yarrow")
+                        .equals("gfx/invobjs/herbs/yarrow"),
+                "ordinary forageables should use their inventory icon path");
+        check(ForagingHerbIconCache.inventoryIconResourceName("gfx/terobjs/items/precioussnowflake")
+                        .equals("gfx/invobjs/precioussnowflake"),
+                "reviewed item forageables should use their item icon path");
         check(ForagingHerbAtlas.entries().size() >= 80,
                 "the guide catalog should expose the complete reviewed forageable list");
         Set<String> resources = new LinkedHashSet<>();
@@ -84,6 +90,9 @@ public final class ForagingChecks {
                 "north-east direction should create a bounded forward corridor");
         check(ForagingController.directionalRoute(new Coord2d(100, 100),
                 ForagingDirection.ROUTE).isEmpty(), "Route mode must not fabricate direction points");
+        List<Coord2d> plotted = List.of(new Coord2d(0, 0), new Coord2d(30, 40), new Coord2d(30, 60));
+        check(Math.abs(ForagingController.routeLength(plotted) - 70.0) < 0.0001,
+                "plotted route length should be the sum of its segments");
     }
 
     private static void persistenceChecks() throws Exception {
@@ -104,6 +113,15 @@ public final class ForagingChecks {
                     "travel direction should persist per world");
             check(repository.loadDirection("world-b") == ForagingDirection.NORTH,
                     "new worlds should receive the safe default direction");
+            List<Coord2d> route = List.of(new Coord2d(10.5, 20.5), new Coord2d(50.5, 20.5));
+            repository.saveRoute("world-a", route);
+            check(repository.loadRoute("world-a").equals(route),
+                    "plotted route should persist in point order per world");
+            check(repository.loadRoute("world-b").isEmpty(),
+                    "plotted routes must remain world scoped");
+            repository.saveRoute("world-a", List.of());
+            check(repository.loadRoute("world-a").isEmpty(),
+                    "clearing a plotted route should remove its saved points");
         } finally {
             Files.deleteIfExists(database);
         }

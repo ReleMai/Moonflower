@@ -186,7 +186,7 @@ public final class RingOfBrodgarWikiService implements AutoCloseable {
     static URI searchUri(String query) {
         String encoded = URLEncoder.encode(normalizeQuery(query), StandardCharsets.UTF_8);
         return(URI.create(API_BASE + "?action=query&list=search&srnamespace=0&srlimit=" +
-                RESULT_LIMIT + "&format=json&formatversion=2&srsearch=" + encoded));
+                RESULT_LIMIT + "&srenablerewrites=1&format=json&formatversion=2&srsearch=" + encoded));
     }
 
     static URI articleApiUri(String title) {

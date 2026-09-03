@@ -1,10 +1,12 @@
 package haven.foraging;
 
+import haven.Coord2d;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.LinkedHashSet;
 
 /** UI-safe immutable view of controller state. */
 public final class ForagingSnapshot {
@@ -26,6 +28,7 @@ public final class ForagingSnapshot {
     public final ForagingDirection direction;
     public final Set<String> selectedResources;
     public final List<ForagingGobScanner.HerbResource> catalog;
+    public final List<Coord2d> route;
     public final List<String> events;
 
     public ForagingSnapshot(State state, String reason, ForagingTarget target,
@@ -33,7 +36,8 @@ public final class ForagingSnapshot {
                             int yield, double targetDistance, double targetBearing,
                             ForagingDirection direction,
                             Set<String> selectedResources,
-                            List<ForagingGobScanner.HerbResource> catalog, List<String> events) {
+                            List<ForagingGobScanner.HerbResource> catalog,
+                            List<Coord2d> route, List<String> events) {
         this.state = state;
         this.reason = reason == null ? "" : reason;
         this.target = target;
@@ -47,6 +51,7 @@ public final class ForagingSnapshot {
         this.direction = direction == null ? ForagingDirection.NORTH : direction;
         this.selectedResources = Collections.unmodifiableSet(new LinkedHashSet<>(selectedResources));
         this.catalog = Collections.unmodifiableList(new ArrayList<>(catalog));
+        this.route = Collections.unmodifiableList(new ArrayList<>(route));
         this.events = Collections.unmodifiableList(new ArrayList<>(events));
     }
 

@@ -22,6 +22,7 @@ import java.awt.Color;
 import java.awt.event.KeyEvent;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,9 @@ public final class WikiWindow extends Window {
     private static final Coord DEFAULT_SIZE = UI.scale(1080, 700);
     private static final Coord LEGACY_DEFAULT_SIZE = UI.scale(1000, 650);
     private static final Coord MINIMUM_SIZE = UI.scale(820, 540);
-    private static final int LOCAL_RESULT_LIMIT = 120;
+    private static final int LOCAL_RESULT_LIMIT = 48;
+    private static final int COMMUNITY_SEARCH_BUTTON_WIDTH = 132;
+    private static final int RELATED_MINIMUM_WIDTH = UI.scale(1040);
     private static final Text.Foundry ROW_TITLE =
             new Text.Foundry(Text.sans, 13, MoonFlowerHudTheme.IVORY).aa(true);
     private static final Text.Foundry ROW_META =
@@ -57,7 +60,11 @@ public final class WikiWindow extends Window {
         }
 
         static ShelfEntry reference(WikiSearchIndex.Record record) {
-            return(reference(record.reference));
+            WikiReference reference = record.reference;
+            String meta = reference.provenance.name() + " • " + reference.category;
+            if(record.summary != null && !record.summary.isBlank())
+                meta += " • " + oneLine(record.summary, 140);
+            return(new ShelfEntry(reference.title, meta, reference, null, null, null));
         }
 
         static ShelfEntry reference(WikiReference reference) {
@@ -83,6 +90,11 @@ public final class WikiWindow extends Window {
         static ShelfEntry empty(String label, String guidance) {
             return(new ShelfEntry(label, guidance, null, null, null, null));
         }
+
+        private static String oneLine(String value, int limit) {
+            String compact = value.replaceAll("\\s+", " ").trim();
+            return(compact.length() <= limit ? compact : compact.substring(0, limit - 1) + "…");
+        }
     }
 
     private final GameUI gui;
@@ -101,14 +113,15 @@ public final class WikiWindow extends Window {
     private final RichTextBox articleView;
     private final RelatedList relatedList;
     private final Button actionButton, openSourceButton, licenseButton;
-    private final List<ShelfEntry> shelfEntries = new ArrayList<>();
+    private List<ShelfEntry> shelfEntries = Collections.emptyList();
     private final List<WikiReference> related = new ArrayList<>();
     private Future<WikiSearchResponse> pendingSearch;
     private Future<WikiArticle> pendingArticle;
     private WikiReference requestedReference;
     private WikiArticle article;
     private ShelfMode shelfMode = ShelfMode.CATEGORIES;
-    private String baseStatus = "The archive is ready. Local records update as you type.";
+    private String baseStatus = "Session records update as you type • Enter searches the community archive.";
+    private boolean relatedAvailable;
     private long displayedCooldown = -1;
 
     public WikiWindow(GameUI gui, RingOfBrodgarWikiService service, Coord initialSize) {
@@ -135,9 +148,10 @@ public final class WikiWindow extends Window {
                 searchArchive();
             }
         }, UI.scale(184, 8));
-        archiveSearchButton = add(new Button(UI.scale(116), "Search Wiki", this::searchArchive),
+        archiveSearchButton = add(new Button(UI.scale(COMMUNITY_SEARCH_BUTTON_WIDTH), "Community Search", this::searchArchive),
                 UI.scale(794, 8));
-        archiveSearchButton.tooltip = "Search Ring of Brodgar. Pressing Enter in the search field does the same.";
+        archiveSearchButton.tooltip = "Search the Ring of Brodgar community archive. Enter does the same.";
+        searchEntry.tooltip = "Type to search records known to this session. Enter searches the community archive.";
         bookmarkButton = add(new Button(UI.scale(92), "☆ Save", this::toggleBookmark), UI.scale(920, 8));
         status = add(new Label(baseStatus), UI.scale(10, 40));
         status.setcolor(MoonFlowerHudTheme.IVORY);
@@ -153,7 +167,7 @@ public final class WikiWindow extends Window {
                 UI.scale(164, 66));
         searchesButton = add(new Button(UI.scale(72), "Queries", () -> showShelf(ShelfMode.SEARCHES)),
                 UI.scale(241, 66));
-        shelfHeading = add(new Label("Archive index"), UI.scale(10, 99));
+        shelfHeading = add(new Label("Browse by type"), UI.scale(10, 99));
         shelfHeading.setcolor(MoonFlowerHudTheme.GOLD);
         shelfList = add(new ShelfList(UI.scale(310, 530)), UI.scale(10, 119));
 
@@ -170,7 +184,7 @@ public final class WikiWindow extends Window {
         openSourceButton = add(new Button(UI.scale(110), "Open Source", this::openSource), UI.scale(465, 656));
         licenseButton = add(new Button(UI.scale(75), "License",
                 () -> openExternal(RingOfBrodgarWikiService.COPYRIGHT_URI)), UI.scale(585, 656));
-        attribution = add(new Label("GUIDE community archive • LIVE current session action • GFDL text"),
+        attribution = add(new Label("LIVE current session • GUIDE community archive • GFDL text"),
                 UI.scale(670, 661));
         attribution.setcolor(new Color(151, 181, 181));
         actionButton.disable(true);
@@ -237,14 +251,15 @@ public final class WikiWindow extends Window {
             return;
         }
         List<WikiSearchIndex.Record> local = index.search(normalized, LOCAL_RESULT_LIMIT);
-        showRecords(local, "Known records matching “" + normalized + "”");
+        showRecords(local, "Session records • “" + normalized + "”");
         if(local.isEmpty()) {
-            shelfEntries.add(ShelfEntry.communitySearch(normalized));
-            shelfList.reset();
-            setBaseStatus("No session-known record matched. Press Enter or select the community search below.");
+            List<ShelfEntry> entries = new ArrayList<>(shelfEntries);
+            entries.add(ShelfEntry.communitySearch(normalized));
+            setShelfEntries(entries);
+            setBaseStatus("No session record matched. Press Enter or select the community search below.");
         } else {
-            setBaseStatus(local.size() + " known record" + (local.size() == 1 ? "" : "s") +
-                    " • Press Enter or Search Wiki for community results.");
+            setBaseStatus(local.size() + " session record" + (local.size() == 1 ? "" : "s") +
+                    " • Press Enter or Community Search for the wider archive.");
         }
     }
 
@@ -271,11 +286,10 @@ public final class WikiWindow extends Window {
                 uniqueRecords.putIfAbsent(relatedKey(reference), record);
             }
             List<WikiSearchIndex.Record> records = new ArrayList<>(uniqueRecords.values());
-            showRecords(records, "Community results for “" + response.query + "”");
+            showRecords(records, "Community archive • “" + response.query + "”");
             if(records.isEmpty()) {
-                shelfEntries.add(ShelfEntry.empty("No community results",
-                        "Try a broader name or check the spelling"));
-                shelfList.reset();
+                setShelfEntries(List.of(ShelfEntry.empty("No community results",
+                        "Try a broader name or check the spelling")));
             }
             setBaseStatus(records.isEmpty() ? "No community records matched “" + response.query + "”." :
                     records.size() + " community result" + (records.size() == 1 ? "" : "s") +
@@ -417,7 +431,7 @@ public final class WikiWindow extends Window {
         setRelatedVisible(false);
         updateControls(null);
         showShelf(ShelfMode.CATEGORIES);
-        setBaseStatus("The archive is ready. Local records update as you type.");
+        setBaseStatus("Session records update as you type • Enter searches the community archive.");
         layoutArticle();
     }
 
@@ -486,45 +500,53 @@ public final class WikiWindow extends Window {
 
     private void showShelf(ShelfMode mode) {
         shelfMode = mode;
-        shelfEntries.clear();
+        List<ShelfEntry> entries = new ArrayList<>();
         if(mode == ShelfMode.CATEGORIES) {
-            shelfHeading.settext("Archive index");
+            shelfHeading.settext("Browse by type");
             for(String category : index.categories())
-                shelfEntries.add(ShelfEntry.category(category, index.category(category, 0).size()));
+                entries.add(ShelfEntry.category(category, index.category(category, 0).size()));
         } else if(mode == ShelfMode.RECENT) {
             shelfHeading.settext("Recently viewed");
             for(WikiReference reference : library.recent())
-                shelfEntries.add(ShelfEntry.reference(reference));
+                entries.add(ShelfEntry.reference(reference));
         } else if(mode == ShelfMode.BOOKMARKS) {
             shelfHeading.settext("Saved records");
             for(WikiReference reference : library.bookmarks())
-                shelfEntries.add(ShelfEntry.reference(reference));
+                entries.add(ShelfEntry.reference(reference));
         } else if(mode == ShelfMode.SEARCHES) {
             shelfHeading.settext("Search history");
             for(String query : library.searches())
-                shelfEntries.add(ShelfEntry.search(query));
+                entries.add(ShelfEntry.search(query));
         }
-        if(shelfEntries.isEmpty()) {
+        if(entries.isEmpty()) {
             if(mode == ShelfMode.CATEGORIES)
-                shelfEntries.add(ShelfEntry.empty("No session records yet",
-                        "Search Wiki to browse community records"));
+                entries.add(ShelfEntry.empty("No session records yet",
+                        "Type above for session records or use Community Search"));
             else if(mode == ShelfMode.RECENT)
-                shelfEntries.add(ShelfEntry.empty("No recent records", "Opened records appear here"));
+                entries.add(ShelfEntry.empty("No recent records", "Opened records appear here"));
             else if(mode == ShelfMode.BOOKMARKS)
-                shelfEntries.add(ShelfEntry.empty("No saved records", "Save an open record to keep it here"));
+                entries.add(ShelfEntry.empty("No saved records", "Save an open record to keep it here"));
             else if(mode == ShelfMode.SEARCHES)
-                shelfEntries.add(ShelfEntry.empty("No previous queries", "Community searches appear here"));
+                entries.add(ShelfEntry.empty("No previous queries", "Community searches appear here"));
         }
-        shelfList.reset();
+        setShelfEntries(entries);
     }
 
     private void showRecords(List<WikiSearchIndex.Record> records, String heading) {
         shelfMode = ShelfMode.RECORDS;
-        shelfEntries.clear();
+        List<ShelfEntry> entries = new ArrayList<>();
         for(WikiSearchIndex.Record record : records)
-            shelfEntries.add(ShelfEntry.reference(record));
+            entries.add(ShelfEntry.reference(record));
         shelfHeading.settext(heading);
-        shelfList.reset();
+        setShelfEntries(entries);
+    }
+
+    private void setShelfEntries(List<ShelfEntry> entries) {
+        // Swap a complete snapshot so the visible shelf never passes through an empty state.
+        shelfEntries = Collections.unmodifiableList(new ArrayList<>(entries));
+        shelfList.sel = null;
+        shelfList.selindex = -1;
+        shelfList.scrollval(0);
     }
 
     private void openShelfEntry(ShelfEntry entry) {
@@ -536,7 +558,7 @@ public final class WikiWindow extends Window {
             showRecords(index.category(entry.category, LOCAL_RESULT_LIMIT), entry.category);
         } else if(entry.search != null) {
             searchEntry.settext(entry.search);
-            localSearch(entry.search);
+            searchArchive();
         } else if(entry.communitySearch != null) {
             searchEntry.settext(entry.communitySearch);
             searchArchive();
@@ -544,7 +566,9 @@ public final class WikiWindow extends Window {
     }
 
     private void setRelatedVisible(boolean visible) {
-        if(visible) {
+        relatedAvailable = visible;
+        boolean shown = visible && relatedShelfAllowed(sz.x);
+        if(shown) {
             relatedHeading.show();
             relatedList.show();
         } else {
@@ -602,7 +626,7 @@ public final class WikiWindow extends Window {
         backButton.move(Coord.of(margin, topY));
         forwardButton.move(Coord.of(margin + UI.scale(53), topY));
         homeButton.move(Coord.of(margin + UI.scale(106), topY));
-        int searchX = margin + UI.scale(174), searchButtonWidth = UI.scale(116), bookmarkWidth = UI.scale(92);
+        int searchX = margin + UI.scale(174), searchButtonWidth = UI.scale(COMMUNITY_SEARCH_BUTTON_WIDTH), bookmarkWidth = UI.scale(92);
         int searchWidth = Math.max(UI.scale(250), sz.x - searchX - searchButtonWidth -
                 bookmarkWidth - (gap * 2) - margin);
         searchEntry.move(Coord.of(searchX, topY));
@@ -623,10 +647,10 @@ public final class WikiWindow extends Window {
         int contentHeight = Math.max(UI.scale(240), footerTop - contentTop - gap);
         shelfList.move(Coord.of(margin, contentTop));
         shelfList.resize(Coord.of(sidebarWidth, contentHeight));
-        shelfList.reset();
 
         int articleX = margin + sidebarWidth + UI.scale(10);
-        boolean hasRelated = relatedList.visible();
+        boolean hasRelated = relatedAvailable && relatedShelfAllowed(sz.x);
+        setRelatedVisible(relatedAvailable);
         int relatedWidth = hasRelated ?
                 Math.max(UI.scale(180), Math.min(UI.scale(235), sz.x * 21 / 100)) : 0;
         int relatedX = hasRelated ? sz.x - margin - relatedWidth : sz.x - margin;
@@ -660,7 +684,7 @@ public final class WikiWindow extends Window {
             return;
         int margin = UI.scale(10), sidebarWidth = Math.max(UI.scale(270), Math.min(UI.scale(330), sz.x * 30 / 100));
         int articleX = margin + sidebarWidth + UI.scale(10);
-        boolean hasRelated = relatedList.visible();
+        boolean hasRelated = relatedAvailable && relatedShelfAllowed(sz.x);
         int relatedWidth = hasRelated ?
                 Math.max(UI.scale(180), Math.min(UI.scale(235), sz.x * 21 / 100)) : 0;
         int relatedX = hasRelated ? sz.x - margin - relatedWidth : sz.x - margin;
@@ -682,6 +706,10 @@ public final class WikiWindow extends Window {
     private static Coord constrain(Coord requested) {
         Coord value = requested == null || requested.equals(LEGACY_DEFAULT_SIZE) ? DEFAULT_SIZE : requested;
         return(Coord.of(Math.max(MINIMUM_SIZE.x, value.x), Math.max(MINIMUM_SIZE.y, value.y)));
+    }
+
+    private static boolean relatedShelfAllowed(int width) {
+        return(WikiLayoutPolicy.relatedShelfAllowed(width, RELATED_MINIMUM_WIDTH));
     }
 
     private static String homeText() {

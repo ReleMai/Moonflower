@@ -36,6 +36,8 @@ public final class ForagingController extends Widget {
     private static final int CORRIDOR_TILES = 8;
     private static final int DIRECTION_RUN_TILES = 50;
     private static final int DIRECTION_STEP_TILES = 4;
+    private static final int MAX_ROUTE_POINTS = 64;
+    private static final int MAX_ROUTE_LENGTH_TILES = 500;
     private static final DateTimeFormatter EVENT_TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private final GameUI gui;
@@ -45,6 +47,7 @@ public final class ForagingController extends Widget {
     private ForagingRepository repository;
     private final Set<String> selected = new LinkedHashSet<>();
     private final List<ForagingGobScanner.HerbResource> catalog = new ArrayList<>();
+    private final List<Coord2d> configuredRoute = new ArrayList<>();
     private final java.util.Map<String, String> persistedCatalog = new java.util.HashMap<>();
     private final ArrayDeque<String> events = new ArrayDeque<>();
     private final java.util.Map<Long, Long> blacklist = new java.util.HashMap<>();
@@ -74,6 +77,14 @@ public final class ForagingController extends Widget {
             repository = new ForagingRepository();
             selected.addAll(repository.loadSelection(gui.genus));
             direction = repository.loadDirection(gui.genus);
+            for(Coord2d point : repository.loadRoute(gui.genus)) {
+                if(!validRoutePoint(point) || configuredRoute.size() >= MAX_ROUTE_POINTS)
+                    continue;
+                List<Coord2d> candidate = new ArrayList<>(configuredRoute);
+                candidate.add(point);
+                if(routeLength(candidate) <= MAX_ROUTE_LENGTH_TILES * MCache.tilesz.x)
+                    configuredRoute.add(point);
+            }
         } catch(SQLException e) {
             repository = null;
             record("Profile database unavailable: " + concise(e.getMessage()));
@@ -85,8 +96,83 @@ public final class ForagingController extends Widget {
         return(snapshot);
     }
 
+    GameUI gameUI() {
+        return(gui);
+    }
+
     public synchronized boolean active() {
         return(snapshot != null && snapshot.active());
+    }
+
+    public synchronized List<Coord2d> configuredRoute() {
+        return(List.copyOf(configuredRoute));
+    }
+
+    public synchronized void addRoutePoint(Coord2d point) {
+        if(!validRoutePoint(point)) {
+            reason = "Route point rejected: the map coordinate is unavailable.";
+            publish();
+            return;
+        }
+        if(runInProgress()) {
+            pause("Paused: plotted route changed by the user.", true);
+            route = List.of();
+            routeIndex = 0;
+        }
+        if(!configuredRoute.isEmpty() &&
+                configuredRoute.get(configuredRoute.size() - 1).dist(point) < MCache.tilesz.x) {
+            reason = "Route point ignored: it is too close to the previous point.";
+            publish();
+            return;
+        }
+        if(configuredRoute.size() >= MAX_ROUTE_POINTS) {
+            reason = "Route point rejected: the bounded path already has " + MAX_ROUTE_POINTS + " points.";
+            publish();
+            return;
+        }
+        List<Coord2d> candidate = new ArrayList<>(configuredRoute);
+        candidate.add(point);
+        if(routeLength(candidate) > MAX_ROUTE_LENGTH_TILES * MCache.tilesz.x) {
+            reason = "Route point rejected: the bounded path may not exceed " +
+                    MAX_ROUTE_LENGTH_TILES + " tiles.";
+            publish();
+            return;
+        }
+        configuredRoute.add(point);
+        direction = ForagingDirection.ROUTE;
+        persistDirection();
+        persistRoute();
+        reason = "Route point " + configuredRoute.size() + " added. Add another point or start the run.";
+        publish();
+    }
+
+    public synchronized void removeLastRoutePoint() {
+        if(runInProgress()) {
+            pause("Paused: plotted route changed by the user.", true);
+            route = List.of();
+            routeIndex = 0;
+        }
+        if(configuredRoute.isEmpty()) {
+            reason = "No plotted route point to remove.";
+        } else {
+            configuredRoute.remove(configuredRoute.size() - 1);
+            persistRoute();
+            reason = configuredRoute.isEmpty() ?
+                    "Plotted route cleared." :
+                    "Removed the last plotted route point.";
+        }
+        publish();
+    }
+
+    public synchronized void clearRoute() {
+        if(runInProgress())
+            pause("Paused: plotted route cleared by the user.", true);
+        route = List.of();
+        routeIndex = 0;
+        configuredRoute.clear();
+        persistRoute();
+        reason = "Plotted route cleared.";
+        publish();
     }
 
     public synchronized void toggleSelection(String resourceName) {
@@ -124,7 +210,7 @@ public final class ForagingController extends Widget {
             pause("Travel direction changed to " + direction.label + ".", true);
         else
             reason = direction.usesCheckpointRoute() ?
-                    "Checkpoint route mode selected." :
+                    "Plotted route mode selected." :
                     "Direction " + direction.label + " selected for a bounded 50-tile run.";
         publish();
     }
@@ -141,16 +227,18 @@ public final class ForagingController extends Widget {
             return;
         }
         Gob player = gui.map.player();
-        if(direction.usesCheckpointRoute()) {
-            gui.map.checkpointManager.pauseIt();
-            route = List.copyOf(gui.map.checkpointManager.getAllCoords());
-        } else {
-            route = directionalRoute(player.rc, direction);
-        }
+        route = direction.usesCheckpointRoute() ? List.copyOf(configuredRoute) :
+                directionalRoute(player.rc, direction);
         segmentId = currentSegment(player.rc);
         if(segmentId < 0) {
             transition(ForagingSnapshot.State.PAUSED,
                     "Start blocked: current map segment identity is unreadable.");
+            return;
+        }
+        if(direction.usesCheckpointRoute() && !routeMatchesSegment(segmentId)) {
+            route = List.of();
+            transition(ForagingSnapshot.State.PAUSED,
+                    "Start blocked: the plotted route belongs to another or unreadable map segment.");
             return;
         }
         routeIndex = direction.usesCheckpointRoute() ? nearestRoutePoint(player.rc, route) : 1;
@@ -161,7 +249,7 @@ public final class ForagingController extends Widget {
         blacklist.clear();
         transition(ForagingSnapshot.State.SCANNING,
                 direction.usesCheckpointRoute() ?
-                        "Checkpoint route copied; scanning its bounded corridor." :
+                        "Plotted route locked; scanning its bounded corridor." :
                         "Direction " + direction.label + " locked; scanning its bounded corridor.");
         nextScan = 0;
     }
@@ -237,9 +325,8 @@ public final class ForagingController extends Widget {
             return("Start blocked: no loaded player/map session.");
         if(selected.isEmpty())
             return("Start blocked: select at least one forageable.");
-        if(direction.usesCheckpointRoute() &&
-                (gui.map.checkpointManager == null || gui.map.checkpointManager.getAllCoords().size() < 2))
-            return("Start blocked: Route mode needs at least two points in Checkpoint Manager.");
+        if(direction.usesCheckpointRoute() && configuredRoute.size() < 2)
+            return("Start blocked: plot at least two points on the Wayfinder map.");
         if(currentSegment(gui.map.player().rc) < 0)
             return("Start blocked: current map segment identity is unreadable.");
         if(gui.maininv == null)
@@ -476,6 +563,27 @@ public final class ForagingController extends Widget {
         }
     }
 
+    private void persistRoute() {
+        if(repository == null)
+            return;
+        try {
+            repository.saveRoute(gui.genus, configuredRoute);
+        } catch(SQLException e) {
+            record("Route save failed: " + concise(e.getMessage()));
+        }
+    }
+
+    private boolean runInProgress() {
+        return(active() || state == ForagingSnapshot.State.PAUSED);
+    }
+
+    private boolean routeMatchesSegment(long expectedSegment) {
+        for(Coord2d point : configuredRoute)
+            if(currentSegment(point) != expectedSegment)
+                return(false);
+        return(true);
+    }
+
     private Set<Coord> adjacentGoals(ForagingTarget candidate) {
         Coord center = candidate.coordinate.floor(MCache.tilesz);
         Set<Coord> goals = new HashSet<>();
@@ -517,9 +625,12 @@ public final class ForagingController extends Widget {
             distance = player.rc.dist(target.coordinate);
             bearing = Math.atan2(target.coordinate.y - player.rc.y, target.coordinate.x - player.rc.x);
         }
-        snapshot = new ForagingSnapshot(state, reason, target, routeIndex, route.size(),
+        List<Coord2d> displayRoute = route.isEmpty() ? configuredRoute : route;
+        int displayRouteSize = displayRoute.size();
+        int displayRouteIndex = route.isEmpty() ? 0 : routeIndex;
+        snapshot = new ForagingSnapshot(state, reason, target, displayRouteIndex, displayRouteSize,
                 freeCells, RESERVE_CELLS, sessionYield, distance, bearing, direction, selected,
-                catalog, new ArrayList<>(events));
+                catalog, displayRoute, new ArrayList<>(events));
     }
 
     static List<Coord2d> directionalRoute(Coord2d start, ForagingDirection direction) {
@@ -561,6 +672,21 @@ public final class ForagingController extends Widget {
         for(int index = 1; index < points.size(); index++)
             best = Math.min(best, pointSegmentDistance(point, points.get(index - 1), points.get(index)));
         return(best);
+    }
+
+    static double routeLength(List<Coord2d> points) {
+        double length = 0;
+        for(int index = 1; index < points.size(); index++)
+            length += points.get(index - 1).dist(points.get(index));
+        return(length);
+    }
+
+    private static boolean finite(double value) {
+        return(!Double.isNaN(value) && !Double.isInfinite(value));
+    }
+
+    private static boolean validRoutePoint(Coord2d point) {
+        return(point != null && finite(point.x) && finite(point.y));
     }
 
     private static double pointSegmentDistance(Coord2d point, Coord2d a, Coord2d b) {

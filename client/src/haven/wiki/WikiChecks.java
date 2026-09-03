@@ -17,6 +17,8 @@ public final class WikiChecks {
 
     private void run() throws Exception {
         normalizationIsBounded();
+        communitySearchEnablesRewriteSupport();
+        responsiveRelatedShelfRuleIsBounded();
         articleLinksAreEncoded();
         searchMarkupBecomesPlainText();
         wikiMarkupIsCleaned();
@@ -26,13 +28,14 @@ public final class WikiChecks {
         unsafeImagesAreRejected();
         cacheAvoidsDuplicateRequests();
         searchRankingAndAliasesWork();
+        forgivingSearchMatchesPunctuationAndTypos();
         categoryAndNoResultSearchWork();
         navigationPreservesBackAndForward();
         articleLinksAndCategoriesResolve();
         referencesRoundTripWithoutUsingDisplayIdentity();
         liveActionsUseRealMenuKinds();
         ornamentMotionHonorsReducedSetting();
-        System.out.println("Wiki checks passed: " + passed + "/16");
+        System.out.println("Wiki checks passed: " + passed + "/19");
     }
 
     private void normalizationIsBounded() {
@@ -40,6 +43,21 @@ public final class WikiChecks {
                 "query whitespace was not normalized");
         check(RingOfBrodgarWikiService.normalizeQuery("x".repeat(200)).length() == 120,
                 "query length was not bounded");
+        passed++;
+    }
+
+    private void communitySearchEnablesRewriteSupport() {
+        check(RingOfBrodgarWikiService.searchUri("boar").toASCIIString()
+                        .contains("srenablerewrites=1"),
+                "community search did not request MediaWiki query rewriting");
+        passed++;
+    }
+
+    private void responsiveRelatedShelfRuleIsBounded() {
+        check(!WikiLayoutPolicy.relatedShelfAllowed(900, 1040),
+                "related shelf was kept at a narrow readable width");
+        check(WikiLayoutPolicy.relatedShelfAllowed(1080, 1040),
+                "related shelf was hidden at the preferred width");
         passed++;
     }
 
@@ -180,6 +198,19 @@ public final class WikiChecks {
                 "category term did not find its record");
         check(index.search("definitely absent", 10).isEmpty(),
                 "no-result search returned unrelated records");
+        passed++;
+    }
+
+    private void forgivingSearchMatchesPunctuationAndTypos() {
+        WikiSearchIndex index = new WikiSearchIndex();
+        index.put(new WikiSearchIndex.Record(WikiReference.guide("Iron Ore", "Resources"),
+                "Raw metallic resource", List.of("hematite")));
+        check("Iron Ore".equals(index.search("iron-ore", 10).get(0).reference.title),
+                "punctuation variation did not match the local title");
+        check("Iron Ore".equals(index.search("iorn ore", 10).get(0).reference.title),
+                "safe two-edit typo did not match the local title");
+        check(index.search("irn", 10).isEmpty(),
+                "short fuzzy query returned an unsafe near match");
         passed++;
     }
 
