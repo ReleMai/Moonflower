@@ -96,9 +96,13 @@ Pop-Location
 this checkout instead of asking the stable GitHub feed for a production
 package. The branch selector remains available through
 `.\client\Play.bat -BranchSelect`; it builds a selected branch in an isolated
-temporary worktree. The selector refreshes branch metadata from the configured
-remote, previews the isolated actions, and keeps a live activity/progress view
-visible while Git, Ant, and the client launcher are processing.
+per-branch detached worktree cache. The first build is necessarily a full
+compile, while later normal builds reuse ignored Ant output and run incremental
+`ant deftgt`; use **Force clean rebuild** only to troubleshoot stale output.
+The selector refreshes branch metadata from the configured remote, verifies
+that the package revision matches the selected commit before run-only launch,
+previews the isolated actions, and keeps a live activity/progress view visible
+while Git, Ant, and the client launcher are processing.
 
 ## Stable branch and source synchronization
 

@@ -227,6 +227,35 @@ function Get-ManagedWorktreePath {
     return $candidate
 }
 
+function Get-ManagedBuildCachePath {
+    param([string]$BranchName)
+
+    $slug = $BranchName -replace '[^A-Za-z0-9._-]', '-'
+    $slug = $slug.Trim([char[]]'.-')
+    if ([string]::IsNullOrWhiteSpace($slug)) {
+        $slug = 'branch'
+    }
+    if ($slug.Length -gt 48) {
+        $slug = $slug.Substring(0, 48).TrimEnd([char[]]'.-')
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($BranchName)
+        $digest = $sha.ComputeHash($bytes)
+        $hash = ([BitConverter]::ToString($digest).Replace('-', '')).Substring(0, 10).ToLowerInvariant()
+    } finally {
+        $sha.Dispose()
+    }
+
+    $cacheRoot = [System.IO.Path]::GetFullPath((Join-Path $script:WorktreeRoot 'build-cache'))
+    $candidate = [System.IO.Path]::GetFullPath((Join-Path $cacheRoot ('{0}-{1}' -f $slug, $hash)))
+    $rootPrefix = $cacheRoot.TrimEnd([char]92, [char]47) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $candidate.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The generated build-cache path escaped its managed root.'
+    }
+    return $candidate
+}
+
 function Assert-ClientStopped {
     $guardPath = Join-Path $script:RepoRoot 'scripts\assert-client-stopped.ps1'
     if (-not (Test-Path -LiteralPath $guardPath -PathType Leaf)) {
@@ -253,6 +282,60 @@ function New-TestWorktree {
         throw ('The test worktree resolved to {0}, expected {1}.' -f $actualCommit, $Commit)
     }
     return $path
+}
+
+function Test-CleanManagedWorktree {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        return $false
+    }
+    $rootResult = Invoke-Git @('rev-parse', '--show-toplevel') -WorkingPath $Path -AllowFailure
+    if ($rootResult.ExitCode -ne 0) {
+        return $false
+    }
+    $reportedRoot = [string]($rootResult.Output | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($reportedRoot)) {
+        return $false
+    }
+    if (-not ([System.IO.Path]::GetFullPath($reportedRoot.Trim()).Equals([System.IO.Path]::GetFullPath($Path), [StringComparison]::OrdinalIgnoreCase))) {
+        return $false
+    }
+    $statusResult = Invoke-Git @('status', '--porcelain=v1', '--untracked-files=all') -WorkingPath $Path -AllowFailure
+    return ($statusResult.ExitCode -eq 0 -and @($statusResult.Output).Count -eq 0)
+}
+
+function New-OrReuseBuildCacheWorktree {
+    param(
+        [string]$BranchName,
+        [string]$Commit,
+        [object]$Worker
+    )
+
+    $path = Get-ManagedBuildCachePath $BranchName
+    $remoteRef = 'refs/remotes/{0}/{1}' -f $script:Remote, $BranchName
+    if (Test-Path -LiteralPath $path) {
+        if (-not (Test-CleanManagedWorktree $path)) {
+            Report-OperationProgress -Worker $Worker -Percent 18 -Stage 'CACHE' -Message ('Build cache is not a clean managed worktree; leaving it untouched and using a disposable worktree instead: {0}' -f $path) -WriteLog
+            return [pscustomobject]@{ Path = (New-TestWorktree $BranchName $Commit); IsCached = $false; CacheBypassed = $true }
+        }
+        Report-OperationProgress -Worker $Worker -Percent 18 -Stage 'CACHE' -Message ('Reusing clean isolated build cache: {0}' -f $path) -Indeterminate -WriteLog
+        $null = Invoke-Git @('checkout', '--detach', '--force', $remoteRef) -WorkingPath $path
+        $actualCommit = [string]((Invoke-Git @('rev-parse', '--verify', 'HEAD') -WorkingPath $path).Output | Select-Object -First 1)
+        if ($actualCommit.Trim() -ne $Commit) {
+            throw ('The cached worktree resolved to {0}, expected {1}.' -f $actualCommit.Trim(), $Commit)
+        }
+        return [pscustomobject]@{ Path = $path; IsCached = $true; CacheBypassed = $false }
+    }
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
+    Report-OperationProgress -Worker $Worker -Percent 18 -Stage 'CACHE' -Message ('Creating isolated build cache for this branch: {0}' -f $path) -Indeterminate -WriteLog
+    $null = Invoke-Git @('worktree', 'add', '--detach', $path, $remoteRef)
+    $actualCommit = [string]((Invoke-Git @('rev-parse', '--verify', 'HEAD') -WorkingPath $path).Output | Select-Object -First 1)
+    if ($actualCommit.Trim() -ne $Commit) {
+        throw ('The cached worktree resolved to {0}, expected {1}.' -f $actualCommit.Trim(), $Commit)
+    }
+    return [pscustomobject]@{ Path = $path; IsCached = $true; CacheBypassed = $false }
 }
 
 function Remove-TestWorktree {
@@ -284,21 +367,39 @@ function Get-ClientPackagePath {
     return $null
 }
 
+function Get-WorktreeBuildRevision {
+    param([string]$WorktreePath)
+
+    $buildInfoPath = Join-Path $WorktreePath 'client\build\classes\buildinfo'
+    if (-not (Test-Path -LiteralPath $buildInfoPath -PathType Leaf)) {
+        return $null
+    }
+    $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw
+    $match = [regex]::Match($buildInfo, '(?im)^\s*git-rev\s*=\s*([0-9a-f]{40})\s*$')
+    if ($match.Success) {
+        return $match.Groups[1].Value.ToLowerInvariant()
+    }
+    return $null
+}
+
 function Invoke-TestBuild {
     param(
         [string]$WorktreePath,
-        [object]$Worker
+        [object]$Worker,
+        [bool]$CleanBuild
     )
 
     if (-not (Get-Command ant -ErrorAction SilentlyContinue)) {
         throw 'Ant is not available on PATH.'
     }
     $clientPath = Join-Path $WorktreePath 'client'
-    Report-OperationProgress -Worker $Worker -Percent 35 -Stage 'BUILD' -Message 'Starting Ant clean deftgt in the selected worktree...' -Indeterminate -WriteLog
+    $antTarget = if ($CleanBuild) { 'clean deftgt' } else { 'deftgt' }
+    $buildMode = if ($CleanBuild) { 'clean rebuild' } else { 'incremental build' }
+    Report-OperationProgress -Worker $Worker -Percent 35 -Stage 'BUILD' -Message ("Starting Ant {0} ({1}) in the selected worktree..." -f $antTarget, $buildMode) -Indeterminate -WriteLog
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $env:ComSpec
-    $startInfo.Arguments = '/d /c ant clean deftgt'
+    $startInfo.Arguments = '/d /c ant ' + $antTarget
     $startInfo.WorkingDirectory = $clientPath
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
@@ -334,7 +435,7 @@ function Invoke-TestBuild {
         if ($exitCode -ne 0) {
             throw ('The selected branch build failed with exit code {0}.' -f $exitCode)
         }
-        Report-OperationProgress -Worker $Worker -Percent 70 -Stage 'BUILD' -Message 'Ant clean deftgt completed successfully.' -WriteLog
+        Report-OperationProgress -Worker $Worker -Percent 70 -Stage 'BUILD' -Message ("Ant {0} completed successfully." -f $antTarget) -WriteLog
     } finally {
         $process.Dispose()
     }
@@ -343,7 +444,8 @@ function Invoke-TestBuild {
 function Invoke-TestLaunch {
     param(
         [string]$WorktreePath,
-        [object]$Worker
+        [object]$Worker,
+        [string]$ExpectedCommit
     )
 
     $clientPath = Join-Path $WorktreePath 'client'
@@ -353,7 +455,12 @@ function Invoke-TestLaunch {
     }
     $packagePath = Get-ClientPackagePath $WorktreePath
     if ($null -eq $packagePath) {
-        throw 'No generated client package exists in the temporary worktree. Choose Clean build + launch; Run existing build requires client\hafen.jar or client\bin\hafen.jar to already be present.'
+        throw 'No generated client package exists in the isolated worktree. Choose Build + launch; Run existing build requires client\hafen.jar or client\bin\hafen.jar to already be present.'
+    }
+    $buildRevision = Get-WorktreeBuildRevision $WorktreePath
+    if ([string]::IsNullOrWhiteSpace($buildRevision) -or $buildRevision -ne $ExpectedCommit) {
+        $actual = if ([string]::IsNullOrWhiteSpace($buildRevision)) { 'unknown' } else { $buildRevision }
+        throw ('The available package was built from {0}, but the selected remote commit is {1}. Choose Build + launch to update it.' -f $actual, $ExpectedCommit)
     }
     Report-OperationProgress -Worker $Worker -Percent 82 -Stage 'LAUNCH' -Message ("Launching Play.bat -NoUpdate from {0}. The stable GitHub updater is bypassed." -f $packagePath) -WriteLog
     if ($null -ne $script:ProgressDialog -and $script:ProgressDialog.Form.WindowState -ne [System.Windows.Forms.FormWindowState]::Minimized) {
@@ -392,7 +499,7 @@ function New-BranchSelectorDialog {
 
     $form = New-Object System.Windows.Forms.Form
     $form.Text = 'MoonFlower - Test a Remote Branch'
-    $form.ClientSize = New-Object System.Drawing.Size(900, 720)
+    $form.ClientSize = New-Object System.Drawing.Size(900, 750)
     $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::Sizable
     $form.MinimumSize = New-Object System.Drawing.Size(820, 650)
@@ -410,7 +517,7 @@ function New-BranchSelectorDialog {
     $form.Controls.Add($title)
 
     $info = New-Object System.Windows.Forms.Label
-    $info.Text = 'Branch data is fetched from the selected remote. Run and Clean build + launch use a temporary detached Git worktree; your current checkout is not switched, pulled, or overwritten.'
+    $info.Text = 'Branch data is fetched from the selected remote. Builds use a clean, isolated per-branch cache for speed; your current checkout is never switched, pulled, or overwritten.'
     $info.Font = New-Object System.Drawing.Font('Segoe UI', 9.5)
     $info.ForeColor = $colors.Muted
     $info.Location = New-Object System.Drawing.Point(30, 62)
@@ -515,28 +622,39 @@ function New-BranchSelectorDialog {
     $localLabel.Size = New-Object System.Drawing.Size(715, 22)
     $form.Controls.Add($localLabel)
 
-    $buildBox = New-Object System.Windows.Forms.Label
-    $buildBox.Font = New-Object System.Drawing.Font('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
-    $buildBox.ForeColor = $colors.Ivory
-    $buildBox.Text = if ($BuildByDefault) { 'Enter key: Clean build + launch' } else { 'Enter key: Run existing build' }
-    $buildBox.Location = New-Object System.Drawing.Point(145, 308)
-    $buildBox.Size = New-Object System.Drawing.Size(340, 26)
-    $form.Controls.Add($buildBox)
+    $cacheBox = New-Object System.Windows.Forms.CheckBox
+    $cacheBox.Text = 'Reuse isolated build cache (faster)'
+    $cacheBox.Checked = $true
+    $cacheBox.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+    $cacheBox.ForeColor = $colors.Ivory
+    $cacheBox.Location = New-Object System.Drawing.Point(145, 308)
+    $cacheBox.Size = New-Object System.Drawing.Size(280, 26)
+    $form.Controls.Add($cacheBox)
+
+    $cleanBox = New-Object System.Windows.Forms.CheckBox
+    $cleanBox.Text = 'Force clean rebuild (slower)'
+    $cleanBox.Checked = $false
+    $cleanBox.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+    $cleanBox.ForeColor = $colors.Muted
+    $cleanBox.Location = New-Object System.Drawing.Point(430, 308)
+    $cleanBox.Size = New-Object System.Drawing.Size(260, 26)
+    $form.Controls.Add($cleanBox)
 
     $keepBox = New-Object System.Windows.Forms.CheckBox
-    $keepBox.Text = 'Keep temporary worktree for inspection'
+    $keepBox.Text = 'Keep disposable worktree for inspection (cache is retained automatically)'
     $keepBox.Checked = $false
     $keepBox.Font = New-Object System.Drawing.Font('Segoe UI', 9)
     $keepBox.ForeColor = $colors.Muted
-    $keepBox.Location = New-Object System.Drawing.Point(490, 308)
-    $keepBox.Size = New-Object System.Drawing.Size(350, 26)
+    $keepBox.Location = New-Object System.Drawing.Point(145, 334)
+    $keepBox.Size = New-Object System.Drawing.Size(500, 26)
+    $keepBox.Enabled = $false
     $form.Controls.Add($keepBox)
 
     $planTitle = New-Object System.Windows.Forms.Label
     $planTitle.Text = 'What the selected action will do'
     $planTitle.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
     $planTitle.ForeColor = $colors.Gold
-    $planTitle.Location = New-Object System.Drawing.Point(30, 344)
+    $planTitle.Location = New-Object System.Drawing.Point(30, 368)
     $planTitle.Size = New-Object System.Drawing.Size(400, 22)
     $form.Controls.Add($planTitle)
 
@@ -547,7 +665,7 @@ function New-BranchSelectorDialog {
     $plan.Font = New-Object System.Drawing.Font('Consolas', 9)
     $plan.BackColor = $colors.Surface
     $plan.ForeColor = $colors.Ivory
-    $plan.Location = New-Object System.Drawing.Point(30, 367)
+    $plan.Location = New-Object System.Drawing.Point(30, 391)
     $plan.Size = New-Object System.Drawing.Size(830, 116)
     $form.Controls.Add($plan)
 
@@ -555,7 +673,7 @@ function New-BranchSelectorDialog {
     $status.Text = 'Ready.'
     $status.Font = New-Object System.Drawing.Font('Segoe UI', 9)
     $status.ForeColor = $colors.Teal
-    $status.Location = New-Object System.Drawing.Point(30, 495)
+    $status.Location = New-Object System.Drawing.Point(30, 519)
     $status.Size = New-Object System.Drawing.Size(650, 22)
     $status.AutoEllipsis = $true
     $form.Controls.Add($status)
@@ -565,7 +683,7 @@ function New-BranchSelectorDialog {
     $elapsed.Font = New-Object System.Drawing.Font('Consolas', 9)
     $elapsed.ForeColor = $colors.Muted
     $elapsed.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
-    $elapsed.Location = New-Object System.Drawing.Point(700, 495)
+    $elapsed.Location = New-Object System.Drawing.Point(700, 519)
     $elapsed.Size = New-Object System.Drawing.Size(160, 22)
     $form.Controls.Add($elapsed)
 
@@ -574,7 +692,7 @@ function New-BranchSelectorDialog {
     $progress.Minimum = 0
     $progress.Maximum = 100
     $progress.Value = 0
-    $progress.Location = New-Object System.Drawing.Point(30, 522)
+    $progress.Location = New-Object System.Drawing.Point(30, 546)
     $progress.Size = New-Object System.Drawing.Size(830, 20)
     $form.Controls.Add($progress)
 
@@ -585,7 +703,7 @@ function New-BranchSelectorDialog {
     $activity.Font = New-Object System.Drawing.Font('Consolas', 8.5)
     $activity.BackColor = [System.Drawing.Color]::FromArgb(12, 19, 30)
     $activity.ForeColor = $colors.Muted
-    $activity.Location = New-Object System.Drawing.Point(30, 550)
+    $activity.Location = New-Object System.Drawing.Point(30, 574)
     $activity.Size = New-Object System.Drawing.Size(830, 90)
     $form.Controls.Add($activity)
 
@@ -597,7 +715,7 @@ function New-BranchSelectorDialog {
     $cancel.ForeColor = $colors.Ivory
     $cancel.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $cancel.FlatAppearance.BorderColor = $colors.Muted
-    $cancel.Location = New-Object System.Drawing.Point(560, 655)
+    $cancel.Location = New-Object System.Drawing.Point(530, 680)
     $cancel.Size = New-Object System.Drawing.Size(110, 36)
     $form.Controls.Add($cancel)
 
@@ -608,20 +726,20 @@ function New-BranchSelectorDialog {
     $run.ForeColor = $colors.Ivory
     $run.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $run.FlatAppearance.BorderColor = $colors.Muted
-    $run.Location = New-Object System.Drawing.Point(680, 655)
-    $run.Size = New-Object System.Drawing.Size(105, 36)
+    $run.Location = New-Object System.Drawing.Point(650, 680)
+    $run.Size = New-Object System.Drawing.Size(115, 36)
     $form.Controls.Add($run)
 
     $launch = New-Object System.Windows.Forms.Button
-    $launch.Text = 'Clean build + launch'
+    $launch.Text = 'Build + launch (fast)'
     $launch.DialogResult = [System.Windows.Forms.DialogResult]::OK
     $launch.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
     $launch.BackColor = $colors.Teal
     $launch.ForeColor = $colors.Background
     $launch.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $launch.FlatAppearance.BorderColor = $colors.Gold
-    $launch.Location = New-Object System.Drawing.Point(795, 655)
-    $launch.Size = New-Object System.Drawing.Size(105, 36)
+    $launch.Location = New-Object System.Drawing.Point(775, 680)
+    $launch.Size = New-Object System.Drawing.Size(115, 36)
     $form.Controls.Add($launch)
 
     $form.AcceptButton = if ($BuildByDefault) { $launch } else { $run }
@@ -635,7 +753,8 @@ function New-BranchSelectorDialog {
         UpdatedLabel = $updatedLabel
         MessageLabel = $messageLabel
         LocalLabel = $localLabel
-        BuildBox = $buildBox
+        CacheBox = $cacheBox
+        CleanBox = $cleanBox
         KeepBox = $keepBox
         Plan = $plan
         Refresh = $refresh
@@ -699,21 +818,26 @@ function Update-BranchDetails {
     $Dialog.UpdatedLabel.Text = 'Remote update: {0} by {1}' -f $selected.UpdatedAt, $selected.Author
     $Dialog.MessageLabel.Text = 'Last commit message: {0}' -f $selected.Subject
     $Dialog.LocalLabel.Text = 'Local relationship: {0}' -f $selected.LocalState
-    $keepAction = if ($Dialog.KeepBox.Checked) { 'keep the temporary worktree' } else { 'remove the temporary worktree after the client exits' }
+    $useBuildCache = [bool]$Dialog.CacheBox.Checked
+    $cleanBuild = [bool]$Dialog.CleanBox.Checked
+    $worktreeAction = if ($useBuildCache) { 'Reuse the clean tool-owned per-branch build cache at the selected remote commit.' } else { 'Create a disposable detached worktree at the selected remote commit.' }
+    $buildAction = if ($cleanBuild) { 'ant clean deftgt (full rebuild; slower)' } else { 'ant deftgt (incremental; reuses unchanged output)' }
+    $keepAction = if ($useBuildCache) { 'the isolated build cache stays for the next run' } elseif ($Dialog.KeepBox.Checked) { 'keep the disposable worktree' } else { 'remove the disposable worktree after the client exits' }
     $Dialog.Plan.Text = @(
         ('Selected ref : {0}/{1}' -f $script:Remote, $selected.Name),
         ('Remote commit: {0}' -f $selected.Commit),
         ('Current repo : {0} ({1}, {2})' -f $currentBranch, $currentCommit, $currentState),
         '',
         'Run existing build',
-        '  1. Create a detached worktree at the selected remote commit.',
-        '  2. Check that a generated hafen.jar exists in that worktree.',
+        ('  1. {0}' -f $worktreeAction),
+        '  2. Require the package build revision to match the selected remote commit.',
         '  3. Launch client\Play.bat -NoUpdate so the stable updater is bypassed.',
-        '  Note: a new worktree normally has no ignored client\bin output, so build first when unsure.',
+        '  Note: select Build + launch after a new remote commit or when no matching package exists.',
         '',
-        'Clean build + launch',
-        '  1. Create the detached worktree, then run ant clean deftgt.',
-        '  2. Confirm the generated package exists and launch with -NoUpdate.',
+        'Build + launch',
+        ('  1. {0}' -f $worktreeAction),
+        ('  2. Run {0}.' -f $buildAction),
+        '  3. Confirm the generated package exists and launch with -NoUpdate.',
         ('Cleanup     : {0}.' -f $keepAction)
     ) -join [Environment]::NewLine
 }
@@ -810,7 +934,9 @@ function Set-DialogBusy {
     $Dialog.Refresh.Enabled = -not $Busy
     $Dialog.Run.Enabled = -not $Busy
     $Dialog.Launch.Enabled = -not $Busy
-    $Dialog.KeepBox.Enabled = -not $Busy
+    $Dialog.CacheBox.Enabled = -not $Busy
+    $Dialog.CleanBox.Enabled = -not $Busy
+    $Dialog.KeepBox.Enabled = (-not $Busy) -and (-not $Dialog.CacheBox.Checked)
     $Dialog.Cancel.Enabled = -not $Busy
     if ($Busy) {
         $Dialog.OperationStartedAt = Get-Date
@@ -885,6 +1011,8 @@ function Invoke-SelectedBranch {
         [object]$SelectedBranch,
         [bool]$Build,
         [bool]$Keep,
+        [bool]$UseBuildCache,
+        [bool]$CleanBuild,
         [object]$Worker
     )
 
@@ -894,23 +1022,32 @@ function Invoke-SelectedBranch {
     Report-OperationProgress -Worker $Worker -Percent 3 -Stage 'GUARD' -Message 'Checking that no MoonFlower client is running...' -WriteLog
     Assert-ClientStopped
     Report-OperationProgress -Worker $Worker -Percent 8 -Stage 'SELECT' -Message ("Selected {0}/{1} at commit {2}." -f $script:Remote, $SelectedBranch.Name, $SelectedBranch.Commit) -WriteLog
+    $worktree = $null
     $worktreePath = $null
     try {
-        Report-OperationProgress -Worker $Worker -Percent 15 -Stage 'WORKTREE' -Message 'Creating a detached temporary worktree at the selected remote commit...' -Indeterminate -WriteLog
-        $worktreePath = New-TestWorktree $SelectedBranch.Name $SelectedBranch.Commit
-        Report-OperationProgress -Worker $Worker -Percent 28 -Stage 'WORKTREE' -Message ("Temporary worktree ready: {0}" -f $worktreePath) -WriteLog
+        if ($UseBuildCache) {
+            $worktree = New-OrReuseBuildCacheWorktree $SelectedBranch.Name $SelectedBranch.Commit $Worker
+        } else {
+            Report-OperationProgress -Worker $Worker -Percent 15 -Stage 'WORKTREE' -Message 'Creating a disposable detached worktree at the selected remote commit...' -Indeterminate -WriteLog
+            $worktree = [pscustomobject]@{ Path = (New-TestWorktree $SelectedBranch.Name $SelectedBranch.Commit); IsCached = $false; CacheBypassed = $false }
+        }
+        $worktreePath = $worktree.Path
+        $worktreeKind = if ($worktree.IsCached) { 'Isolated build cache' } else { 'Disposable worktree' }
+        Report-OperationProgress -Worker $Worker -Percent 28 -Stage 'WORKTREE' -Message ("{0} ready: {1}" -f $worktreeKind, $worktreePath) -WriteLog
         if ($Build) {
-            Invoke-TestBuild $worktreePath $Worker
+            Invoke-TestBuild $worktreePath $Worker $CleanBuild
         } else {
             Report-OperationProgress -Worker $Worker -Percent 40 -Stage 'BUILD' -Message 'Build skipped because Run existing build was selected.' -WriteLog
         }
-        $exitCode = Invoke-TestLaunch $worktreePath $Worker
-        if ($Keep) {
-            Report-OperationProgress -Worker $Worker -Percent 98 -Stage 'CLEANUP' -Message ("Keeping test worktree for inspection: {0}" -f $worktreePath) -WriteLog
+        $exitCode = Invoke-TestLaunch $worktreePath $Worker $SelectedBranch.Commit
+        if ($worktree.IsCached) {
+            Report-OperationProgress -Worker $Worker -Percent 98 -Stage 'CACHE' -Message ("Keeping isolated build cache for a faster next run: {0}" -f $worktreePath) -WriteLog
+        } elseif ($Keep) {
+            Report-OperationProgress -Worker $Worker -Percent 98 -Stage 'CLEANUP' -Message ("Keeping disposable worktree for inspection: {0}" -f $worktreePath) -WriteLog
         } else {
-            Report-OperationProgress -Worker $Worker -Percent 98 -Stage 'CLEANUP' -Message 'Removing the temporary worktree after the client exited...' -Indeterminate -WriteLog
+            Report-OperationProgress -Worker $Worker -Percent 98 -Stage 'CLEANUP' -Message 'Removing the disposable worktree after the client exited...' -Indeterminate -WriteLog
             Remove-TestWorktree $worktreePath
-            Report-OperationProgress -Worker $Worker -Percent 99 -Stage 'CLEANUP' -Message 'Temporary test worktree removed.' -WriteLog
+            Report-OperationProgress -Worker $Worker -Percent 99 -Stage 'CLEANUP' -Message 'Disposable worktree removed.' -WriteLog
         }
         Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'DONE' -Message ('Selected branch run completed with exit code {0}.' -f $exitCode) -WriteLog
         return [pscustomobject]@{
@@ -918,14 +1055,16 @@ function Invoke-SelectedBranch {
             WorktreePath = $worktreePath
         }
     } catch {
-        if ($worktreePath -and $Keep) {
-            Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message ("Operation failed; keeping worktree for inspection: {0}" -f $worktreePath) -WriteLog
+        if ($worktreePath -and $worktree.IsCached) {
+            Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message ("Operation failed; isolated build cache was retained: {0}" -f $worktreePath) -WriteLog
+        } elseif ($worktreePath -and $Keep) {
+            Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message ("Operation failed; keeping disposable worktree for inspection: {0}" -f $worktreePath) -WriteLog
         } elseif ($worktreePath) {
             try {
                 Remove-TestWorktree $worktreePath
-                Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message 'Operation failed; temporary worktree was removed.' -WriteLog
+                Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message 'Operation failed; disposable worktree was removed.' -WriteLog
             } catch {
-                Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message ("Operation failed and the temporary worktree could not be removed: {0}" -f $worktreePath) -WriteLog
+                Report-OperationProgress -Worker $Worker -Percent 100 -Stage 'FAILED' -Message ("Operation failed and the disposable worktree could not be removed: {0}" -f $worktreePath) -WriteLog
             }
         }
         throw
@@ -945,22 +1084,24 @@ function Start-SelectedBranchOperation {
     if ($null -eq $selected) {
         [System.Windows.Forms.MessageBox]::Show(
             $Dialog.Form,
-            'Select a remote branch before choosing Run existing build or Clean build + launch.',
+            'Select a remote branch before choosing Run existing build or Build + launch.',
             'MoonFlower Branch Selector',
             [System.Windows.Forms.MessageBoxButtons]::OK,
             [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
         return
     }
 
-    $keep = [bool]$Dialog.KeepBox.Checked
-    $operationName = if ($Build) { 'Clean build + launch' } else { 'Run existing build' }
+    $useBuildCache = [bool]$Dialog.CacheBox.Checked
+    $cleanBuild = [bool]$Dialog.CleanBox.Checked
+    $keep = (-not $useBuildCache) -and [bool]$Dialog.KeepBox.Checked
+    $operationName = if (-not $Build) { 'Run existing build' } elseif ($cleanBuild) { 'Clean rebuild + launch' } else { 'Build + launch (fast)' }
     Set-DialogBusy $Dialog $true
     $Dialog.Status.Text = 'START: Preparing {0}...' -f $operationName
     Add-DialogActivity $Dialog ("Starting '{0}' for {1}/{2} at {3}." -f $operationName, $script:Remote, $selected.Name, $selected.CommitShort)
     $script:ProgressDialog = $Dialog
     $dialogResult = $null
     try {
-        $outcome = Invoke-SelectedBranch -SelectedBranch $selected -Build $Build -Keep $keep
+        $outcome = Invoke-SelectedBranch -SelectedBranch $selected -Build $Build -Keep $keep -UseBuildCache $useBuildCache -CleanBuild $cleanBuild
         $Dialog.ExitCode = [int]$outcome.ExitCode
         if ($Dialog.ExitCode -eq 0) {
             $Dialog.Status.Text = 'DONE: Selected client exited successfully.'
@@ -1026,7 +1167,10 @@ try {
     $dialog.ExitCode = $null
     $dialog.OperationStartedAt = $null
     $dialog.OperationElapsed = [timespan]::Zero
-    $dialog.KeepBox.Checked = [bool]$KeepWorktree
+    if ($KeepWorktree) {
+        $dialog.CacheBox.Checked = $false
+        $dialog.KeepBox.Checked = $true
+    }
     $dialog.CurrentValue.Text = 'Waiting for the first repository refresh...'
     $dialog.Timer = New-Object System.Windows.Forms.Timer
     $dialog.Timer.Interval = 1000
@@ -1040,6 +1184,18 @@ try {
         Update-BranchDetails $dialog
     })
     $dialog.KeepBox.add_CheckedChanged({
+        Update-BranchDetails $dialog
+    })
+    $dialog.CacheBox.add_CheckedChanged({
+        if ($dialog.CacheBox.Checked) {
+            $dialog.KeepBox.Checked = $false
+            $dialog.KeepBox.Enabled = $false
+        } elseif (-not $dialog.Busy) {
+            $dialog.KeepBox.Enabled = $true
+        }
+        Update-BranchDetails $dialog
+    })
+    $dialog.CleanBox.add_CheckedChanged({
         Update-BranchDetails $dialog
     })
     $dialog.Refresh.add_Click({

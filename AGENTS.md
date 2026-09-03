@@ -85,8 +85,9 @@ Record debt in [docs/TECHNICAL_DEBT.md](docs/TECHNICAL_DEBT.md) when shortcuts a
   below. A CI/release build may inspect `main` as part of that authorized
   promotion; that exception does not make `main` a development workspace.
 - `client/Play.bat -BranchSelect` is an explicit isolated-test exception: it
-  may build a selected branch in a temporary detached worktree, but it must
-  not change the active checkout or commit development work to `main`.
+  may build a selected branch in a tool-owned isolated detached worktree and
+  reuse a clean per-branch build cache for incremental local builds, but it
+  must not change the active checkout or commit development work to `main`.
 
 ## Descriptive History And Timeline
 

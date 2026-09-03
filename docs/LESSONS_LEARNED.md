@@ -21,6 +21,16 @@ Rule to remember next time:
 
 ```text
 Date: 2026-09-02
+Task: Make isolated branch testing faster without weakening provenance.
+What worked: A clean, deterministic per-branch detached worktree retains only ignored Ant output, so normal `ant deftgt` runs incrementally while the active checkout remains untouched.
+What was confusing: Slow testing came from the selector's disposable worktree and forced `ant clean deftgt`, not from the testing branch itself.
+What broke or almost broke: Reusing a worktree with uncommitted files could overwrite an investigation or make a package ambiguous; the selector now leaves such a cache untouched and uses a disposable fallback.
+What I learned: Fast local iteration needs both a persistent build cache and an embedded revision check before a run-only launch can be trusted.
+Rule to remember next time: Use Build + launch for the normal incremental path, use Force clean rebuild only for diagnosis, and never treat a package as current unless its buildinfo revision matches the selected remote commit.
+```
+
+```text
+Date: 2026-09-02
 Task: Make testing the default development and local-build branch.
 What worked: A project-level AGENTS.md rule, a human-facing project map, and a fail-closed branch check make the intended workflow visible and repeatable.
 What was confusing: Generated client/bin output can survive a branch switch and look like source from the wrong branch.
