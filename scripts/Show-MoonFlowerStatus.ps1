@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$RepoPath = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    [string]$RepoPath,
     [string]$PackageRoot,
     [switch]$Json
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($RepoPath)) {
+    $RepoPath = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+}
 $RepoPath = [System.IO.Path]::GetFullPath($RepoPath)
 
 function Invoke-GitText {

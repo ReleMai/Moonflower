@@ -18,10 +18,36 @@
 - Confirm the source/package relationship with
   `scripts/Show-MoonFlowerStatus.ps1`. Do not call a client run a `testing`
   run unless its packaged JAR reports `MATCH` with the `testing` HEAD.
+- Use the descriptive timeline conventions below for branch names, commits,
+  merges, pull requests, and push/pull/build status updates. The repository
+  PR template at `.github/pull_request_template.md` supplies the required
+  description sections.
 
 Older branch tips from the cleanup are preserved as local/remote archive tags
 under `archive/cleanup-2026-09-02/`. They are historical recovery points, not
 part of the normal workflow.
+
+## Descriptive timeline naming
+
+The name should tell a future reader what changed and where it was headed. Use
+lowercase kebab-case for branch path components and concrete outcomes rather
+than generic words such as `update` or `misc`.
+
+| Item | Format | Example |
+| --- | --- | --- |
+| Temporary branch | `codex/<type>/<area>-<outcome>-YYYYMMDD` | `codex/feat/foraging-route-planner-20260902` |
+| Branch description | `<purpose>; base=<branch>; handoff=<branch>` | `Validate launcher path; base=testing; handoff=main` |
+| Commit/update | `<type>(<area>): <imperative outcome>` | `feat(foraging): add bounded route planning` |
+| Testing pull request | `<type>(testing): <imperative outcome>` | `fix(testing): prevent stale updater package` |
+| Main promotion request | `release(main): promote testing - <scope> - YYYY-MM-DD` | `release(main): promote testing - client tools - 2026-09-02` |
+| Merge | `Merge <source> into <destination>: <outcome> - YYYY-MM-DD` | `Merge testing into main: publish supervised client tools - 2026-09-02` |
+| Push/pull/build status | `Update: <operation> <branch> <old-sha> -> <new-sha> - <result>` | `Update: push testing 62de69c6 -> 78cfbe20 - remote verified` |
+
+Descriptions should include the relevant paths or behavior, exact verification
+results, and any unverified live/runtime boundary. For a push or pull, name the
+remote and ref; for a merge or pull request, name both source/head and
+destination/base branches plus the commit range. This keeps the history useful
+when several client packages or feature areas are moving at once.
 
 ## Source, generated output, and support files
 

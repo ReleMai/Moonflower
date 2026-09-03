@@ -30,6 +30,16 @@ Rule to remember next time: Start ordinary work on testing, keep main read-only 
 ```
 
 ```text
+Date: 2026-09-02
+Task: Make branch, commit, merge, pull-request, and push/pull history descriptive.
+What worked: A single naming convention in AGENTS.md, the project map, and the GitHub pull-request template makes purpose, direction, and verification visible in both local and remote history.
+What was confusing: A short label such as "update" does not show which branch, client area, or outcome changed.
+What broke or almost broke: An unnamed push or pull can hide the exact remote ref and commit range that changed the local client provenance.
+What I learned: Timeline clarity comes from recording type, scope, outcome, source/destination, commit range, and verification together.
+Rule to remember next time: Use descriptive names and bodies for every branch, commit, merge, pull request, and repository update; verify and report the exact ref after pushes.
+```
+
+```text
 Date: 2026-08-31
 Task: Make GitHub-first MoonFlower production updates an automatic project rule.
 What worked: Pairing project-level AGENTS.md instructions with an executable privacy and commit-detail gate made the release process both discoverable in new chats and enforceable in GitHub Actions.

@@ -19,6 +19,10 @@ This repository uses two normal branches:
 All ordinary edits and local builds belong on `testing`. `main` is reserved for
 reviewed promotion and release work; do not develop directly on it.
 
+Use the descriptive branch, commit, merge, pull-request, and push/pull naming
+rules in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md) so the update timeline is
+clear.
+
 The generated `client/bin` package is not source control. After switching
 branches, rebuild before judging what the client contains. Use
 `\.\client\Play.bat -NoUpdate` to run the locally built package; the plain

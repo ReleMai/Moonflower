@@ -88,6 +88,47 @@ Record debt in [docs/TECHNICAL_DEBT.md](docs/TECHNICAL_DEBT.md) when shortcuts a
   may build a selected branch in a temporary detached worktree, but it must
   not change the active checkout or commit development work to `main`.
 
+## Descriptive History And Timeline
+
+Names and descriptions must make the repository timeline understandable without
+opening every diff. Use the following conventions for all new work:
+
+- Keep `main` and `testing` as the only normal long-lived branches. Temporary
+  branches use `codex/<type>/<area>-<outcome>-YYYYMMDD`, with a lowercase
+  kebab-case area/outcome and one of `feat`, `fix`, `refactor`, `docs`, `test`,
+  `release`, or `chore` as the type. Examples:
+  `codex/feat/foraging-route-planner-20260902` and
+  `codex/fix/launcher-update-path-20260902`. Do not use vague names such as
+  `new`, `update`, `test2`, `stuff`, or `branch1`.
+- When a branch description is available, state its purpose, base, and handoff
+  target in one sentence: `<purpose>; base=<branch>; handoff=<branch>`. For
+  example: `Validate launcher update path; base=testing; handoff=main`.
+- Commit subjects and short update summaries use
+  `<type>(<area>): <imperative outcome>`, stay at or below 72 characters, and
+  name the concrete outcome instead of saying only `update`, `changes`, or
+  `misc`. Examples: `feat(foraging): add bounded route planning` and
+  `chore(workflow): enforce testing branch`.
+- Every non-merge commit also needs the detailed `Changes:`, `Reason:`,
+  `Verification:`, and `Privacy:` body headings required by the release policy
+  below. Mention the important paths and exact checks; never hide a missing
+  live-game check behind a generic "tested" statement.
+- Pull request titles use `<type>(<base>): <imperative outcome>`. A promotion
+  to stable uses `release(main): promote testing - <scope> - YYYY-MM-DD`.
+  Pull request descriptions must identify the base/head branches and commit
+  range, summarize changed paths and behavior, list verification results,
+  state live/runtime status, and document risk, rollback, and privacy review.
+- Merge titles identify source, destination, and outcome. Use
+  `Merge <source> into <destination>: <outcome> - YYYY-MM-DD`, such as
+  `Merge testing into main: publish supervised client tools - 2026-09-02`.
+  The merge description must retain the same source/head, destination/base,
+  commit range, checks, and rollback context as the pull request.
+- Push, pull, build, and release updates use this status form:
+  `Update: <operation> <branch> <old-sha> -> <new-sha> - <result>`.
+  Before reporting success, include the remote and exact ref; after a push,
+  verify the remote SHA. Do not report only "pushed" or "pulled latest".
+  Push an explicitly named branch such as `git push origin testing`; never use
+  an ambiguous `git push --all` for routine work.
+
 ## Task Workflow
 For each task:
 1. Understand the request.
