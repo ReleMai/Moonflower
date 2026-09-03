@@ -3,6 +3,30 @@
 ## Goal
 The project should be easy to navigate. A new person should be able to guess where a feature belongs.
 
+## This Repository's Actual Layout
+
+MoonFlower is a unified workspace rather than a single small `src/` tree. Keep
+the existing top-level project boundaries intact:
+
+```text
+project-root/
+├── client/                    # active Java client source and generated output
+├── server/ shared-protocol/   # loopback operator services
+├── web/ media-gateway/        # operator web and media components
+├── HavenCartographer/         # companion map service/viewer
+├── MoonflowerClient/          # companion Electron launcher
+├── MoonflowerPlugin/          # companion Java plugins
+├── scripts/                   # build, safety, sync, and test tools
+├── docs/                      # project knowledge and validation
+├── references/                # reference material, not active source
+├── .recovery/ artifacts/      # ignored local state and retained evidence
+└── README.md / AGENTS.md      # entry point and operating rules
+```
+
+Build output belongs in ignored `client/build/` and `client/bin/`; do not
+commit or hand-edit those folders. Runtime logs belong under
+`.recovery/runtime/` so the project root remains source-focused.
+
 ## General Principles
 - Group files by responsibility or feature area.
 - Keep unrelated systems separate.

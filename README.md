@@ -8,6 +8,20 @@ launcher, and Java plugins.
 Live account login and current game-server behavior remain user-supervised
 validation steps. Passing local builds does not prove live protocol behavior.
 
+## Branch And Client Workflow
+
+This repository uses two normal branches:
+
+- `main` is the stable, GitHub-default branch.
+- `testing` is the active integration branch for current client changes and
+  supervised local testing.
+
+The generated `client/bin` package is not source control. After switching
+branches, rebuild before judging what the client contains. Use
+`\.\client\Play.bat -NoUpdate` to run the locally built package; the plain
+`Play.bat` path checks the stable update feed first. See
+[docs/PROJECT_MAP.md](docs/PROJECT_MAP.md) for the full map and status command.
+
 ## Where The Client Systems Live
 
 The full Java client is under `client/`:
@@ -31,7 +45,8 @@ Fishing.
 - `HavenCartographer/` - Node.js map server and web viewer
 - `MoonflowerClient/` - Electron launcher and embedded map
 - `MoonflowerPlugin/` - Java plugin suite for compatible Haven clients
-- `scripts/` - build, backup, verification, and private packaging helpers
+- `scripts/` - build, backup, verification, branch testing, source-sync, and
+  private packaging helpers
 - `docs/` - architecture, operations, verification, roadmap, and active tasks
 
 ## Build And Verify The Java Client

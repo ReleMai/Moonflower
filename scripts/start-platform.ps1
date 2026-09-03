@@ -7,9 +7,9 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $jarPath = Join-Path $root "server\target\server-0.1.0-SNAPSHOT.jar"
-$stdoutLog = Join-Path $root "server-run.log"
-$stderrLog = Join-Path $root "server-run.err.log"
-$runtimeDir = Join-Path $root "artifacts\runtime"
+$runtimeDir = Join-Path $root ".recovery\runtime"
+$stdoutLog = Join-Path $runtimeDir "server-run.log"
+$stderrLog = Join-Path $runtimeDir "server-run.err.log"
 $gatewayDir = Join-Path $root "media-gateway"
 $gatewayPython = Join-Path $gatewayDir ".venv\Scripts\python.exe"
 $gatewayApp = Join-Path $gatewayDir "app.py"

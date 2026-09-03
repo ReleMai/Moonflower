@@ -54,8 +54,9 @@ actions.
 - Bot logs: `..\server-data\logs\bots\`
 - Screenshots: `..\server-data\screenshots\`
 - Clips: `..\server-data\clips\`
-- Server logs: repository-root `server-run.log` and `server-run.err.log`
-- Gateway logs: `artifacts\runtime\media-gateway*.log`
+- Server logs: `.recovery\runtime\server-run.log` and
+  `.recovery\runtime\server-run.err.log`
+- Gateway logs: `.recovery\runtime\media-gateway*.log`
 - Client settings/maps: `%APPDATA%\Haven and Hearth\`
 - Custom client databases: `%APPDATA%\Haven and Hearth\MoonFlower\`
 
