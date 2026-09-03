@@ -65,14 +65,15 @@ public class Client implements Console.Directory {
 	this.tk = tk;
 	this.wnd = tk.window();
 	wnd.title("Haven & Hearth");
-	Coord fsz = Utils.getprefc("mainwnd/locksize", null);
-	if(fsz == null)
-	    wnd.sizing(new Windeye.Sizing().minsize(new Coord(1167, 700)).normsize(Utils.getprefc("mainwnd/size", new Coord(1167, 700))));
-	else
-	    wnd.sizing(new Windeye.Sizing().fixsize(fsz));
+	/* A previous client version persisted an opt-in fixed-size mode. The main
+	 * window should always remain resizable; discard that legacy preference
+	 * while retaining the user's normal size and maximize state. */
+	Utils.setprefc("mainwnd/locksize", null);
+	wnd.sizing(new Windeye.Sizing().minsize(new Coord(1167, 700)).normsize(
+		Utils.getprefc("mainwnd/size", new Coord(1167, 700))));
 	if(initfullscreen.get())
 	    wnd.state(Windeye.State.EXCLUSIVE);
-	else if(fsz == null && Utils.getprefb("mainwnd/max", false))
+	else if(Utils.getprefb("mainwnd/max", false))
 	    wnd.state(Windeye.State.MAXIMIZED);
 	try(InputStream icon = Client.class.getResourceAsStream("icon.png")) {
 	    wnd.icon(javax.imageio.ImageIO.read(icon));
@@ -280,11 +281,13 @@ public class Client implements Console.Directory {
 		Coord sz = screenWorkingAreaSize();
 		if(sz == null)
 		    throw(new Exception("Could not determine the current screen working area."));
-		setWindowSize(sz, args.length >= 3 && args[2].equalsIgnoreCase("lock"));
+		setWindowSize(sz);
 	    } else if(args.length >= 3) {
 		Coord sz = Coord.of(Integer.parseInt(args[1]),
 				    Integer.parseInt(args[2]));
-		setWindowSize(sz, args.length >= 4 && args[3].equalsIgnoreCase("lock"));
+		/* Keep accepting the legacy trailing "lock" token, but never let an
+		 * old command put the main window back into fixed-size mode. */
+		setWindowSize(sz);
 	    }
 	});
 	cmdmap.put("window", (cons, args) -> {
@@ -302,21 +305,12 @@ public class Client implements Console.Directory {
 	});
     }
 
-    private void setWindowSize(Coord sz, boolean lock) {
-	if(lock) {
-	    Utils.setprefc("mainwnd/locksize", sz);
-	    // A fixed lock must win over a stale maximize preference on the next launch.
-	    Utils.setprefb("mainwnd/max", false);
-	    if(wnd.state() == Windeye.State.MAXIMIZED)
-		wnd.state(Windeye.State.NORMAL);
-	    wnd.sizing(new Windeye.Sizing().fixsize(sz));
-	} else {
-	    Utils.setprefc("mainwnd/locksize", null);
-	    Utils.setprefb("mainwnd/max", false);
-	    if(wnd.state() == Windeye.State.MAXIMIZED)
-		wnd.state(Windeye.State.NORMAL);
-	    wnd.sizing(new Windeye.Sizing().minsize(new Coord(800, 600)).normsize(sz));
-	}
+    private void setWindowSize(Coord sz) {
+	Utils.setprefc("mainwnd/locksize", null);
+	Utils.setprefb("mainwnd/max", false);
+	if(wnd.state() == Windeye.State.MAXIMIZED)
+	    wnd.state(Windeye.State.NORMAL);
+	wnd.sizing(new Windeye.Sizing().minsize(new Coord(800, 600)).normsize(sz));
     }
 
     /** Returns the usable area of the default display, excluding taskbars/docks. */
