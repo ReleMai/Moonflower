@@ -33,7 +33,7 @@ import static haven.LoginScreen.*;
 
 public class Charlist extends Widget {
     public static final Coord bsz = UI.scale(340, 78);
-    public static final Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(new Text.Foundry(Text.serif, 20).aa(true), Window.ctex), UI.scale(2), UI.scale(2), Color.BLACK);
+    public static final Text.Furnace nf = new PUtils.BlurFurn(new PUtils.TexFurn(MoonFlowerFont.foundry(20, Color.WHITE), Window.ctex), UI.scale(2), UI.scale(2), Color.BLACK);
     public static final Text.Furnace df = new PUtils.BlurFurn(Button.tf, UI.scale(2), UI.scale(2), Color.BLACK);
     public static final int margin = UI.scale(6);
     public static final int btnw = UI.scale(100);
@@ -169,7 +169,7 @@ public class Charlist extends Widget {
 	    if((wdg instanceof Img) && (wdg.sz.x >= UI.scale(800)) && (wdg.sz.y >= UI.scale(450)))
 		wdg.hide();
 	}
-	Img moonflowerBackground = parent.add(new Img(LoginScreen.bg(MoonFlowerScreenTheme.CHARACTER_BACKGROUND)), Coord.z);
+	Img moonflowerBackground = parent.add(new Img(LoginScreen.bg(MoonFlowerScreenTheme.nextCharacterBackground())), Coord.z);
 	MoonFlowerScreenTheme.Panel avatarPanel = parent.add(new MoonFlowerScreenTheme.Panel(MoonFlowerScreenTheme.CHAR_PREVIEW_SZ, true),
 		MoonFlowerScreenTheme.CHAR_PREVIEW_POS);
 	avatarPanel.lower();

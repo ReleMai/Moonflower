@@ -61,15 +61,15 @@ public class LoginScreen extends Widget {
 	private Window firstTimeUseWindow = null;
 	private Window firstTimeUseExtraBackgroundWindow = null; // ND: Do an extra window to have a solid background, no transparency.
 	private boolean firstTimeWindowCreated = false;
-	private Coord rightPanelPos = MoonFlowerScreenTheme.LOGIN_RIGHT_POS;
+    private Coord rightPanelPos = MoonFlowerScreenTheme.LOGIN_RIGHT_POS;
 
     private String getpref(String name, String def) {
 	return(Utils.getpref(name + "@" + confname, def));
     }
 
     public LoginScreen(String confname) {
-	super(bg(MoonFlowerScreenTheme.LOGIN_BACKGROUND).sz());
-	Tex loginBackground = bg(MoonFlowerScreenTheme.LOGIN_BACKGROUND);
+	super(bg.sz());
+	Tex loginBackground = bg(MoonFlowerScreenTheme.nextLoginBackground());
 	this.confname = confname;
 	setfocustab(true);
 	add(backgroundImg = new Img(loginBackground), Coord.z);
@@ -582,13 +582,32 @@ public class LoginScreen extends Widget {
 	static Tex bg(String imgPath){
 		try {
 			BufferedImage originalImage = ImageIO.read(new File(imgPath));
-			// Create a new buffered image with the desired size
-			BufferedImage resizedImage = new BufferedImage(bg.sz().x, bg.sz().y, originalImage.getType());
-			// Create a Graphics2D object to perform the drawing
+			int targetWidth = bg.sz().x;
+			int targetHeight = bg.sz().y;
+			int sourceWidth = originalImage.getWidth();
+			int sourceHeight = originalImage.getHeight();
+			double targetAspect = targetWidth / (double)targetHeight;
+			double sourceAspect = sourceWidth / (double)sourceHeight;
+			int cropWidth = sourceWidth;
+			int cropHeight = sourceHeight;
+			int cropX = 0;
+			int cropY = 0;
+			if(sourceAspect > targetAspect) {
+				cropWidth = (int)Math.round(sourceHeight * targetAspect);
+				cropX = (sourceWidth - cropWidth) / 2;
+			} else if(sourceAspect < targetAspect) {
+				cropHeight = (int)Math.round(sourceWidth / targetAspect);
+				cropY = (sourceHeight - cropHeight) / 2;
+			}
+			BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
 			Graphics2D g2d = resizedImage.createGraphics();
-			// Draw the original image scaled to the new size
-			g2d.drawImage(originalImage.getScaledInstance(bg.sz().x, bg.sz().y, Image.SCALE_SMOOTH), 0, 0, null);
-			g2d.dispose(); // Clean up the graphics context
+			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+			g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+			g2d.drawImage(originalImage, 0, 0, targetWidth, targetHeight,
+					cropX, cropY, cropX + cropWidth, cropY + cropHeight, null);
+			g2d.dispose();
+			originalImage.flush();
 			return new TexI(resizedImage);
 		} catch (IOException ignored) {
 			ignored.printStackTrace();

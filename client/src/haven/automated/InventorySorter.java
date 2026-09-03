@@ -17,15 +17,11 @@ public class InventorySorter implements Defer.Callable<Void> {
 	"Stack Furnace", "Steelbox", "Tub"
     };
 
-    private static final Comparator<WItem> ITEM_COMPARATOR = Comparator
-	.comparing((WItem w) -> w.item.getname())
-	.thenComparing(w -> {
-	    try { return w.item.res.get().name; } catch (Loading e) { return ""; }
-	})
-	.thenComparing(w -> {
-	    Quality q = ItemInfo.find(Quality.class, w.item.info());
-	    return q != null ? q.q : 0.0;
-	}, Comparator.reverseOrder());
+    private static final Comparator<Entry> ITEM_COMPARATOR = Comparator
+	.comparing((Entry e) -> e.identity.sortName())
+	.thenComparing(e -> e.identity.resourceName)
+	.thenComparing(e -> e.identity.quality != null ? e.identity.quality : 0.0,
+		Comparator.reverseOrder());
 
     /* A sort action is a server-backed drag operation. These values bound each
      * state transition rather than acting as a fixed animation delay. */
@@ -39,9 +35,10 @@ public class InventorySorter implements Defer.Callable<Void> {
     private final GameUI gui;
 
     /* Set only while one item is expected to be on the cursor. It lets a
-     * timeout or cancellation put that exact item back at its source slot. */
+     * timeout or cancellation put that item back at its source slot even if
+     * the server recreated its client-side GItem wrapper. */
     private Inventory activeInventory;
-    private GItem activeItem;
+    private Entry activeEntry;
     private Coord activeOrigin;
 
     private InventorySorter(List<Inventory> inventories, GameUI gui) {
@@ -126,17 +123,18 @@ public class InventorySorter implements Defer.Callable<Void> {
     }
 
     private static class Entry {
-	/* WItem wrappers are recreated as the server reparents an item. Keep the
-	 * GItem identity and resolve a fresh WItem before every take. */
-	final WItem initial;
-	final GItem item;
+	/* Both WItem and GItem wrappers can be recreated as the server reparents
+	 * an item. Keep the current object as a fast path, but resolve it through
+	 * this value identity before every take and acknowledgement. */
+	GItem item;
+	final InventorySortIdentity identity;
 	final Coord slots;
 	Coord current;
 	Coord target;
 
-	Entry(WItem w, Coord slots, Coord current) {
-	    this.initial = w;
+	Entry(WItem w, Coord slots, Coord current, InventorySortIdentity identity) {
 	    this.item = w.item;
+	    this.identity = identity;
 	    this.slots = slots;
 	    this.current = current;
 	    this.target = current;
@@ -167,6 +165,9 @@ public class InventorySorter implements Defer.Callable<Void> {
 	    GSprite sprite = w.item.spr();
 	    if (sprite == null)
 		throw new SortFailure("Sorting stopped until all visible item sprites finish loading; try again shortly.");
+	    InventorySortIdentity identity = identityOf(w.item);
+	    if (!identity.hasDescription())
+		throw new SortFailure("Sorting stopped until the visible item names finish loading; try again shortly.");
 	    Coord slots = slotsFor(sprite);
 	    Coord current = w.c.sub(1, 1).div(sqsz);
 	    if (!InventorySortLayout.inBounds(inv.isz, current, slots))
@@ -175,20 +176,20 @@ public class InventorySorter implements Defer.Callable<Void> {
 		InventorySortLayout.markGrid(maskGrid, current, slots, true);
 		continue;
 	    }
-	    entries.add(new Entry(w, slots, current));
+	    entries.add(new Entry(w, slots, current, identity));
 	}
 
 	// Preserve the existing name ordering whenever it can fit. If early 1x1
 	// items fragment the grid, retry with the largest rectangles first so a
 	// valid large-item layout is not lost to a greedy scan.
-	entries.sort(Comparator.comparing(e -> e.initial, ITEM_COMPARATOR));
+	entries.sort(ITEM_COMPARATOR);
 	List<Entry> nameOrder = new ArrayList<>(entries);
 	List<Entry> largeFirstOrder = new ArrayList<>();
 	for (Entry e : entries)
 	    if (isMulti(e)) largeFirstOrder.add(e);
 	largeFirstOrder.sort((left, right) -> {
 	    int byArea = itemArea(right) - itemArea(left);
-	    return byArea != 0 ? byArea : ITEM_COMPARATOR.compare(left.initial, right.initial);
+	    return byArea != 0 ? byArea : ITEM_COMPARATOR.compare(left, right);
 	});
 	for (Entry e : entries)
 	    if (!isMulti(e)) largeFirstOrder.add(e);
@@ -319,53 +320,121 @@ public class InventorySorter implements Defer.Callable<Void> {
 	return findFreePlacement(isz, maskGrid, entries, Coord.of(1, 1), null, null, null);
     }
 
-    private WItem findLiveItem(Inventory inv, GItem item) {
-	WItem mapped = inv.wmap.get(item);
+    private static InventorySortIdentity identityOf(GItem item) {
+	int widgetId = InventorySortIdentity.UNKNOWN_WIDGET_ID;
+	String resourceName = "";
+	String displayName = "";
+	Double quality = null;
+	int amount = InventorySortIdentity.UNKNOWN_AMOUNT;
+	if (item == null) return new InventorySortIdentity(widgetId, resourceName, displayName, quality, amount);
+	try {
+	    widgetId = item.wdgid();
+	} catch (RuntimeException ignored) {
+	    /* A transiently detached widget simply falls back to value matching. */
+	}
+	try {
+	    Resource resource = item.getres();
+	    if (resource != null) resourceName = resource.name;
+	} catch (RuntimeException ignored) {
+	    /* Resource loading is allowed to settle while the exact object remains a fast path. */
+	}
+	try {
+	    String name = item.getname();
+	    if (name != null && !name.isBlank() && !"it's null".equals(name) && !"exception".equals(name))
+		displayName = name;
+	} catch (RuntimeException ignored) {
+	    /* Keep the resource name when tooltip data is still loading. */
+	}
+	try {
+	    Quality q = ItemInfo.find(Quality.class, item.info());
+	    if (q != null) quality = q.q;
+	} catch (RuntimeException ignored) {
+	    /* Quality is an optional tie-breaker, never the only identity field. */
+	}
+	if (item.num >= 0) amount = item.num;
+	return new InventorySortIdentity(widgetId, resourceName, displayName, quality, amount);
+    }
+
+	private WItem findLiveItem(Inventory inv, Entry entry) {
+	WItem semanticCandidate = null;
+	WItem mapped = entry.item == null ? null : inv.wmap.get(entry.item);
 	if (mapped != null && mapped.parent == inv && mapped.visible) return mapped;
 	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
-	    if (wdg instanceof WItem && wdg.visible && ((WItem) wdg).item == item) return (WItem) wdg;
+	    if (!(wdg instanceof WItem) || !wdg.visible) continue;
+	    WItem candidate = (WItem) wdg;
+	    if (candidate.item == entry.item) return candidate;
+	    InventorySortIdentity observed = identityOf(candidate.item);
+	    if (!entry.identity.matches(observed)) continue;
+	    if (entry.identity.sameWidget(observed)) return candidate;
+	    /* Prefer the expected slot when duplicate stacks share a resource/name.
+	     * If that is unavailable, refuse an ambiguous arbitrary choice. */
+	    if (same(entry.current, positionOf(candidate))) return candidate;
+	    if (semanticCandidate != null) return null;
+	    semanticCandidate = candidate;
+	}
+	return semanticCandidate;
+    }
+
+    private WItem findLiveItemAt(Inventory inv, Entry entry, Coord position) {
+	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
+	    if (!(wdg instanceof WItem) || !wdg.visible) continue;
+	    WItem candidate = (WItem) wdg;
+	    if (!same(position, positionOf(candidate))) continue;
+	    if (candidate.item == entry.item) return candidate;
+	    InventorySortIdentity observed = identityOf(candidate.item);
+	    if (entry.identity.sameWidget(observed) || entry.identity.matches(observed)) return candidate;
 	}
 	return null;
     }
 
-    private Coord livePosition(Inventory inv, GItem item) {
-	WItem live = findLiveItem(inv, item);
-	return live == null ? null : live.c.sub(1, 1).div(sqsz);
+    private static Coord positionOf(WItem item) {
+	return item == null ? null : item.c.sub(1, 1).div(sqsz);
     }
 
-    private boolean cursorHolds(GItem item) {
-	return gui.vhand != null && gui.vhand.item == item;
+    private WItem cursorItem(Entry entry) {
+	if (gui.vhand == null || gui.vhand.item == null) return null;
+	if (gui.vhand.item == entry.item) return gui.vhand;
+	return entry.identity.matches(identityOf(gui.vhand.item)) ? gui.vhand : null;
     }
 
-    private void moveToEmpty(Inventory inv, Entry entry, Coord destination)
+	private void moveToEmpty(Inventory inv, Entry entry, Coord destination)
 	    throws InterruptedException, SortFailure {
 	if (gui.vhand != null)
 	    throw new SortFailure("Sorting stopped because the cursor was no longer empty.");
-	WItem source = findLiveItem(inv, entry.item);
+	WItem source = findLiveItem(inv, entry);
 	if (source == null)
 	    throw new SortFailure("Sorting stopped because an item moved or disappeared before it could be taken.");
-	if (!destinationIsEmpty(inv, entry.item, destination, entry.slots))
+	if (!destinationIsEmpty(inv, source, destination, entry.slots))
 	    throw new SortFailure("Sorting stopped because the destination is no longer empty.");
 
-	Coord origin = new Coord(entry.current);
+	entry.item = source.item;
+	Coord origin = new Coord(positionOf(source));
+	entry.current = origin;
 	activeInventory = inv;
-	activeItem = entry.item;
+	activeEntry = entry;
 	activeOrigin = origin;
 	source.item.wdgmsg("take", source.sz.div(2));
-	if (!await(() -> cursorHolds(entry.item), MOVE_TIMEOUT_MS))
+	if (!await(() -> cursorItem(entry) != null, MOVE_TIMEOUT_MS))
 	    throw new SortFailure("Timed out waiting for " + itemName(entry) + " to reach the cursor.");
+	entry.item = gui.vhand.item;
 
 	inv.wdgmsg("drop", destination);
-	if (!await(() -> gui.vhand == null && destination.equals(livePosition(inv, entry.item)), MOVE_TIMEOUT_MS))
+	if (!await(() -> {
+	    if (gui.vhand != null) return false;
+	    WItem landed = findLiveItemAt(inv, entry, destination);
+	    if (landed == null) return false;
+	    entry.item = landed.item;
+	    return true;
+	}, MOVE_TIMEOUT_MS))
 	    throw new SortFailure("Timed out waiting for " + itemName(entry) + " to land in its destination.");
 	clearActiveCursor();
     }
 
-    private boolean destinationIsEmpty(Inventory inv, GItem moving, Coord destination, Coord slots) {
+	private boolean destinationIsEmpty(Inventory inv, WItem moving, Coord destination, Coord slots) {
 	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
 	    if (!wdg.visible || !(wdg instanceof WItem)) continue;
 	    WItem w = (WItem) wdg;
-	    if (w.item == moving) continue;
+	    if (w == moving) continue;
 	    GSprite sprite = w.item.spr();
 	    if (sprite == null) return false;
 	    Coord otherSlots = slotsFor(sprite);
@@ -376,26 +445,25 @@ public class InventorySorter implements Defer.Callable<Void> {
     }
 
     private static String itemName(Entry entry) {
-	try {
-	    return entry.item.getname();
-	} catch (RuntimeException ignored) {
-	    return "an item";
-	}
+	if (!entry.identity.displayName.isEmpty()) return entry.identity.displayName;
+	if (!entry.identity.resourceName.isEmpty()) return entry.identity.resourceName;
+	return "an item";
     }
 
     private boolean recoverActiveCursor() throws InterruptedException {
-	if (activeItem == null || activeInventory == null || activeOrigin == null)
+	if (activeEntry == null || activeInventory == null || activeOrigin == null)
 	    return gui.vhand == null;
-	if (gui.vhand == null && livePosition(activeInventory, activeItem) == null) {
+	if (gui.vhand == null && findLiveItem(activeInventory, activeEntry) == null) {
 	    /* A cancellation can interrupt the wait just before the server's take
 	     * message is reflected in the UI. Give that message one bounded chance
 	     * to settle before deciding whether recovery is needed. */
-	    await(() -> gui.vhand != null || livePosition(activeInventory, activeItem) != null,
+	    await(() -> gui.vhand != null || findLiveItem(activeInventory, activeEntry) != null,
 		MOVE_TIMEOUT_MS);
 	}
 	if (gui.vhand == null) return true;
-	if (gui.vhand.item != activeItem)
+	if (cursorItem(activeEntry) == null)
 	    return false;
+	activeEntry.item = gui.vhand.item;
 	activeInventory.wdgmsg("drop", activeOrigin);
 	return await(() -> gui.vhand == null, MOVE_TIMEOUT_MS);
     }
@@ -409,7 +477,7 @@ public class InventorySorter implements Defer.Callable<Void> {
 
     private void clearActiveCursor() {
 	activeInventory = null;
-	activeItem = null;
+	activeEntry = null;
 	activeOrigin = null;
     }
 

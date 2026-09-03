@@ -4,8 +4,18 @@ import java.awt.Color;
 
 /** Shared visual language and layout for MoonFlower's entry screens. */
 public final class MoonFlowerScreenTheme {
-    public static final String LOGIN_BACKGROUND = Client.gameDir + "res/customclient/moonflower-login-v1.png";
-    public static final String CHARACTER_BACKGROUND = Client.gameDir + "res/customclient/moonflower-character-select-v1.png";
+    private static final String[] LOGIN_BACKGROUNDS = {
+            "screens/moonflower-login-v2-01-moonrise-valley.png",
+            "screens/moonflower-login-v2-02-lantern-fen.png",
+            "screens/moonflower-login-v2-03-starlit-grove.png"
+    };
+    private static final String[] CHARACTER_BACKGROUNDS = {
+            "screens/moonflower-character-v2-01-lakeside-homestead.png",
+            "screens/moonflower-character-v2-02-dawn-meadow.png",
+            "screens/moonflower-character-v2-03-moonlit-harbor.png"
+    };
+    public static final String LOGIN_BACKGROUND = asset(LOGIN_BACKGROUNDS[0]);
+    public static final String CHARACTER_BACKGROUND = asset(CHARACTER_BACKGROUNDS[0]);
     public static final String LOGIN_MUSIC = "res/customclient/music/moonflower-login.wav";
     public static final String CHARACTER_MUSIC = "res/customclient/music/moonflower-homecoming.wav";
 
@@ -31,7 +41,7 @@ public final class MoonFlowerScreenTheme {
     }
 
     public static Label title(String text, int size) {
-        Label label = new Label(text, new Text.Foundry(Text.serif, size).aa(true));
+        Label label = new Label(text, MoonFlowerFont.foundry(size, ACCENT));
         label.setcolor(ACCENT);
         return(label);
     }
@@ -64,5 +74,33 @@ public final class MoonFlowerScreenTheme {
             g.chcolor();
             super.draw(g);
         }
+    }
+
+    static String nextLoginBackground() {
+        return(nextBackground("moonflower.login.background.index", LOGIN_BACKGROUNDS));
+    }
+
+    static String nextCharacterBackground() {
+        return(nextBackground("moonflower.character.background.index", CHARACTER_BACKGROUNDS));
+    }
+
+    static String[] loginBackgrounds() {
+        return(LOGIN_BACKGROUNDS.clone());
+    }
+
+    static String[] characterBackgrounds() {
+        return(CHARACTER_BACKGROUNDS.clone());
+    }
+
+    private static String nextBackground(String preference, String[] relativePaths) {
+        int index = Utils.getprefi(preference, 0);
+        if(index < 0 || index >= relativePaths.length)
+            index = 0;
+        Utils.setprefi(preference, (index + 1) % relativePaths.length);
+        return(asset(relativePaths[index]));
+    }
+
+    private static String asset(String relativePath) {
+        return(Client.gameDir + "res/customclient/" + relativePath);
     }
 }

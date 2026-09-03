@@ -1267,6 +1267,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		Utils.setprefc("wndc-foragingWayfinder", foragingWindow.c);
 	if (wikiWindow != null)
 		Utils.setprefc("wndc-wiki", wikiWindow.c);
+	if (worldActivityBoardWindow != null)
+		Utils.setprefc("wndc-World Activity Board", worldActivityBoardWindow.c);
     }
 
     private final BMap<String, Window> wndids = new HashBMap<String, Window>();

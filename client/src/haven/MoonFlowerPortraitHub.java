@@ -85,6 +85,8 @@ public class MoonFlowerPortraitHub extends Widget {
                 gui.isFishingJournalOpen() || gui.isFishingHelperOpen(), gui::toggleFishingSystem));
         featureActions.add(new FeatureAction(8, "Botanical Wayfinder", gui::isForagingOpen, gui::toggleForaging));
         featureActions.add(new FeatureAction(9, "Ring of Brodgar Wiki", gui::isWikiOpen, gui::toggleWiki));
+        featureActions.add(new FeatureAction(3, "World Activity Board", gui::isWorldActivityBoardOpen,
+                gui::toggleWorldActivityBoard));
         featureActions.add(new FeatureAction(2, "Session Conservatory", gui::isSessionConservatoryOpen,
                 gui::toggleSessionConservatory));
     }

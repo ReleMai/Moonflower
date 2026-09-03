@@ -41,6 +41,25 @@ public final class InventorySorterChecks {
 		InventorySortLayout.slotsForPixels(49, 33) == 1,
 	    "sprite dimensions should use the client grid rounding");
 
+	InventorySortIdentity original = new InventorySortIdentity(41,
+		"gfx/invobjs/flaxseed", "4 seeds of Flax", 37.5, 4);
+	InventorySortIdentity rebound = new InventorySortIdentity(99,
+		"gfx/invobjs/flaxseed", "4 seeds of Flax", 37.5, 4);
+	require(original.matches(rebound),
+		"server-recreated cursor item should match its value identity");
+	InventorySortIdentity tooltipPending = new InventorySortIdentity(99,
+		"gfx/invobjs/flaxseed", "", null, InventorySortIdentity.UNKNOWN_AMOUNT);
+	require(original.matches(tooltipPending),
+		"cursor acknowledgement should work before its tooltip arrives");
+	InventorySortIdentity changedQuality = new InventorySortIdentity(99,
+		"gfx/invobjs/flaxseed", "4 seeds of Flax", 42.0, 4);
+	require(!original.matches(changedQuality),
+		"different-quality duplicate must not be acknowledged as the same item");
+	InventorySortIdentity sameWidget = new InventorySortIdentity(41,
+		"gfx/invobjs/clay", "Bail Clay", 1.0, 1);
+	require(original.matches(sameWidget),
+		"unchanged server widget id remains the strongest identity path");
+
 	System.out.println("Inventory sorter checks passed.");
     }
 

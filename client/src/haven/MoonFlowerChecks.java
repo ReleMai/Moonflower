@@ -23,6 +23,13 @@ public final class MoonFlowerChecks {
         Path installDirectory = ClientInstall.directory();
         require(Files.isRegularFile(installDirectory.resolve("res/customclient/bgsizer.png")),
                 "packaged resource directory");
+        require(MoonFlowerFont.bundled(), "packaged Moonflower Display font");
+        for(String background : MoonFlowerScreenTheme.loginBackgrounds())
+            require(Files.isRegularFile(installDirectory.resolve("res/customclient").resolve(
+                    background)), "login background " + background);
+        for(String background : MoonFlowerScreenTheme.characterBackgrounds())
+            require(Files.isRegularFile(installDirectory.resolve("res/customclient").resolve(
+                    background)), "character background " + background);
         Path decoded = ClientInstall.launcherOriginal(Paths.get(
                 "C:\\Users\\Test\\AppData\\Local\\Haven Launcher\\cache\\file\\" +
                 "C%3a\\Program Files %28x86%29\\Steam\\steamapps\\workshop\\content\\" +
