@@ -7,6 +7,18 @@
 | `main` | Stable, GitHub-default source | Keep buildable and merge reviewed changes here |
 | `testing` | Current integration and local client testing | Put active feature checkpoints here before promotion |
 
+## Branch rules
+
+- New changes and ordinary local builds start on `testing`.
+- `main` is read-only for development. Promote tested work through review or a
+  separately authorized release action.
+- After switching branches, rebuild before launching; `client/bin` and
+  `client/build` are ignored generated output and can otherwise represent a
+  different branch.
+- Confirm the source/package relationship with
+  `scripts/Show-MoonFlowerStatus.ps1`. Do not call a client run a `testing`
+  run unless its packaged JAR reports `MATCH` with the `testing` HEAD.
+
 Older branch tips from the cleanup are preserved as local/remote archive tags
 under `archive/cleanup-2026-09-02/`. They are historical recovery points, not
 part of the normal workflow.
@@ -45,6 +57,7 @@ the package is stale or belongs to another branch.
 Close all MoonFlower/Haven clients first, then run:
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-testing-branch.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-client-stopped.ps1
 Push-Location client
 ant clean deftgt

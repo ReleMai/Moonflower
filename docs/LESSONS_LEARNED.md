@@ -20,6 +20,16 @@ Rule to remember next time:
 ## Entries
 
 ```text
+Date: 2026-09-02
+Task: Make testing the default development and local-build branch.
+What worked: A project-level AGENTS.md rule, a human-facing project map, and a fail-closed branch check make the intended workflow visible and repeatable.
+What was confusing: Generated client/bin output can survive a branch switch and look like source from the wrong branch.
+What broke or almost broke: Building on main or detached HEAD would make local artifacts difficult to attribute to active work.
+What I learned: Source branch, embedded JAR revision, and launch mode must be checked together.
+Rule to remember next time: Start ordinary work on testing, keep main read-only for development, and require a MATCH status before calling a local client run current.
+```
+
+```text
 Date: 2026-08-31
 Task: Make GitHub-first MoonFlower production updates an automatic project rule.
 What worked: Pairing project-level AGENTS.md instructions with an executable privacy and commit-detail gate made the release process both discoverable in new chats and enforceable in GitHub Actions.

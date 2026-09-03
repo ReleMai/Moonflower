@@ -58,6 +58,36 @@ Follow the structure in [docs/FILE_ORGANIZATION.md](docs/FILE_ORGANIZATION.md).
 Use the active scope in [docs/CURRENT_TASKS.md](docs/CURRENT_TASKS.md).
 Record debt in [docs/TECHNICAL_DEBT.md](docs/TECHNICAL_DEBT.md) when shortcuts are taken.
 
+## Default Development Branch
+
+- `testing` is the default and required branch for new development in this
+  repository. If a task does not name a branch, switch to `testing` before
+  editing, committing, or running a local client build.
+- `main` is the stable, GitHub-default branch. Treat it as read-only during
+  development: do not make direct feature commits there, do not use it as the
+  working branch for local client builds, and do not push to it as part of an
+  ordinary task.
+- Before starting work, run `git fetch origin --prune`, verify
+  `git branch --show-current` reports `testing`, and confirm the worktree is
+  clean or that any existing changes are explicitly understood and preserved.
+  Never switch away from a dirty worktree by discarding its changes.
+- Before a local build, run the testing-branch guard:
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/assert-testing-branch.ps1`.
+  Then run
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/assert-client-stopped.ps1`.
+  Build from `testing`, then run `scripts/Show-MoonFlowerStatus.ps1`; the
+  build classes and packaged JAR must report `MATCH` with the `testing` HEAD.
+- Use `client/Play.bat -NoUpdate` when testing the package built from this
+  checkout. The plain launcher follows the stable update feed and is not proof
+  that the local `testing` build is running.
+- Promotion from `testing` to `main` is a separate reviewed release action.
+  It requires explicit user authorization and the GitHub-first release gates
+  below. A CI/release build may inspect `main` as part of that authorized
+  promotion; that exception does not make `main` a development workspace.
+- `client/Play.bat -BranchSelect` is an explicit isolated-test exception: it
+  may build a selected branch in a temporary detached worktree, but it must
+  not change the active checkout or commit development work to `main`.
+
 ## Task Workflow
 For each task:
 1. Understand the request.

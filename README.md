@@ -16,6 +16,9 @@ This repository uses two normal branches:
 - `testing` is the active integration branch for current client changes and
   supervised local testing.
 
+All ordinary edits and local builds belong on `testing`. `main` is reserved for
+reviewed promotion and release work; do not develop directly on it.
+
 The generated `client/bin` package is not source control. After switching
 branches, rebuild before judging what the client contains. Use
 `\.\client\Play.bat -NoUpdate` to run the locally built package; the plain
