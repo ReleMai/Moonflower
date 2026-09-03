@@ -40,6 +40,16 @@ Rule to remember next time: Use descriptive names and bodies for every branch, c
 ```
 
 ```text
+Date: 2026-09-02
+Task: Make the personal branch selector explain remote state and long-running test operations.
+What worked: Refreshing remote refs into commit/message/local-relationship records and keeping Git/Ant work in a background worker makes the selected test target and current stage visible.
+What was confusing: A captured Ant command can leave the terminal blank while it is still running, and a new detached worktree normally has no ignored client/bin package for a run-only action.
+What broke or almost broke: Returning launcher output through the PowerShell pipeline could be mistaken for the numeric process exit code; the selector now writes that output to the terminal explicitly and fails closed when no package exists.
+What I learned: A progress bar needs a stage label, elapsed time, recent activity, selected commit, and explicit cleanup/launch plan to be trustworthy.
+Rule to remember next time: Keep branch discovery repository-derived, show the exact action plan before execution, report long-running progress, and distinguish build completion from live-game verification.
+```
+
+```text
 Date: 2026-08-31
 Task: Make GitHub-first MoonFlower production updates an automatic project rule.
 What worked: Pairing project-level AGENTS.md instructions with an executable privacy and commit-detail gate made the release process both discoverable in new chats and enforceable in GitHub Actions.
